@@ -94,7 +94,6 @@ class TreadmillSession(private val appContext: Context) {
     private val _uiCalories = MutableStateFlow(0)
     val uiCalories: StateFlow<Int> = _uiCalories.asStateFlow()
 
-    // [ФИКС] Кулдаун после ручного отключения — чтобы не сканировать сразу
     private val _scanCooldownUntil = MutableStateFlow(0L)
     val scanCooldownUntil: StateFlow<Long> = _scanCooldownUntil.asStateFlow()
 
@@ -307,7 +306,6 @@ class TreadmillSession(private val appContext: Context) {
     }
 
     fun startScanTreadmill() {
-        // [ФИКС] Не даём сканировать слишком быстро после отключения
         val wait = (_scanCooldownUntil.value - System.currentTimeMillis()).coerceAtLeast(0)
         if (wait > 0) {
             _statusMessage.value = "Подождите ${(wait / 1000).toInt() + 1} сек перед повторным сканированием"
@@ -449,9 +447,9 @@ class TreadmillSession(private val appContext: Context) {
         lastConnectedMac = null
         addLog("Ручное отключение дорожки")
         
-        // [ФИКС] Ставим кулдаун 10 секунд перед повторным сканированием
-        _scanCooldownUntil.value = System.currentTimeMillis() + 10_000L
-        _statusMessage.value = "Отключено. Подождите 10 сек перед повторным сканированием."
+        // [ФИКС] Теперь GATT закрывается моментально, кулдаун можно сделать 5 секунд
+        _scanCooldownUntil.value = System.currentTimeMillis() + 5_000L
+        _statusMessage.value = "Отключено. Подождите 5 сек перед повторным сканированием."
         
         autoReconnectJob?.cancel()
         autoReconnectJob = null
@@ -464,7 +462,15 @@ class TreadmillSession(private val appContext: Context) {
     private fun disconnectTreadmillInternal() {
         treadmillStateJob?.cancel()
         treadmillNotifyJob?.cancel()
-        treadmillLogJob?.cancel()
+        
+        // [ФИКС] Не отменяем логгер сразу, чтобы увидеть процесс закрытия GATT
+        val oldLogJob = treadmillLogJob
+        scope.launch {
+            delay(2000L)
+            oldLogJob?.cancel()
+        }
+        treadmillLogJob = null
+        
         autoHrJob?.cancel()
         autoHrJob = null
         startJob?.cancel()
