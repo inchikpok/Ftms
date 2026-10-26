@@ -32,6 +32,7 @@ import com.custom.treadmill.ui.hasBlePermissions
 import com.custom.treadmill.ui.requiredBlePermissions
 import com.custom.treadmill.ui.viewmodels.MainViewModel
 import com.custom.treadmill.ui.viewmodels.ScanMode
+import kotlinx.coroutines.delay
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -62,6 +63,20 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val treadmillReady = treadmillState == BleConnectionState.READY
     val speedStep = settings.speedStepKmh
     val showIncline = !capabilities.isLoaded || capabilities.supportsIncline
+
+    // [ФИКС] Кулдаун сканирования после отключения
+    var cooldownRemaining by remember { mutableStateOf(0) }
+    val cooldownUntil by vm.scanCooldownUntil.collectAsState()
+    
+    LaunchedEffect(cooldownUntil) {
+        while (true) {
+            val rem = ((cooldownUntil - System.currentTimeMillis()) / 1000L).toInt() + 1
+            cooldownRemaining = if (rem > 0) rem else 0
+            if (cooldownRemaining == 0) break
+            delay(500)
+        }
+    }
+    val scanBlocked = cooldownRemaining > 0
 
     var showCapsDialog by remember { mutableStateOf(false) }
     var capsShownFor by remember { mutableStateOf<String?>(null) }
@@ -152,16 +167,24 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         label = "Дорожка",
                         deviceName = treadmillName,
                         state = treadmillState,
-                        onConnect = { vm.startScanTreadmill() },
+                        onConnect = { 
+                            if (!scanBlocked) vm.startScanTreadmill()
+                            else vm.showMessage("Подождите $cooldownRemaining сек")
+                        },
                         onDisconnect = { vm.disconnectTreadmill() },
+                        cooldownRemaining = cooldownRemaining,
                         modifier = Modifier.weight(1f)
                     )
                     CompactStatus(
                         label = "Пульсометр",
                         deviceName = hrName,
                         state = hrState,
-                        onConnect = { vm.startScanHeartRate() },
+                        onConnect = { 
+                            if (!scanBlocked) vm.startScanHeartRate()
+                            else vm.showMessage("Подождите $cooldownRemaining сек")
+                        },
                         onDisconnect = { vm.disconnectHeartRate() },
+                        cooldownRemaining = 0,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -368,6 +391,7 @@ private fun CompactStatus(
     state: BleConnectionState,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
+    cooldownRemaining: Int,
     modifier: Modifier = Modifier
 ) {
     val (dotColor, statusText) = when (state) {
@@ -412,9 +436,15 @@ private fun CompactStatus(
             } else {
                 Button(
                     onClick = onConnect,
+                    enabled = cooldownRemaining == 0,
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(vertical = 2.dp)
-                ) { Text("Подкл.", fontSize = 11.sp) }
+                ) { 
+                    Text(
+                        if (cooldownRemaining > 0) "Ждите ${cooldownRemaining}с" else "Подкл.", 
+                        fontSize = 11.sp
+                    ) 
+                }
             }
         }
     }
