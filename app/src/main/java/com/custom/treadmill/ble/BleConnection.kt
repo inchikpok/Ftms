@@ -9,8 +9,6 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -150,6 +148,14 @@ class BleConnection(
     fun connect(device: BluetoothDevice) {
         log("Подключение к ${device.address}…")
         _state.value = BleConnectionState.CONNECTING
+        
+        // [ФИКС] Принудительно закрываем старое подключение, если оно было
+        try {
+            gatt?.disconnect()
+            gatt?.close()
+        } catch (_: Exception) {}
+        gatt = null
+        
         gatt = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
@@ -164,30 +170,16 @@ class BleConnection(
     }
 
     fun disconnect() {
-        _state.value = BleConnectionState.DISCONNECTED
-        
-        // [ФИКС] Пытаемся отключиться корректно, не убивая связь мгновенно
-        val localGatt = gatt
         try {
-            localGatt?.disconnect()
-            
-            // Если через 2 секунды система не вызвала onConnectionStateChange(DISCONNECTED), 
-            // закрываем принудительно, чтобы не было утечки
-            Handler(Looper.getMainLooper()).postDelayed({
-                if (gatt == localGatt) {
-                    try { gatt?.close() } catch (_: Exception) {}
-                    gatt = null
-                }
-            }, 2000)
-        } catch (_: Exception) {
-            try { localGatt?.close() } catch (_: Exception) {}
-            gatt = null
-        }
-        
+            gatt?.disconnect()
+            gatt?.close()
+        } catch (_: Exception) {}
+        gatt = null
         pendingReads.values.forEach { it.complete(null) }
         pendingReads.clear()
         pendingWrites.values.forEach { it.complete(false) }
         pendingWrites.clear()
+        _state.value = BleConnectionState.DISCONNECTED
     }
 
     fun isReady(): Boolean = _state.value == BleConnectionState.READY && gatt != null
