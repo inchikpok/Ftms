@@ -46,6 +46,7 @@ class TreadmillSession(private val appContext: Context) {
     private var hrNotifyJob: Job? = null
     private var hrLogJob: Job? = null
     private var autoHrJob: Job? = null
+    private var reconnectJob: Job? = null // <--- [ФИКС] Ссылка на цикл переподключения
 
     private val _treadmillState = MutableStateFlow(BleConnectionState.DISCONNECTED)
     val treadmillState: StateFlow<BleConnectionState> = _treadmillState.asStateFlow()
@@ -308,7 +309,10 @@ class TreadmillSession(private val appContext: Context) {
     fun connectTreadmill(device: BluetoothDevice) {
         lastConnectedMac = device.address
         isManualDisconnect = false
-        isAutoReconnecting = false // <--- Сбрасываем флаг переподключения
+        isAutoReconnecting = false
+        reconnectJob?.cancel() // [ФИКС] Обрываем возможные фоновые циклы
+        reconnectJob = null
+        
         disconnectTreadmillInternal()
 
         _treadmillName.value = try { device.name } catch (_: SecurityException) { null } ?: "Дорожка"
@@ -347,9 +351,8 @@ class TreadmillSession(private val appContext: Context) {
         addLog("Связь потеряна. Запуск автопереподключения к $mac...")
         _statusMessage.value = "Связь потеряна. Переподключение..."
 
-        scope.launch {
+        reconnectJob = scope.launch {
             for (i in 1..10) {
-                // [ФИКС] Прерываем цикл, если пользователь сам нажал "Отключить"
                 if (isManualDisconnect) {
                     addLog("Автопереподключение отменено пользователем")
                     break
@@ -412,7 +415,9 @@ class TreadmillSession(private val appContext: Context) {
 
     fun disconnectTreadmill() {
         isManualDisconnect = true
-        isAutoReconnecting = false // <--- Останавливаем фоновые попытки
+        isAutoReconnecting = false
+        reconnectJob?.cancel() // [ФИКС] Убиваем фоновый цикл
+        reconnectJob = null
         lastConnectedMac = null
         addLog("Ручное отключение дорожки")
         disconnectTreadmillInternal()
