@@ -10,8 +10,6 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,9 +32,11 @@ class BleManager(private val context: Context) {
     private val _scanLog = MutableSharedFlow<String>(extraBufferCapacity = 512)
     val scanLog: SharedFlow<String> = _scanLog.asSharedFlow()
 
+    // [ФИКС] Кулдаун сканирования на уровне BleManager
+    private val _scanCooldownUntil = MutableStateFlow(0L)
+    val scanCooldownUntil: StateFlow<Long> = _scanCooldownUntil.asStateFlow()
+
     private var scanning = false
-    private val handler = Handler(Looper.getMainLooper())
-    private var scanRunnable: Runnable? = null
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
@@ -73,11 +73,28 @@ class BleManager(private val context: Context) {
 
     fun isBluetoothEnabled(): Boolean = adapter?.isEnabled == true
 
+    /** [ФИКС] Установить кулдаун — блокирует любые сканирования на N мс. */
+    fun setScanCooldown(ms: Long) {
+        val until = System.currentTimeMillis() + ms
+        _scanCooldownUntil.value = until
+        _scanLog.tryEmit("Установлен кулдаун сканирования до ${until} (${ms}мс)")
+    }
+
     fun startScan() {
         if (!hasScanPermission()) {
             _scanLog.tryEmit("Нет разрешения на сканирование BLE")
             return
         }
+
+        // [ФИКС] Проверяем кулдаун на самом низком уровне
+        val now = System.currentTimeMillis()
+        val wait = (_scanCooldownUntil.value - now).coerceAtLeast(0)
+        if (wait > 0) {
+            val sec = (wait / 1000).toInt() + 1
+            _scanLog.tryEmit("Сканирование заблокировано кулдауном: осталось $sec сек")
+            return
+        }
+
         val a = adapter ?: run {
             _scanLog.tryEmit("Bluetooth адаптер недоступен")
             return
@@ -86,36 +103,29 @@ class BleManager(private val context: Context) {
             _scanLog.tryEmit("Bluetooth выключен")
             return
         }
+        val scanner = a.bluetoothLeScanner ?: run {
+            _scanLog.tryEmit("BLE сканер недоступен")
+            return
+        }
 
-        // Отменяем старые задачи и принудительно стопаем сканер
-        scanRunnable?.let { handler.removeCallbacks(it) }
         try {
-            a.bluetoothLeScanner?.stopScan(scanCallback)
+            scanner.stopScan(scanCallback)
         } catch (_: Exception) {}
 
         _scanResults.value = emptyList()
-        _scanLog.tryEmit("Подготовка к сканированию...")
-
-        // [ФИКС] Даем дорожке 1.5 секунды, чтобы она "поняла", что отключилась, и начала вещать сигнал заново
-        scanRunnable = Runnable {
-            val scanner = a.bluetoothLeScanner ?: return@Runnable
-            val settings = ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .build()
-            try {
-                scanner.startScan(null, settings, scanCallback)
-                scanning = true
-                _scanLog.tryEmit("Сканирование запущено")
-            } catch (e: Exception) {
-                _scanLog.tryEmit("Ошибка запуска сканирования: ${e.message}")
-            }
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
+        try {
+            scanner.startScan(null, settings, scanCallback)
+            scanning = true
+            _scanLog.tryEmit("Сканирование запущено")
+        } catch (e: Exception) {
+            _scanLog.tryEmit("Ошибка запуска сканирования: ${e.message}")
         }
-        handler.postDelayed(scanRunnable!!, 1500)
     }
 
     fun stopScan() {
-        scanRunnable?.let { handler.removeCallbacks(it) }
-        scanRunnable = null
         try { adapter?.bluetoothLeScanner?.stopScan(scanCallback) } catch (_: Exception) {}
         scanning = false
         _scanLog.tryEmit("Сканирование остановлено")
