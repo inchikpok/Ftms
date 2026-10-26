@@ -308,6 +308,7 @@ class TreadmillSession(private val appContext: Context) {
     fun connectTreadmill(device: BluetoothDevice) {
         lastConnectedMac = device.address
         isManualDisconnect = false
+        isAutoReconnecting = false // <--- Сбрасываем флаг переподключения
         disconnectTreadmillInternal()
 
         _treadmillName.value = try { device.name } catch (_: SecurityException) { null } ?: "Дорожка"
@@ -348,6 +349,11 @@ class TreadmillSession(private val appContext: Context) {
 
         scope.launch {
             for (i in 1..10) {
+                // [ФИКС] Прерываем цикл, если пользователь сам нажал "Отключить"
+                if (isManualDisconnect) {
+                    addLog("Автопереподключение отменено пользователем")
+                    break
+                }
                 if (_treadmillState.value == BleConnectionState.READY) break
 
                 addLog("Попытка переподключения $i из 10...")
@@ -374,11 +380,11 @@ class TreadmillSession(private val appContext: Context) {
             }
 
             isAutoReconnecting = false
-            if (_treadmillState.value != BleConnectionState.READY) {
+            if (_treadmillState.value != BleConnectionState.READY && !isManualDisconnect) {
                 addLog("Автопереподключение не удалось после 10 попыток.")
                 _statusMessage.value = "Не удалось переподключиться. Нажмите кнопку на дорожке."
                 stopService()
-            } else {
+            } else if (!isManualDisconnect) {
                 addLog("Связь успешно восстановлена!")
                 _statusMessage.value = "Связь восстановлена!"
             }
@@ -406,6 +412,7 @@ class TreadmillSession(private val appContext: Context) {
 
     fun disconnectTreadmill() {
         isManualDisconnect = true
+        isAutoReconnecting = false // <--- Останавливаем фоновые попытки
         lastConnectedMac = null
         addLog("Ручное отключение дорожки")
         disconnectTreadmillInternal()
@@ -523,7 +530,10 @@ class TreadmillSession(private val appContext: Context) {
     fun startTreadmill() {
         if (_treadmillState.value != BleConnectionState.READY) return
         val isResume = _isPaused.value
-        if (isResume) speak("Продолжаем")
+        if (isResume) {
+            val text = settingsStore.settings.value.ttsResumeText
+            if (text.isNotBlank()) speak(text)
+        }
         if (!isResume) {
             workoutManager.stop()
             resetMetrics()
