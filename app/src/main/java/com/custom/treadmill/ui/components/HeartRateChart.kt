@@ -63,27 +63,22 @@ fun HeartRateChart(
 
     val minT = points.first().timestamp
     val maxT = points.last().timestamp
+    val midT = minT + (maxT - minT) / 2
     val fmt = SimpleDateFormat("dd.MM", Locale.getDefault())
 
-    val lineColor = Color(0xFFE53935)
+    val lineColor = Color(0xFFE53935) // Насыщенный красный
     val targetColor = Color(0xFF1976D2)
     val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val zoneColors = listOf(
-        Color(0xFF64B5F6), // Z1
-        Color(0xFF81C784), // Z2
-        Color(0xFFFFD54F), // Z3
-        Color(0xFFFFB74D), // Z4
-        Color(0xFFE57373)  // Z5
+        Color(0xFF64B5F6), Color(0xFF81C784), Color(0xFFFFD54F), Color(0xFFFFB74D), Color(0xFFE57373)
     )
-    val zoneAlpha = 0.15f
+    val zoneAlpha = 0.10f // Сделали зоны едва заметными (для экрана тренировки)
 
     Column(modifier) {
-        // График + ось Y
         Row(Modifier.fillMaxWidth().weight(1f)) {
-            
-            // Ось Y (подписи слева)
+            // Ось Y
             Column(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -91,9 +86,9 @@ fun HeartRateChart(
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End
             ) {
-                Text("$yMax", fontSize = 10.sp, color = textColor)
-                Text("$yMid", fontSize = 10.sp, color = textColor)
-                Text("$yMin", fontSize = 10.sp, color = textColor)
+                Text("$yMax", fontSize = 10.sp, color = textColor, fontWeight = FontWeight.Medium)
+                Text("$yMid", fontSize = 10.sp, color = textColor, fontWeight = FontWeight.Medium)
+                Text("$yMin", fontSize = 10.sp, color = textColor, fontWeight = FontWeight.Medium)
             }
 
             // Сам график
@@ -101,27 +96,27 @@ fun HeartRateChart(
                 val w = size.width
                 val h = size.height
 
-                // Рисуем зоны
+                // Отрисовка зон (если переданы)
                 fun drawZone(startVal: Float, endVal: Float, color: Color) {
                     if (startVal >= endVal) return
                     val topY = h * (1f - (endVal - yMin) / yRange)
                     val bottomY = h * (1f - (startVal - yMin) / yRange)
                     drawRect(
                         color = color,
-                        topLeft = Offset(0f, topY),
+                        topLeft = Offset(0f, topY.coerceIn(0f, h)),
                         size = Size(w, (bottomY - topY).coerceAtLeast(1f))
                     )
                 }
 
                 if (zoneBounds.size == 5) {
-                    drawZone(0f, zoneBounds[0].toFloat(), zoneColors[0].copy(alpha = zoneAlpha))
+                    drawZone(yMin.toFloat(), zoneBounds[0].toFloat(), zoneColors[0].copy(alpha = zoneAlpha))
                     drawZone(zoneBounds[0].toFloat(), zoneBounds[1].toFloat(), zoneColors[1].copy(alpha = zoneAlpha))
                     drawZone(zoneBounds[1].toFloat(), zoneBounds[2].toFloat(), zoneColors[2].copy(alpha = zoneAlpha))
                     drawZone(zoneBounds[2].toFloat(), zoneBounds[3].toFloat(), zoneColors[3].copy(alpha = zoneAlpha))
-                    drawZone(zoneBounds[3].toFloat(), 250f, zoneColors[4].copy(alpha = zoneAlpha * 1.5f))
+                    drawZone(zoneBounds[3].toFloat(), yMax.toFloat(), zoneColors[4].copy(alpha = zoneAlpha))
                 }
 
-                // Сетка (3 линии)
+                // Сетка
                 val ySteps = 2
                 for (i in 0..ySteps) {
                     val y = h * (i / ySteps.toFloat())
@@ -140,33 +135,53 @@ fun HeartRateChart(
                     )
                 }
 
-                // Линия пульса и градиент
+                // Построение графика
                 val tRange = (maxT - minT).coerceAtLeast(1000L)
+                
+                val offsets = points.map { p ->
+                    val x = w * (p.timestamp - minT).toFloat() / tRange
+                    val y = h * (1f - (p.bpm - yMin).toFloat() / yRange)
+                    Offset(x, y)
+                }
+
                 val linePath = Path()
                 val fillPath = Path()
 
-                points.forEachIndexed { i, p ->
-                    val x = w * (p.timestamp - minT).toFloat() / tRange
-                    val y = h * (1f - (p.bpm - yMin).toFloat() / yRange)
-                    
-                    if (i == 0) {
-                        linePath.moveTo(x, y)
-                        fillPath.moveTo(x, h)
-                        fillPath.lineTo(x, y)
-                    } else {
-                        linePath.lineTo(x, y)
-                        fillPath.lineTo(x, y)
+                if (offsets.size == 1) {
+                    // Если всего одна точка (одна тренировка) — рисуем точку и горизонтальную линию
+                    val p = offsets[0]
+                    linePath.moveTo(0f, p.y)
+                    linePath.lineTo(w, p.y)
+                    fillPath.moveTo(0f, h)
+                    fillPath.lineTo(0f, p.y)
+                    fillPath.lineTo(w, p.y)
+                    fillPath.lineTo(w, h)
+                    fillPath.close()
+                    drawCircle(color = lineColor, radius = 4.dp.toPx(), center = p)
+                } else {
+                    // Сглаженная кривая Безье (Catmull-Rom)
+                    linePath.moveTo(offsets[0].x, offsets[0].y)
+                    fillPath.moveTo(offsets[0].x, h)
+                    fillPath.lineTo(offsets[0].x, offsets[0].y)
+
+                    for (i in 0 until offsets.size - 1) {
+                        val p0 = offsets[i]
+                        val p1 = offsets[i + 1]
+                        // Делаем касательные горизонтальными, чтобы избежать "выбросов" кривой за пределы точек
+                        val cp1 = Offset(p0.x + (p1.x - p0.x) / 2f, p0.y)
+                        val cp2 = Offset(p0.x + (p1.x - p0.x) / 2f, p1.y)
+                        
+                        linePath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, p1.x, p1.y)
+                        fillPath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, p1.x, p1.y)
                     }
-                    if (i == points.size - 1) {
-                        fillPath.lineTo(x, h)
-                        fillPath.close()
-                    }
+                    fillPath.lineTo(offsets.last().x, h)
+                    fillPath.close()
                 }
 
                 drawPath(
                     path = fillPath,
                     brush = Brush.verticalGradient(
-                        colors = listOf(lineColor.copy(alpha = 0.25f), Color.Transparent),
+                        colors = listOf(lineColor.copy(alpha = 0.30f), Color.Transparent),
                         startY = 0f,
                         endY = h
                     )
@@ -175,8 +190,16 @@ fun HeartRateChart(
                 drawPath(
                     path = linePath, 
                     color = lineColor, 
-                    style = Stroke(width = 2.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
+                
+                // Точки поверх графика (если их не слишком много)
+                if (offsets.size in 2..20) {
+                    offsets.forEach { 
+                        drawCircle(color = lineColor, radius = 3.5.dp.toPx(), center = it)
+                        drawCircle(color = Color.White, radius = 1.5.dp.toPx(), center = it)
+                    }
+                }
             }
         }
 
@@ -185,8 +208,11 @@ fun HeartRateChart(
             Modifier.fillMaxWidth().padding(start = 32.dp, top = 4.dp, end = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(fmt.format(Date(minT)), fontSize = 10.sp, color = textColor)
-            Text(fmt.format(Date(maxT)), fontSize = 10.sp, color = textColor)
+            Text(fmt.format(Date(minT)), fontSize = 10.sp, color = textColor, fontWeight = FontWeight.Medium)
+            if (minT != maxT) {
+                Text(fmt.format(Date(midT)), fontSize = 10.sp, color = textColor, fontWeight = FontWeight.Medium)
+                Text(fmt.format(Date(maxT)), fontSize = 10.sp, color = textColor, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }
