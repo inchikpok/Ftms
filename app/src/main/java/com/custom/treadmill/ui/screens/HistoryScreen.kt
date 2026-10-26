@@ -50,7 +50,6 @@ import com.custom.treadmill.data.database.WorkoutLogEntity
 import com.custom.treadmill.logic.HeartRateZoneCalculator
 import com.custom.treadmill.ui.components.HeartRateChart
 import com.custom.treadmill.ui.components.HrPoint
-import com.custom.treadmill.ui.components.ZoneLegend
 import com.custom.treadmill.ui.viewmodels.ProgramViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -396,13 +395,8 @@ private fun ChartCard(
                 showTargetLine = false,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(160.dp)
+                    .height(180.dp) // Даем больше высоты, так как легенда и даты встроены
             )
-            
-            Spacer(Modifier.height(12.dp))
-            
-            // Компактная легенда
-            ZoneLegend(zoneBounds)
         }
     }
 }
