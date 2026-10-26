@@ -13,13 +13,16 @@ import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -60,6 +63,10 @@ class BleConnection(
     private val pendingReads = ConcurrentHashMap<UUID, CompletableDeferred<ByteArray?>>()
     private val pendingWrites = ConcurrentHashMap<UUID, CompletableDeferred<Boolean>>()
 
+    // [ФИКС] Флаг «идёт запрошенное отключение» + таймаут на случай, если callback не придёт.
+    @Volatile private var isDisconnecting = false
+    private var disconnectTimeoutJob: Job? = null
+
     private fun log(msg: String) {
         Log.d(tag, msg)
         _log.tryEmit("[$tag] $msg")
@@ -71,27 +78,25 @@ class BleConnection(
             log("onConnectionStateChange status=$status newState=$newState")
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
+                    // [ФИКС] Если мы уже запросили disconnect пока шло подключение — отрубаемся сразу.
+                    if (isDisconnecting) {
+                        log("CONNECTED после запроса disconnect — отключаемся повторно")
+                        try { g.disconnect() } catch (_: Exception) {}
+                        return
+                    }
                     _state.value = BleConnectionState.CONNECTED
                     g.discoverServices()
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
-                    _state.value = BleConnectionState.DISCONNECTED
-                    
-                    // Если disconnect() уже закрыл gatt, эта проверка не даст упасть
-                    if (gatt == g) {
-                        try {
-                            val refreshMethod = g.javaClass.getMethod("refresh")
-                            refreshMethod.invoke(g)
-                            log("GATT refresh OK (callback)")
-                        } catch (_: Exception) { }
-                        try { g.close() } catch (_: Exception) {}
-                        gatt = null
+                    log("DISCONNECTED callback")
+                    if (gatt === g) {
+                        // Это текущий GATT — закрываем и чистим
+                        forceCloseGatt(g)
+                    } else {
+                        // Старый GATT (уже заменён новым) — просто сбрасываем флаг
+                        log("Старый GATT отключился — игнорируем")
+                        isDisconnecting = false
                     }
-                    
-                    pendingReads.values.forEach { it.complete(null) }
-                    pendingReads.clear()
-                    pendingWrites.values.forEach { it.complete(false) }
-                    pendingWrites.clear()
                 }
             }
         }
@@ -158,10 +163,15 @@ class BleConnection(
     fun connect(device: BluetoothDevice) {
         log("Подключение к ${device.address}…")
         _state.value = BleConnectionState.CONNECTING
-        
-        closeSilently(gatt)
+        isDisconnecting = false
+
+        // Defensive: если есть старый GATT (маловероятно, но на всякий) — вычищаем
+        gatt?.let { old ->
+            try { old.disconnect() } catch (_: Exception) {}
+            closeGattSilently(old)
+        }
         gatt = null
-        
+
         gatt = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
@@ -175,47 +185,83 @@ class BleConnection(
         }
     }
 
+    /**
+     * [ФИКС] Правильное отключение:
+     *  1. Отправляем disconnect() в стек BLE.
+     *  2. Ждём onConnectionStateChange(DISCONNECTED) — это значит, что L2CAP-разъединение
+     *     уже улетело на дорожку и она переходит в advertising.
+     *  3. Только теперь refresh() + close() освобождают GATT-клиент.
+     *
+     * Если закрыть GATT мгновенно (как было раньше) — дорожка FitShow «залипает» в
+     * connected-состоянии на 30–60 сек, перестаёт рекламироваться и не находится при
+     * повторном сканировании.
+     *
+     * Фолбэк: если callback не пришёл за 3 сек — принудительно закрываем.
+     */
     fun disconnect() {
+        if (isDisconnecting) {
+            log("disconnect: уже в процессе — игнор")
+            return
+        }
+
         val g = gatt
         if (g == null) {
             _state.value = BleConnectionState.DISCONNECTED
             return
         }
-        log("Запрос на отключение…")
-        
-        // 1. Отправляем запрос на разъединение
+
+        isDisconnecting = true
+        log("Запрос на отключение (ждём DISCONNECTED callback)…")
+
         try {
             g.disconnect()
             log("disconnect() вызван")
         } catch (e: Exception) {
             log("Ошибка disconnect: ${e.message}")
         }
-        
-        // 2. [ФИКС] Мгновенно закрываем GATT, не дожидаясь ответа.
-        // Это принудительно освобождает BLE-стек Android (как при перезапуске приложения).
-        closeSilently(g)
-        gatt = null
-        _state.value = BleConnectionState.DISCONNECTED
-        
-        pendingReads.values.forEach { it.complete(null) }
-        pendingReads.clear()
-        pendingWrites.values.forEach { it.complete(false) }
-        pendingWrites.clear()
+
+        disconnectTimeoutJob?.cancel()
+        disconnectTimeoutJob = scope.launch {
+            delay(3000L)
+            if (gatt === g) {
+                log("Таймаут ожидания DISCONNECTED — принудительное закрытие")
+                forceCloseGatt(g)
+            }
+        }
     }
 
-    private fun closeSilently(g: BluetoothGatt?) {
+    private fun forceCloseGatt(g: BluetoothGatt) {
+        disconnectTimeoutJob?.cancel()
+        disconnectTimeoutJob = null
+
+        closeGattSilently(g)
+
+        if (gatt === g) gatt = null
+        _state.value = BleConnectionState.DISCONNECTED
+        isDisconnecting = false
+        completePending()
+    }
+
+    private fun closeGattSilently(g: BluetoothGatt?) {
         if (g == null) return
         try {
             val refreshMethod = g.javaClass.getMethod("refresh")
             refreshMethod.invoke(g)
-            log("GATT refresh OK (pre-close)")
+            log("GATT refresh OK")
         } catch (_: Exception) { }
-        try { 
+        try {
             g.close()
             log("GATT close OK")
         } catch (e: Exception) {
             log("Ошибка gatt.close: ${e.message}")
         }
+    }
+
+    private fun completePending() {
+        pendingReads.values.forEach { it.complete(null) }
+        pendingReads.clear()
+        pendingWrites.values.forEach { it.complete(false) }
+        pendingWrites.clear()
     }
 
     fun isReady(): Boolean = _state.value == BleConnectionState.READY && gatt != null
