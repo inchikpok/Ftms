@@ -46,7 +46,8 @@ class TreadmillSession(private val appContext: Context) {
     private var hrNotifyJob: Job? = null
     private var hrLogJob: Job? = null
     private var autoHrJob: Job? = null
-    private var startJob: Job? = null // <--- ДОБАВЛЕНО
+    private var startJob: Job? = null
+    private var autoReconnectJob: Job? = null // <--- [ФИКС] Добавлена переменная
 
     private val _treadmillState = MutableStateFlow(BleConnectionState.DISCONNECTED)
     val treadmillState: StateFlow<BleConnectionState> = _treadmillState.asStateFlow()
@@ -347,7 +348,8 @@ class TreadmillSession(private val appContext: Context) {
         addLog("Связь потеряна. Запуск автопереподключения к $mac...")
         _statusMessage.value = "Связь потеряна. Переподключение..."
 
-        scope.launch {
+        // [ФИКС] Сохраняем Job, чтобы можно было отменить
+        autoReconnectJob = scope.launch {
             for (i in 1..10) {
                 if (_treadmillState.value == BleConnectionState.READY) break
 
@@ -375,6 +377,8 @@ class TreadmillSession(private val appContext: Context) {
             }
 
             isAutoReconnecting = false
+            autoReconnectJob = null
+            
             if (_treadmillState.value != BleConnectionState.READY) {
                 addLog("Автопереподключение не удалось после 10 попыток.")
                 _statusMessage.value = "Не удалось переподключиться. Нажмите кнопку на дорожке."
@@ -421,6 +425,12 @@ class TreadmillSession(private val appContext: Context) {
         autoHrJob = null
         startJob?.cancel()
         startJob = null
+        
+        // [ФИКС] Отменяем фоновое переподключение
+        autoReconnectJob?.cancel()
+        autoReconnectJob = null
+        isAutoReconnecting = false
+        
         treadmillConn?.disconnect()
         treadmillConn = null
         protocol = null
@@ -539,7 +549,7 @@ class TreadmillSession(private val appContext: Context) {
         _isPaused.value = false
         isStartingBelt = true
 
-        startJob?.cancel() // [ФИКС] Отменяем предыдущую попытку старта
+        startJob?.cancel()
         startJob = scope.launch {
             try {
                 protocol?.start()
@@ -562,7 +572,7 @@ class TreadmillSession(private val appContext: Context) {
 
     fun pauseTreadmill() {
         if (_treadmillState.value != BleConnectionState.READY || _isPaused.value) return
-        startJob?.cancel() // [ФИКС] Отменяем старт при паузе
+        startJob?.cancel()
         startJob = null
         
         speedBeforePause = _targetSpeed.value.coerceAtLeast(1.0)
@@ -578,7 +588,7 @@ class TreadmillSession(private val appContext: Context) {
     }
 
     fun stopTreadmill() {
-        startJob?.cancel() // [ФИКС] Отменяем фоновый старт при остановке
+        startJob?.cancel()
         startJob = null
 
         val ws = workoutManager.state.value
