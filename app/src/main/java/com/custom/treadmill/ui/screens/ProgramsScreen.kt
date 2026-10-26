@@ -267,8 +267,17 @@ fun ProgramsScreen(
     if (showGenerator) {
         WorkoutGeneratorDialog(
             profile = settings.activeProfile,
+            maxSpeed = settings.maxSpeedKmh,
+            maxIncline = settings.maxInclinePercent,
             onGenerate = { goal, duration, intensity ->
-                val program = ProgramGenerator.generate(settings.activeProfile, goal, duration, intensity)
+                val program = ProgramGenerator.generate(
+                    profile = settings.activeProfile,
+                    goal = goal,
+                    durationMin = duration,
+                    intensityPercent = intensity,
+                    maxSpeedLimit = settings.maxSpeedKmh,
+                    maxInclineLimit = settings.maxInclinePercent
+                )
                 programVm.save(program)
                 mainVm.showMessage("Программа сгенерирована и сохранена!")
                 showGenerator = false
@@ -313,6 +322,8 @@ fun ProgramsScreen(
         val isNew = editingId == 0L
         ProgramEditorScreen(
             initial = data, isNew = isNew,
+            maxSpeed = settings.maxSpeedKmh,
+            maxIncline = settings.maxInclinePercent,
             onShowMessage = { mainVm.showMessage(it) },
             onSave = { newData ->
                 programVm.save(newData, if (isNew) 0L else editingId)
@@ -326,6 +337,8 @@ fun ProgramsScreen(
 @Composable
 private fun WorkoutGeneratorDialog(
     profile: com.custom.treadmill.data.repository.UserProfile,
+    maxSpeed: Double,
+    maxIncline: Double,
     onGenerate: (WorkoutGoal, Int, Int) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -372,6 +385,11 @@ private fun WorkoutGeneratorDialog(
                     Text("Легко", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Максимум", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                
+                Text(
+                    "Скорость ограничена вашими настройками: до ${"%.1f".format(maxSpeed)} км/ч, наклон до ${maxIncline.toInt()}%",
+                    fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)
+                )
             }
         },
         confirmButton = {
@@ -526,9 +544,6 @@ private fun StatChip(text: String) {
     }
 }
 
-// ==========================================================
-//  ШАБЛОНЫ
-// ==========================================================
 @Composable
 private fun TemplatesDialog(onPick: (ProgramData?) -> Unit, onDismiss: () -> Unit) {
     val templates = remember { buildTemplates() }
@@ -623,14 +638,19 @@ private fun buildTemplates(): List<Pair<String, ProgramData>> {
     )
 }
 
-// ==========================================================
-//  РЕДАКТОР (ВОССТАНОВЛЕН)
-// ==========================================================
 private data class SegmentEdit(val name: String = "", val durationSec: Int = 60, val speedKmh: Double = 5.0, val inclinePercent: Double = 0.0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProgramEditorScreen(initial: ProgramData, isNew: Boolean, onShowMessage: (String) -> Unit, onSave: (ProgramData) -> Unit, onDismiss: () -> Unit) {
+private fun ProgramEditorScreen(
+    initial: ProgramData, 
+    isNew: Boolean, 
+    maxSpeed: Double, 
+    maxIncline: Double,
+    onShowMessage: (String) -> Unit, 
+    onSave: (ProgramData) -> Unit, 
+    onDismiss: () -> Unit
+) {
     val segments = remember(initial) {
         mutableStateListOf<SegmentEdit>().apply {
             initial.segments.forEach { add(SegmentEdit(it.name, it.durationSec, it.speedKmh, it.inclinePercent)) }
@@ -701,6 +721,8 @@ private fun ProgramEditorScreen(initial: ProgramData, isNew: Boolean, onShowMess
                         itemsIndexed(segments) { index, seg ->
                             SegmentEditor(
                                 index = index, total = segments.size, seg = seg,
+                                maxSpeed = maxSpeed,
+                                maxIncline = maxIncline,
                                 onChange = { newSeg -> segments[index] = newSeg },
                                 onMoveUp = { 
                                     if (index > 0) { 
@@ -835,7 +857,12 @@ private fun TimePickerDialog(initialSeconds: Int, onConfirm: (Int) -> Unit, onDi
 }
 
 @Composable
-private fun SegmentEditor(index: Int, total: Int, seg: SegmentEdit, onChange: (SegmentEdit) -> Unit, onMoveUp: () -> Unit, onMoveDown: () -> Unit, onDuplicate: () -> Unit, onDelete: () -> Unit, canDelete: Boolean) {
+private fun SegmentEditor(
+    index: Int, total: Int, seg: SegmentEdit,
+    maxSpeed: Double,
+    maxIncline: Double,
+    onChange: (SegmentEdit) -> Unit, onMoveUp: () -> Unit, onMoveDown: () -> Unit, onDuplicate: () -> Unit, onDelete: () -> Unit, canDelete: Boolean
+) {
     var nameState by remember(seg) { mutableStateOf(seg.name) }
     var showTimePicker by remember { mutableStateOf(false) }
 
@@ -917,9 +944,19 @@ private fun SegmentEditor(index: Int, total: Int, seg: SegmentEdit, onChange: (S
             Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Скорость", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    HoldableStepButton(icon = Icons.Default.Remove, onClick = { onChange(seg.copy(speedKmh = (seg.speedKmh - 0.1).coerceAtLeast(0.5).roundToTenth())) }, enabled = seg.speedKmh > 0.5, isPlus = false)
+                    HoldableStepButton(
+                        icon = Icons.Default.Remove, 
+                        onClick = { onChange(seg.copy(speedKmh = (seg.speedKmh - 0.1).coerceAtLeast(0.5).roundToTenth())) }, 
+                        enabled = seg.speedKmh > 0.5, 
+                        isPlus = false
+                    )
                     Text(text = "%.1f".format(seg.speedKmh), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.width(60.dp))
-                    HoldableStepButton(icon = Icons.Default.Add, onClick = { onChange(seg.copy(speedKmh = (seg.speedKmh + 0.1).coerceAtMost(20.0).roundToTenth())) }, enabled = seg.speedKmh < 20.0, isPlus = true)
+                    HoldableStepButton(
+                        icon = Icons.Default.Add, 
+                        onClick = { onChange(seg.copy(speedKmh = (seg.speedKmh + 0.1).coerceAtMost(maxSpeed).roundToTenth())) }, 
+                        enabled = seg.speedKmh < maxSpeed, 
+                        isPlus = true
+                    )
                 }
             }
 
@@ -928,9 +965,19 @@ private fun SegmentEditor(index: Int, total: Int, seg: SegmentEdit, onChange: (S
             Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Наклон", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    HoldableStepButton(icon = Icons.Default.Remove, onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent - 1.0).coerceAtLeast(0.0))) }, enabled = seg.inclinePercent > 0.0, isPlus = false)
+                    HoldableStepButton(
+                        icon = Icons.Default.Remove, 
+                        onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent - 1.0).coerceAtLeast(0.0))) }, 
+                        enabled = seg.inclinePercent > 0.0, 
+                        isPlus = false
+                    )
                     Text(text = "%.0f".format(seg.inclinePercent), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.width(60.dp))
-                    HoldableStepButton(icon = Icons.Default.Add, onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent + 1.0).coerceAtMost(15.0))) }, enabled = seg.inclinePercent < 15.0, isPlus = true)
+                    HoldableStepButton(
+                        icon = Icons.Default.Add, 
+                        onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent + 1.0).coerceAtMost(maxIncline))) }, 
+                        enabled = seg.inclinePercent < maxIncline, 
+                        isPlus = true
+                    )
                 }
             }
         }
