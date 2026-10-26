@@ -3,7 +3,7 @@ package com.custom.treadmill.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -12,7 +12,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -22,7 +26,7 @@ data class HrPoint(val timestamp: Long, val bpm: Int)
 fun HeartRateChart(
     points: List<HrPoint>,
     targetHr: Int = 0,
-    zoneBounds: List<Int> = emptyList(), // [НОВОЕ] Границы зон
+    zoneBounds: List<Int> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     if (points.isEmpty()) {
@@ -53,7 +57,8 @@ fun HeartRateChart(
 
     val lineColor = Color(0xFFC62828)
     val targetColor = Color(0xFF1976D2)
-    val gridColor = Color(0xFFE0E0E0)
+    val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+    val textColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val zone1 = Color(0xFF64B5F6).copy(alpha = 0.15f)
     val zone2 = Color(0xFF81C784).copy(alpha = 0.15f)
@@ -65,14 +70,15 @@ fun HeartRateChart(
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            val padL = 40f
-            val padR = 8f
-            val padT = 8f
-            val padB = 8f
+            val padL = 38.dp.toPx() // Отступ слева под цифры
+            val padR = 8.dp.toPx()
+            val padT = 8.dp.toPx()
+            val padB = 8.dp.toPx()
             val innerW = w - padL - padR
             val innerH = h - padT - padB
             if (innerW <= 0f || innerH <= 0f) return@Canvas
 
+            // 1. Рисуем зоны
             fun drawZone(startVal: Float, endVal: Float, color: Color) {
                 if (startVal >= endVal) return
                 val topY = padT + innerH * (1f - (endVal - yMin) / yRange)
@@ -80,7 +86,6 @@ fun HeartRateChart(
                 drawRect(color = color, topLeft = Offset(padL, topY), size = Size(innerW, bottomY - topY))
             }
 
-            // [НОВОЕ] Используем переданные границы зон
             if (zoneBounds.size == 5) {
                 drawZone(0f, zoneBounds[0].toFloat(), Color.Transparent)
                 drawZone(zoneBounds[0].toFloat(), zoneBounds[1].toFloat(), zone1)
@@ -90,17 +95,47 @@ fun HeartRateChart(
                 drawZone(zoneBounds[4].toFloat(), 250f, zone5)
             }
 
+            // 2. Текст для оси Y
+            val textPaint = android.graphics.Paint().apply {
+                color = textColor.toArgb()
+                textSize = 10.sp.toPx()
+                textAlign = android.graphics.Paint.Align.RIGHT
+                isAntiAlias = true
+            }
+
+            // 3. Горизонтальная сетка и подписи
             val steps = 4
             for (i in 0..steps) {
-                val y = padT + innerH * i / steps.toFloat()
+                val frac = i / steps.toFloat()
+                val y = padT + innerH * frac
+                val value = (yMax - frac * yRange).toInt()
+                
                 drawLine(color = gridColor, start = Offset(padL, y), end = Offset(w - padR, y), strokeWidth = 1f)
+                
+                // Рисуем текст (только если это не самый верх/низ, чтобы не перекрывать края)
+                if (i > 0 && i < steps) {
+                    drawContext.canvas.nativeCanvas.drawText(
+                        "$value",
+                        padL - 6.dp.toPx(),
+                        y + 4.dp.toPx(), // небольшая коррекция для центрирования по вертикали
+                        textPaint
+                    )
+                }
             }
 
+            // 4. Линия цели
             if (target in yMin..yMax) {
                 val ty = padT + innerH * (1f - (target - yMin).toFloat() / yRange)
-                drawLine(color = targetColor, start = Offset(padL, ty), end = Offset(w - padR, ty), strokeWidth = 2f)
+                drawLine(
+                    color = targetColor, 
+                    start = Offset(padL, ty), 
+                    end = Offset(w - padR, ty), 
+                    strokeWidth = 2f,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                )
             }
 
+            // 5. Линия пульса
             val tRange = (maxT - minT).coerceAtLeast(1000L)
             val path = Path()
             points.forEachIndexed { i, p ->
@@ -108,10 +143,7 @@ fun HeartRateChart(
                 val y = padT + innerH * (1f - (p.bpm - yMin).toFloat() / yRange)
                 if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
             }
-            drawPath(path, lineColor, style = Stroke(width = 3f))
+            drawPath(path, lineColor, style = Stroke(width = 3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
-
-        Text("$yMax", fontSize = 11.sp, color = Color(0xFF757575), modifier = Modifier.align(Alignment.TopStart).padding(start = 2.dp, top = 2.dp))
-        Text("$yMin", fontSize = 11.sp, color = Color(0xFF757575), modifier = Modifier.align(Alignment.BottomStart).padding(start = 2.dp, bottom = 2.dp))
     }
 }
