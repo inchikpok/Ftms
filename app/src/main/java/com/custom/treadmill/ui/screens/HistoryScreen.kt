@@ -50,6 +50,7 @@ import com.custom.treadmill.data.database.WorkoutLogEntity
 import com.custom.treadmill.logic.HeartRateZoneCalculator
 import com.custom.treadmill.ui.components.HeartRateChart
 import com.custom.treadmill.ui.components.HrPoint
+import com.custom.treadmill.ui.components.ZoneLegend
 import com.custom.treadmill.ui.viewmodels.ProgramViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -210,7 +211,6 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
 
     val settings = TreadmillApp.instance.settingsStore.settings.value
     val maxHr = HeartRateZoneCalculator.getEffectiveMaxHr(settings)
-    // Берем пульс покоя из активного профиля
     val zoneBounds = HeartRateZoneCalculator.getZoneBounds(maxHr, settings.activeProfile.restingHr)
 
     Column(
@@ -242,15 +242,17 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
         Spacer(Modifier.height(12.dp))
         HeartSummaryCard(withHr)
         Spacer(Modifier.height(12.dp))
+        
         ChartCard(
-            title = "Средний пульс по тренировкам",
+            title = "Средний пульс",
             subtitle = "${withHr.size} тренировок",
             points = withHr.map { HrPoint(it.dateMillis, it.avgHeartRate) },
             zoneBounds = zoneBounds
         )
         Spacer(Modifier.height(12.dp))
+        
         ChartCard(
-            title = "Максимальный пульс по тренировкам",
+            title = "Максимальный пульс",
             subtitle = "Пик за тренировку",
             points = withHr.map { HrPoint(it.dateMillis, it.maxHeartRate) },
             zoneBounds = zoneBounds
@@ -376,7 +378,7 @@ private fun ChartCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(Modifier.padding(12.dp)) {
-            Row(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Text(
                     subtitle,
@@ -385,6 +387,7 @@ private fun ChartCard(
                 )
             }
             Spacer(Modifier.height(8.dp))
+            
             HeartRateChart(
                 points = points,
                 targetHr = 0,
@@ -393,8 +396,13 @@ private fun ChartCard(
                     .fillMaxWidth()
                     .height(180.dp)
             )
+            
+            // Легенда зон
+            Spacer(Modifier.height(12.dp))
+            ZoneLegend(zoneBounds)
+            
             if (points.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth()) {
                     val fmt = SimpleDateFormat("dd.MM", Locale.getDefault())
                     Text(
