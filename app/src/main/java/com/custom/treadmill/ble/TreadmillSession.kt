@@ -46,7 +46,7 @@ class TreadmillSession(private val appContext: Context) {
     private var hrNotifyJob: Job? = null
     private var hrLogJob: Job? = null
     private var autoHrJob: Job? = null
-    private var reconnectJob: Job? = null // <--- [ФИКС] Ссылка на цикл переподключения
+    private var startJob: Job? = null // <--- ДОБАВЛЕНО
 
     private val _treadmillState = MutableStateFlow(BleConnectionState.DISCONNECTED)
     val treadmillState: StateFlow<BleConnectionState> = _treadmillState.asStateFlow()
@@ -309,10 +309,6 @@ class TreadmillSession(private val appContext: Context) {
     fun connectTreadmill(device: BluetoothDevice) {
         lastConnectedMac = device.address
         isManualDisconnect = false
-        isAutoReconnecting = false
-        reconnectJob?.cancel() // [ФИКС] Обрываем возможные фоновые циклы
-        reconnectJob = null
-        
         disconnectTreadmillInternal()
 
         _treadmillName.value = try { device.name } catch (_: SecurityException) { null } ?: "Дорожка"
@@ -351,12 +347,8 @@ class TreadmillSession(private val appContext: Context) {
         addLog("Связь потеряна. Запуск автопереподключения к $mac...")
         _statusMessage.value = "Связь потеряна. Переподключение..."
 
-        reconnectJob = scope.launch {
+        scope.launch {
             for (i in 1..10) {
-                if (isManualDisconnect) {
-                    addLog("Автопереподключение отменено пользователем")
-                    break
-                }
                 if (_treadmillState.value == BleConnectionState.READY) break
 
                 addLog("Попытка переподключения $i из 10...")
@@ -383,11 +375,11 @@ class TreadmillSession(private val appContext: Context) {
             }
 
             isAutoReconnecting = false
-            if (_treadmillState.value != BleConnectionState.READY && !isManualDisconnect) {
+            if (_treadmillState.value != BleConnectionState.READY) {
                 addLog("Автопереподключение не удалось после 10 попыток.")
                 _statusMessage.value = "Не удалось переподключиться. Нажмите кнопку на дорожке."
                 stopService()
-            } else if (!isManualDisconnect) {
+            } else {
                 addLog("Связь успешно восстановлена!")
                 _statusMessage.value = "Связь восстановлена!"
             }
@@ -415,9 +407,6 @@ class TreadmillSession(private val appContext: Context) {
 
     fun disconnectTreadmill() {
         isManualDisconnect = true
-        isAutoReconnecting = false
-        reconnectJob?.cancel() // [ФИКС] Убиваем фоновый цикл
-        reconnectJob = null
         lastConnectedMac = null
         addLog("Ручное отключение дорожки")
         disconnectTreadmillInternal()
@@ -430,6 +419,8 @@ class TreadmillSession(private val appContext: Context) {
         treadmillLogJob?.cancel()
         autoHrJob?.cancel()
         autoHrJob = null
+        startJob?.cancel()
+        startJob = null
         treadmillConn?.disconnect()
         treadmillConn = null
         protocol = null
@@ -515,7 +506,7 @@ class TreadmillSession(private val appContext: Context) {
         scope.launch { protocol?.setIncline(safe) }
     }
 
-    private suspend fun waitForBeltRunning(minSpeedKmh: Double = 0.9, timeoutMs: Long = 30000L): Boolean {
+    private suspend fun waitForBeltRunning(minSpeedKmh: Double = 0.9, timeoutMs: Long = 15000L): Boolean {
         val start = System.currentTimeMillis()
         var lastPingAt = 0L
         while (System.currentTimeMillis() - start < timeoutMs) {
@@ -535,10 +526,7 @@ class TreadmillSession(private val appContext: Context) {
     fun startTreadmill() {
         if (_treadmillState.value != BleConnectionState.READY) return
         val isResume = _isPaused.value
-        if (isResume) {
-            val text = settingsStore.settings.value.ttsResumeText
-            if (text.isNotBlank()) speak(text)
-        }
+        if (isResume) speak("Продолжаем")
         if (!isResume) {
             workoutManager.stop()
             resetMetrics()
@@ -551,19 +539,20 @@ class TreadmillSession(private val appContext: Context) {
         _isPaused.value = false
         isStartingBelt = true
 
-        scope.launch {
+        startJob?.cancel() // [ФИКС] Отменяем предыдущую попытку старта
+        startJob = scope.launch {
             try {
                 protocol?.start()
                 setSpeed(if (resumeSpeed >= 1.0) resumeSpeed else 1.0)
 
-                if (waitForBeltRunning(0.9, 30000L)) {
+                if (waitForBeltRunning(0.9, 15000L)) {
                     val targetInclineLocal = _targetIncline.value
                     val caps = _capabilities.value
                     if (targetInclineLocal > 0.0 && (!caps.isLoaded || caps.supportsIncline)) {
                         protocol?.setIncline(targetInclineLocal)
                     }
                 } else {
-                    _statusMessage.value = "Дорожка не отвечает. Нажмите кнопку."
+                    _statusMessage.value = "Дорожка не отвечает. Нажмите кнопку на дорожке."
                 }
             } finally {
                 isStartingBelt = false
@@ -573,6 +562,9 @@ class TreadmillSession(private val appContext: Context) {
 
     fun pauseTreadmill() {
         if (_treadmillState.value != BleConnectionState.READY || _isPaused.value) return
+        startJob?.cancel() // [ФИКС] Отменяем старт при паузе
+        startJob = null
+        
         speedBeforePause = _targetSpeed.value.coerceAtLeast(1.0)
         _isPaused.value = true
         scope.launch { protocol?.stop() }
@@ -586,6 +578,9 @@ class TreadmillSession(private val appContext: Context) {
     }
 
     fun stopTreadmill() {
+        startJob?.cancel() // [ФИКС] Отменяем фоновый старт при остановке
+        startJob = null
+
         val ws = workoutManager.state.value
         if (ws.running || ws.paused) { stopWorkout(); return }
         _isPaused.value = false
@@ -602,11 +597,13 @@ class TreadmillSession(private val appContext: Context) {
         lastSpokenSegmentIndex = 0
 
         isStartingBelt = true
-        scope.launch {
+        
+        startJob?.cancel()
+        startJob = scope.launch {
             try {
                 protocol?.start()
                 setSpeed(1.0)
-                if (waitForBeltRunning(0.9, 30000L)) {
+                if (waitForBeltRunning(0.9, 15000L)) {
                     workoutManager.start(
                         scope = scope, program = program,
                         onSetSpeed = {
@@ -662,6 +659,8 @@ class TreadmillSession(private val appContext: Context) {
                             .replace("{speed_text}", fmtSpeed(safeSpeed))
                         speak(text)
                     }
+                } else {
+                    _statusMessage.value = "Дорожка не отвечает. Нажмите кнопку на дорожке."
                 }
             } finally {
                 isStartingBelt = false
@@ -670,6 +669,9 @@ class TreadmillSession(private val appContext: Context) {
     }
 
     fun pauseWorkout() {
+        startJob?.cancel()
+        startJob = null
+        
         workoutManager.pause()
         scope.launch { protocol?.stop() }
         val text = settingsStore.settings.value.ttsPauseText
@@ -681,11 +683,13 @@ class TreadmillSession(private val appContext: Context) {
         if (text.isNotBlank()) speak(text)
 
         isStartingBelt = true
-        scope.launch {
+        
+        startJob?.cancel()
+        startJob = scope.launch {
             try {
                 protocol?.start()
                 setSpeed(1.0)
-                if (waitForBeltRunning(0.9, 30000L)) workoutManager.resume()
+                if (waitForBeltRunning(0.9, 15000L)) workoutManager.resume()
             } finally {
                 isStartingBelt = false
             }
@@ -700,6 +704,9 @@ class TreadmillSession(private val appContext: Context) {
     fun skipWorkoutSegment() { workoutManager.skipCurrentSegment() }
 
     fun stopWorkout() {
+        startJob?.cancel()
+        startJob = null
+        
         saveWorkoutLog()
         workoutManager.stop()
         scope.launch { protocol?.stop() }
