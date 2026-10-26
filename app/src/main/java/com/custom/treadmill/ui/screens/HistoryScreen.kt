@@ -345,30 +345,24 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
 
 @Composable
 private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
-    // Считаем распределение времени по зонам
     val percentages = remember(logs, zoneBounds) {
         if (logs.isEmpty() || zoneBounds.size != 5) return@remember List(5) { 0f }
-        
-        // [ФИКС] Используем mutableListOf вместо DoubleArray, чтобы обойти баг компилятора с +=
-        val durations = mutableListOf(0.0, 0.0, 0.0, 0.0, 0.0)
+        val durations = DoubleArray(5)
         var totalDuration = 0.0
-        
         logs.forEach { log ->
             val hr = log.avgHeartRate
             if (hr > 0 && log.durationSec > 0) {
                 totalDuration += log.durationSec
                 when {
-                    hr < zoneBounds[0] -> durations[0] += log.durationSec.toDouble()
-                    hr < zoneBounds[1] -> durations[1] += log.durationSec.toDouble()
-                    hr < zoneBounds[2] -> durations[2] += log.durationSec.toDouble()
-                    hr < zoneBounds[3] -> durations[3] += log.durationSec.toDouble()
-                    else -> durations[4] += log.durationSec.toDouble()
+                    hr < zoneBounds[0] -> durations[0] += log.durationSec
+                    hr < zoneBounds[1] -> durations[1] += log.durationSec
+                    hr < zoneBounds[2] -> durations[2] += log.durationSec
+                    hr < zoneBounds[3] -> durations[3] += log.durationSec
+                    else -> durations[4] += log.durationSec
                 }
             }
         }
-        
         if (totalDuration == 0.0) return@remember List(5) { 0f }
-        
         durations.map { ((it / totalDuration) * 100).toFloat() }
     }
 
@@ -422,29 +416,34 @@ private fun ChartCard(
         Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.padding(14.dp)) {
-            // Название и подзаголовок НАД графиком
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                Text(
-                    subtitle,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        Column(Modifier.fillMaxWidth()) {
+            // Заголовок (вынесен в отдельную панель сверху)
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(
+                        subtitle,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             
-            Spacer(Modifier.height(16.dp))
-            
-            // Чистый график
-            HeartRateChart(
-                points = points,
-                targetHr = 0,
-                zoneBounds = zoneBounds,
-                showTargetLine = false,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-            )
+            // Сам график с отступами
+            Box(Modifier.padding(horizontal = 12.dp, vertical = 16.dp)) {
+                HeartRateChart(
+                    points = points,
+                    targetHr = 0,
+                    zoneBounds = zoneBounds,
+                    showTargetLine = false,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                )
+            }
         }
     }
 }
