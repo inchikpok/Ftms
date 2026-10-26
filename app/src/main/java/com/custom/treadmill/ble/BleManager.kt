@@ -35,6 +35,8 @@ class BleManager(private val context: Context) {
     val scanLog: SharedFlow<String> = _scanLog.asSharedFlow()
 
     private var scanning = false
+    private val handler = Handler(Looper.getMainLooper())
+    private var scanRunnable: Runnable? = null
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
@@ -84,24 +86,22 @@ class BleManager(private val context: Context) {
             _scanLog.tryEmit("Bluetooth выключен")
             return
         }
-        val scanner = a.bluetoothLeScanner ?: run {
-            _scanLog.tryEmit("BLE сканер недоступен")
-            return
-        }
 
-        // Принудительно останавливаем старый сканер
+        // Отменяем старые задачи и принудительно стопаем сканер
+        scanRunnable?.let { handler.removeCallbacks(it) }
         try {
-            scanner.stopScan(scanCallback)
+            a.bluetoothLeScanner?.stopScan(scanCallback)
         } catch (_: Exception) {}
 
         _scanResults.value = emptyList()
-        val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .build()
+        _scanLog.tryEmit("Подготовка к сканированию...")
 
-        // [ФИКС] Даем Android BLE стеку 500 мс на освобождение ресурсов 
-        // после предыдущего отключения, иначе сканер может "залипнуть"
-        Handler(Looper.getMainLooper()).postDelayed({
+        // [ФИКС] Даем дорожке 1.5 секунды, чтобы она "поняла", что отключилась, и начала вещать сигнал заново
+        scanRunnable = Runnable {
+            val scanner = a.bluetoothLeScanner ?: return@Runnable
+            val settings = ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .build()
             try {
                 scanner.startScan(null, settings, scanCallback)
                 scanning = true
@@ -109,10 +109,13 @@ class BleManager(private val context: Context) {
             } catch (e: Exception) {
                 _scanLog.tryEmit("Ошибка запуска сканирования: ${e.message}")
             }
-        }, 500)
+        }
+        handler.postDelayed(scanRunnable!!, 1500)
     }
 
     fun stopScan() {
+        scanRunnable?.let { handler.removeCallbacks(it) }
+        scanRunnable = null
         try { adapter?.bluetoothLeScanner?.stopScan(scanCallback) } catch (_: Exception) {}
         scanning = false
         _scanLog.tryEmit("Сканирование остановлено")
