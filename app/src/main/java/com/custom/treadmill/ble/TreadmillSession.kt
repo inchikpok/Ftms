@@ -47,7 +47,7 @@ class TreadmillSession(private val appContext: Context) {
     private var hrLogJob: Job? = null
     private var autoHrJob: Job? = null
     private var startJob: Job? = null
-    private var autoReconnectJob: Job? = null // <--- [ФИКС] Добавлена переменная
+    private var autoReconnectJob: Job? = null
 
     private val _treadmillState = MutableStateFlow(BleConnectionState.DISCONNECTED)
     val treadmillState: StateFlow<BleConnectionState> = _treadmillState.asStateFlow()
@@ -310,6 +310,12 @@ class TreadmillSession(private val appContext: Context) {
     fun connectTreadmill(device: BluetoothDevice) {
         lastConnectedMac = device.address
         isManualDisconnect = false
+        
+        // [ФИКС] Отменяем автопереподключение перед ручным подключением
+        autoReconnectJob?.cancel()
+        autoReconnectJob = null
+        isAutoReconnecting = false
+        
         disconnectTreadmillInternal()
 
         _treadmillName.value = try { device.name } catch (_: SecurityException) { null } ?: "Дорожка"
@@ -348,9 +354,9 @@ class TreadmillSession(private val appContext: Context) {
         addLog("Связь потеряна. Запуск автопереподключения к $mac...")
         _statusMessage.value = "Связь потеряна. Переподключение..."
 
-        // [ФИКС] Сохраняем Job, чтобы можно было отменить
         autoReconnectJob = scope.launch {
             for (i in 1..10) {
+                if (isManualDisconnect) break
                 if (_treadmillState.value == BleConnectionState.READY) break
 
                 addLog("Попытка переподключения $i из 10...")
@@ -358,19 +364,27 @@ class TreadmillSession(private val appContext: Context) {
 
                 if (device != null) {
                     _treadmillState.value = BleConnectionState.CONNECTING
+                    
+                    // [ФИКС] Закрываем старое соединение перед созданием нового
+                    treadmillConn?.disconnect()
+                    
                     val conn = BleConnection(appContext, "TR")
                     treadmillConn = conn
 
                     treadmillLogJob?.cancel()
                     treadmillLogJob = scope.launch { conn.log.collect { addLog(it) } }
 
+                    treadmillStateJob?.cancel() // [ФИКС] Отменяем старый Job
                     treadmillStateJob = scope.launch {
                         conn.state.collect { state ->
                             _treadmillState.value = state
                             if (state == BleConnectionState.READY) onTreadmillReady(conn)
                         }
                     }
+                    
+                    treadmillNotifyJob?.cancel() // [ФИКС] Отменяем старый Job
                     treadmillNotifyJob = scope.launch { conn.notifications.collect { protocol?.onNotification(it) } }
+                    
                     conn.connect(device)
                 }
                 delay(3000)
@@ -392,6 +406,9 @@ class TreadmillSession(private val appContext: Context) {
 
     private fun onTreadmillReady(conn: BleConnection) {
         scope.launch {
+            // [ФИКС] Останавливаем старый протокол, чтобы не было утечки retry-loop
+            protocol?.shutdown()
+            
             val p = FTMSProtocol().apply {
                 sendStartCommand = true
                 onLog = { msg -> addLog(msg) }
@@ -413,6 +430,11 @@ class TreadmillSession(private val appContext: Context) {
         isManualDisconnect = true
         lastConnectedMac = null
         addLog("Ручное отключение дорожки")
+        
+        autoReconnectJob?.cancel()
+        autoReconnectJob = null
+        isAutoReconnecting = false
+        
         disconnectTreadmillInternal()
         stopService()
     }
@@ -426,14 +448,17 @@ class TreadmillSession(private val appContext: Context) {
         startJob?.cancel()
         startJob = null
         
-        // [ФИКС] Отменяем фоновое переподключение
         autoReconnectJob?.cancel()
         autoReconnectJob = null
         isAutoReconnecting = false
         
         treadmillConn?.disconnect()
         treadmillConn = null
+        
+        // [ФИКС] Останавливаем протокол при отключении
+        protocol?.shutdown()
         protocol = null
+        
         _treadmillState.value = BleConnectionState.DISCONNECTED
         _treadmillData.value = TreadmillData()
         _capabilities.value = TreadmillCapabilities()
