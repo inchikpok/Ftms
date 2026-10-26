@@ -10,8 +10,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -19,6 +21,9 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class HrPoint(val timestamp: Long, val bpm: Int)
 
@@ -27,6 +32,7 @@ fun HeartRateChart(
     points: List<HrPoint>,
     targetHr: Int = 0,
     zoneBounds: List<Int> = emptyList(),
+    showTargetLine: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (points.isEmpty()) {
@@ -39,111 +45,169 @@ fun HeartRateChart(
     val minT = points.first().timestamp
     val maxT = points.last().timestamp
 
-    val target = targetHr.coerceAtLeast(0)
-    val minBpmRaw = points.minOf { it.bpm }
-    val maxBpmRaw = points.maxOf { it.bpm }
-    val refMin = if (target > 0) minOf(minBpmRaw, target) else minBpmRaw
-    val refMax = if (target > 0) maxOf(maxBpmRaw, target) else maxBpmRaw
+    // 1. Умный расчет Y-оси
+    val dataMin = points.minOf { it.bpm }
+    val dataMax = points.maxOf { it.bpm }
+    
+    var yMin = (dataMin - 10).coerceAtLeast(40)
+    var yMax = (dataMax + 10).coerceAtMost(220)
 
-    var yMin = (refMin - 10).coerceAtLeast(40)
-    var yMax = (refMax + 10).coerceAtMost(220)
-    val actualRange = yMax - yMin
-    if (actualRange < 30) {
-        val padding = (30 - actualRange) / 2
-        yMin = (yMin - padding).coerceAtLeast(0)
-        yMax = (yMax + padding).coerceAtMost(220)
+    if (showTargetLine && targetHr > 0) {
+        yMin = minOf(yMin, targetHr - 5)
+        yMax = maxOf(yMax, targetHr + 5)
+    }
+    
+    // Если диапазон слишком маленький (например, пульс 60-65), искусственно расширяем
+    if (yMax - yMin < 30) {
+        val mid = (yMax + yMin) / 2
+        yMin = mid - 15
+        yMax = mid + 15
     }
     val yRange = (yMax - yMin).coerceAtLeast(1)
 
-    val lineColor = Color(0xFFC62828)
+    val lineColor = Color(0xFFE53935)
     val targetColor = Color(0xFF1976D2)
-    val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+    val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-    val zone1 = Color(0xFF64B5F6).copy(alpha = 0.15f)
-    val zone2 = Color(0xFF81C784).copy(alpha = 0.15f)
-    val zone3 = Color(0xFFFFD54F).copy(alpha = 0.15f)
-    val zone4 = Color(0xFFFFB74D).copy(alpha = 0.15f)
-    val zone5 = Color(0xFFE57373).copy(alpha = 0.15f)
+    val zoneColors = listOf(
+        Color(0xFF64B5F6).copy(alpha = 0.15f), // Z1
+        Color(0xFF81C784).copy(alpha = 0.15f), // Z2
+        Color(0xFFFFD54F).copy(alpha = 0.15f), // Z3
+        Color(0xFFFFB74D).copy(alpha = 0.15f), // Z4
+        Color(0xFFE57373).copy(alpha = 0.20f)  // Z5
+    )
 
     Box(modifier) {
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            val padL = 38.dp.toPx() // Отступ слева под цифры
-            val padR = 8.dp.toPx()
+            
+            val padL = 32.dp.toPx() // Место под цифры Y
+            val padR = 4.dp.toPx()
             val padT = 8.dp.toPx()
-            val padB = 8.dp.toPx()
+            val padB = 20.dp.toPx() // Место под даты X
             val innerW = w - padL - padR
             val innerH = h - padT - padB
+            
             if (innerW <= 0f || innerH <= 0f) return@Canvas
 
-            // 1. Рисуем зоны
+            // 2. Рисуем зоны
             fun drawZone(startVal: Float, endVal: Float, color: Color) {
                 if (startVal >= endVal) return
                 val topY = padT + innerH * (1f - (endVal - yMin) / yRange)
                 val bottomY = padT + innerH * (1f - (startVal - yMin) / yRange)
-                drawRect(color = color, topLeft = Offset(padL, topY), size = Size(innerW, bottomY - topY))
+                drawRect(
+                    color = color,
+                    topLeft = Offset(padL, topY),
+                    size = Size(innerW, (bottomY - topY).coerceAtLeast(1f))
+                )
             }
 
             if (zoneBounds.size == 5) {
                 drawZone(0f, zoneBounds[0].toFloat(), Color.Transparent)
-                drawZone(zoneBounds[0].toFloat(), zoneBounds[1].toFloat(), zone1)
-                drawZone(zoneBounds[1].toFloat(), zoneBounds[2].toFloat(), zone2)
-                drawZone(zoneBounds[2].toFloat(), zoneBounds[3].toFloat(), zone3)
-                drawZone(zoneBounds[3].toFloat(), zoneBounds[4].toFloat(), zone4)
-                drawZone(zoneBounds[4].toFloat(), 250f, zone5)
+                drawZone(zoneBounds[0].toFloat(), zoneBounds[1].toFloat(), zoneColors[0])
+                drawZone(zoneBounds[1].toFloat(), zoneBounds[2].toFloat(), zoneColors[1])
+                drawZone(zoneBounds[2].toFloat(), zoneBounds[3].toFloat(), zoneColors[2])
+                drawZone(zoneBounds[3].toFloat(), zoneBounds[4].toFloat(), zoneColors[3])
+                drawZone(zoneBounds[4].toFloat(), 250f, zoneColors[4])
             }
 
-            // 2. Текст для оси Y
+            // 3. Подготовка текста
             val textPaint = android.graphics.Paint().apply {
                 color = textColor.toArgb()
-                textSize = 10.sp.toPx()
-                textAlign = android.graphics.Paint.Align.RIGHT
+                textSize = 9.sp.toPx()
                 isAntiAlias = true
             }
 
-            // 3. Горизонтальная сетка и подписи
-            val steps = 4
-            for (i in 0..steps) {
-                val frac = i / steps.toFloat()
+            // 4. Сетка и подписи Y
+            val ySteps = 3 // 3 линии сетки
+            for (i in 0..ySteps) {
+                val frac = i / ySteps.toFloat()
                 val y = padT + innerH * frac
                 val value = (yMax - frac * yRange).toInt()
                 
                 drawLine(color = gridColor, start = Offset(padL, y), end = Offset(w - padR, y), strokeWidth = 1f)
                 
-                // Рисуем текст (только если это не самый верх/низ, чтобы не перекрывать края)
-                if (i > 0 && i < steps) {
-                    drawContext.canvas.nativeCanvas.drawText(
-                        "$value",
-                        padL - 6.dp.toPx(),
-                        y + 4.dp.toPx(), // небольшая коррекция для центрирования по вертикали
-                        textPaint
-                    )
-                }
+                textPaint.textAlign = android.graphics.Paint.Align.RIGHT
+                drawContext.canvas.nativeCanvas.drawText(
+                    "$value",
+                    padL - 4.dp.toPx(),
+                    y + 3.dp.toPx(),
+                    textPaint
+                )
             }
 
-            // 4. Линия цели
-            if (target in yMin..yMax) {
-                val ty = padT + innerH * (1f - (target - yMin).toFloat() / yRange)
+            // 5. Линия цели (если нужно)
+            if (showTargetLine && targetHr in yMin..yMax) {
+                val ty = padT + innerH * (1f - (targetHr - yMin).toFloat() / yRange)
                 drawLine(
                     color = targetColor, 
                     start = Offset(padL, ty), 
                     end = Offset(w - padR, ty), 
-                    strokeWidth = 2f,
-                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                    strokeWidth = 1.5f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
                 )
             }
 
-            // 5. Линия пульса
+            // 6. Линия пульса и градиент
             val tRange = (maxT - minT).coerceAtLeast(1000L)
-            val path = Path()
+            
+            val linePath = Path()
+            val fillPath = Path()
+
             points.forEachIndexed { i, p ->
                 val x = padL + innerW * (p.timestamp - minT).toFloat() / tRange
                 val y = padT + innerH * (1f - (p.bpm - yMin).toFloat() / yRange)
-                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                
+                if (i == 0) {
+                    linePath.moveTo(x, y)
+                    fillPath.moveTo(x, padT + innerH)
+                    fillPath.lineTo(x, y)
+                } else {
+                    linePath.lineTo(x, y)
+                    fillPath.lineTo(x, y)
+                }
+                if (i == points.size - 1) {
+                    fillPath.lineTo(x, padT + innerH)
+                    fillPath.close()
+                }
             }
-            drawPath(path, lineColor, style = Stroke(width = 3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+            // Градиент под линией
+            drawPath(
+                path = fillPath,
+                brush = Brush.verticalGradient(
+                    colors = listOf(lineColor.copy(alpha = 0.3f), Color.Transparent),
+                    startY = padT,
+                    endY = padT + innerH
+                )
+            )
+
+            // Сама линия
+            drawPath(
+                path = linePath, 
+                color = lineColor, 
+                style = Stroke(width = 2.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            )
+
+            // 7. Подписи X (даты)
+            val fmt = SimpleDateFormat("dd.MM", Locale.getDefault())
+            textPaint.textAlign = android.graphics.Paint.Align.LEFT
+            drawContext.canvas.nativeCanvas.drawText(
+                fmt.format(Date(minT)),
+                padL,
+                h - 2.dp.toPx(),
+                textPaint
+            )
+            
+            textPaint.textAlign = android.graphics.Paint.Align.RIGHT
+            drawContext.canvas.nativeCanvas.drawText(
+                fmt.format(Date(maxT)),
+                w - padR,
+                h - 2.dp.toPx(),
+                textPaint
+            )
         }
     }
 }
