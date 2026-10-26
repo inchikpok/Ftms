@@ -219,7 +219,7 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
         Spacer(Modifier.height(12.dp))
         ZoneStatsCard(withHr, zoneBounds)
         
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
         ChartCard(
             title = "Средний пульс",
             subtitle = "${withHr.size} тренировок",
@@ -227,7 +227,7 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
             zoneBounds = zoneBounds
         )
         
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
         ChartCard(
             title = "Максимальный пульс",
             subtitle = "Пик за тренировку",
@@ -345,28 +345,23 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
 
 @Composable
 private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
-    // Считаем распределение времени по зонам (используем MutableList, чтобы избежать багов компилятора Kotlin)
     val percentages = remember(logs, zoneBounds) {
         if (logs.isEmpty() || zoneBounds.size != 5) return@remember List(5) { 0f }
-        
-        val durations = mutableListOf(0.0, 0.0, 0.0, 0.0, 0.0)
+        val durations = DoubleArray(5)
         var totalDuration = 0.0
-        
         logs.forEach { log ->
             val hr = log.avgHeartRate
             if (hr > 0 && log.durationSec > 0) {
                 totalDuration += log.durationSec
-                val d = log.durationSec.toDouble()
                 when {
-                    hr < zoneBounds[0] -> durations[0] = durations[0] + d
-                    hr < zoneBounds[1] -> durations[1] = durations[1] + d
-                    hr < zoneBounds[2] -> durations[2] = durations[2] + d
-                    hr < zoneBounds[3] -> durations[3] = durations[3] + d
-                    else -> durations[4] = durations[4] + d
+                    hr < zoneBounds[0] -> durations[0] += log.durationSec
+                    hr < zoneBounds[1] -> durations[1] += log.durationSec
+                    hr < zoneBounds[2] -> durations[2] += log.durationSec
+                    hr < zoneBounds[3] -> durations[3] += log.durationSec
+                    else -> durations[4] += log.durationSec
                 }
             }
         }
-        
         if (totalDuration == 0.0) return@remember List(5) { 0f }
         durations.map { ((it / totalDuration) * 100).toFloat() }
     }
@@ -417,28 +412,25 @@ private fun ChartCard(
     points: List<HrPoint>,
     zoneBounds: List<Int>
 ) {
-    Card(
-        Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(Modifier.fillMaxWidth()) {
-            // Заголовок (вынесен в отдельную панель сверху)
-            Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    Text(
-                        subtitle,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            
-            // Сам график с отступами
-            Box(Modifier.padding(horizontal = 12.dp, vertical = 16.dp)) {
+    Column(Modifier.fillMaxWidth()) {
+        // Заголовок вынесен НАД карточкой
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            Text(
+                subtitle,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        
+        Card(
+            Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Box(Modifier.padding(12.dp)) {
                 HeartRateChart(
                     points = points,
                     targetHr = 0,
