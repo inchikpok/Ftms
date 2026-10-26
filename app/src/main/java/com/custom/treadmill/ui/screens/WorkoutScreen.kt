@@ -164,6 +164,7 @@ fun WorkoutScreen(
                         points = hrHistory, 
                         targetHr = targetHr, 
                         zoneBounds = zoneBounds,
+                        showTargetLine = true, // <--- Линия цели включена на тренировке
                         modifier = Modifier.fillMaxWidth().weight(1f)
                     )
                     Spacer(Modifier.height(6.dp))
