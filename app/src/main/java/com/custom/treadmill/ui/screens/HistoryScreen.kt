@@ -292,7 +292,7 @@ private fun CompactLogCard(
 
                         Text("Пульсовые зоны", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(6.dp))
-                        
+
                         // Мини-бар распределения
                         Row(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))) {
                             zoneDurations.forEachIndexed { i, sec ->
@@ -379,7 +379,7 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
         }
 
         Spacer(Modifier.height(12.dp))
-        HeartSummaryCard(withHr)
+        HeartSummaryCard(withHr, logs.size)
 
         Spacer(Modifier.height(12.dp))
         ZoneStatsCard(withHr, zoneBounds)
@@ -388,7 +388,11 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
         // [ФИКС] Оставили только график среднего пульса. График максимального пульса убран.
         ChartCard(
             title = "Средний пульс",
-            subtitle = "${withHr.size} тренировок",
+            subtitle = if (withHr.size == logs.size) {
+                "${withHr.size} тренировок"
+            } else {
+                "${withHr.size} из ${logs.size} (с пульсометром)"
+            },
             points = withHr.map { HrPoint(it.dateMillis, it.avgHeartRate) }
         )
 
@@ -432,7 +436,7 @@ private fun StatBlock(label: String, value: String, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
+private fun HeartSummaryCard(logs: List<WorkoutLogEntity>, totalLogs: Int) {
     val avgAll = logs.map { it.avgHeartRate }.average().toInt()
     val maxAll = logs.maxOf { it.maxHeartRate }
     val minAll = logs.minOf { it.avgHeartRate }
@@ -451,6 +455,15 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
     ) {
         Column(Modifier.padding(14.dp)) {
             Text("Пульс", fontWeight = FontWeight.Bold)
+            // [ФИКС] Пояснение, почему считаются не все тренировки
+            if (logs.size != totalLogs) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Пульсометр был в ${logs.size} из $totalLogs тренировок",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth()) {
                 StatBlock("Средний", "$avgAll", Modifier.weight(1f))
@@ -531,7 +544,8 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
                     Text("Время в пульсовых зонах", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "Всего: ${formatZoneDuration(totalSec)}",
+                        // [ФИКС] Уточнили, по скольким тренировкам построено
+                        "Всего: ${formatZoneDuration(totalSec)} · по ${logs.size} тренировкам",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -632,7 +646,7 @@ private fun ChartCard(
                 HeartRateChart(
                     points = points,
                     targetHr = 0,
-                    zoneBounds = emptyList(), // [ФИКС] Убрали фоновые зоны для графика истории
+                    zoneBounds = emptyList(),
                     showTargetLine = false,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -653,7 +667,7 @@ private fun estimateZoneDurations(
 ): LongArray {
     if (avgHr <= 0 || durationSec <= 0 || zoneBounds.size != 5) return LongArray(5)
     val safeMax = maxHr.coerceAtLeast(avgHr)
-    
+
     val centers = doubleArrayOf(
         (70.0 + zoneBounds[0]) / 2.0,
         (zoneBounds[0] + zoneBounds[1]) / 2.0,
@@ -661,10 +675,10 @@ private fun estimateZoneDurations(
         (zoneBounds[2] + zoneBounds[3]) / 2.0,
         (zoneBounds[3] + 200.0) / 2.0
     )
-    
+
     val sigma = ((safeMax - avgHr).coerceAtLeast(10) / 1.5).coerceAtLeast(8.0)
     val variance2 = 2.0 * sigma * sigma
-    
+
     val weights = DoubleArray(5) { i ->
         val dist = centers[i] - avgHr
         val base = kotlin.math.exp(-(dist * dist) / variance2)
@@ -673,10 +687,10 @@ private fun estimateZoneDurations(
                          (i == 2 && safeMax >= zoneBounds[1] && safeMax < zoneBounds[2])
         if (isPeakZone) base + 0.4 else base
     }
-    
+
     val sumW = weights.sum()
     if (sumW == 0.0) return LongArray(5).also { it[0] = durationSec.toLong() }
-    
+
     val result = LongArray(5)
     var remaining = durationSec.toLong()
     for (i in 0..4) {
