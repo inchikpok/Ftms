@@ -64,7 +64,6 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val speedStep = settings.speedStepKmh
     val showIncline = !capabilities.isLoaded || capabilities.supportsIncline
 
-    // [ФИКС] Кулдаун сканирования после отключения
     var cooldownRemaining by remember { mutableStateOf(0) }
     val cooldownUntil by vm.scanCooldownUntil.collectAsState()
     
@@ -76,7 +75,6 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
             delay(500)
         }
     }
-    val scanBlocked = cooldownRemaining > 0
 
     var showCapsDialog by remember { mutableStateOf(false) }
     var capsShownFor by remember { mutableStateOf<String?>(null) }
@@ -167,10 +165,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         label = "Дорожка",
                         deviceName = treadmillName,
                         state = treadmillState,
-                        onConnect = { 
-                            if (!scanBlocked) vm.startScanTreadmill()
-                            else vm.showMessage("Подождите $cooldownRemaining сек")
-                        },
+                        onConnect = { vm.startScanTreadmill() },
                         onDisconnect = { vm.disconnectTreadmill() },
                         cooldownRemaining = cooldownRemaining,
                         modifier = Modifier.weight(1f)
@@ -179,12 +174,9 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         label = "Пульсометр",
                         deviceName = hrName,
                         state = hrState,
-                        onConnect = { 
-                            if (!scanBlocked) vm.startScanHeartRate()
-                            else vm.showMessage("Подождите $cooldownRemaining сек")
-                        },
+                        onConnect = { vm.startScanHeartRate() },
                         onDisconnect = { vm.disconnectHeartRate() },
-                        cooldownRemaining = 0,
+                        cooldownRemaining = cooldownRemaining,
                         modifier = Modifier.weight(1f)
                     )
                 }
