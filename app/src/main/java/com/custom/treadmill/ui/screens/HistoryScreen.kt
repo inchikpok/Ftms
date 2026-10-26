@@ -51,6 +51,7 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
     var tab by rememberSaveable { mutableStateOf(0) }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
+    var showHrInfo by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -100,10 +101,22 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             TabChip("Список", tab == 0) { tab = 0 }
             TabChip("Статистика", tab == 1) { tab = 1 }
+            Spacer(Modifier.weight(1f))
+            // [ФИКС] Info-кнопка вместо текстовых пояснений. Видна только на вкладке "Статистика".
+            if (tab == 1) {
+                IconButton(onClick = { showHrInfo = true }) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = "Пояснение к статистике",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         }
 
         if (logs.isEmpty()) {
@@ -140,6 +153,53 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
             },
             dismissButton = {
                 TextButton(onClick = { confirmClear = false }) { Text("Отмена") }
+            }
+        )
+    }
+
+    if (showHrInfo) {
+        val withHr = logs.count { it.avgHeartRate > 0 }
+        val withoutHr = logs.size - withHr
+        AlertDialog(
+            onDismissRequest = { showHrInfo = false },
+            icon = {
+                Icon(
+                    Icons.Default.Favorite,
+                    contentDescription = null,
+                    tint = Color(0xFFC62828)
+                )
+            },
+            title = { Text("Пульсовая статистика") },
+            text = {
+                Column {
+                    Text(
+                        "Всего тренировок в журнале: ${logs.size}",
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        "С данными пульсометра: $withHr",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (withoutHr > 0) {
+                        Text(
+                            "Без данных пульсометра: $withoutHr",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "График, тренд и пульсовые зоны строятся только по тренировкам, " +
+                                    "во время которых был активен пульсометр. Тренировки без пульса " +
+                                    "не учитываются, чтобы не искажать картину.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHrInfo = false }) { Text("Понятно") }
             }
         )
     }
@@ -379,20 +439,15 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
         }
 
         Spacer(Modifier.height(12.dp))
-        HeartSummaryCard(withHr, logs.size)
+        HeartSummaryCard(withHr)
 
         Spacer(Modifier.height(12.dp))
         ZoneStatsCard(withHr, zoneBounds)
 
         Spacer(Modifier.height(16.dp))
-        // [ФИКС] Оставили только график среднего пульса. График максимального пульса убран.
         ChartCard(
             title = "Средний пульс",
-            subtitle = if (withHr.size == logs.size) {
-                "${withHr.size} тренировок"
-            } else {
-                "${withHr.size} из ${logs.size} (с пульсометром)"
-            },
+            subtitle = "${withHr.size} тренировок",
             points = withHr.map { HrPoint(it.dateMillis, it.avgHeartRate) }
         )
 
@@ -436,7 +491,7 @@ private fun StatBlock(label: String, value: String, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun HeartSummaryCard(logs: List<WorkoutLogEntity>, totalLogs: Int) {
+private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
     val avgAll = logs.map { it.avgHeartRate }.average().toInt()
     val maxAll = logs.maxOf { it.maxHeartRate }
     val minAll = logs.minOf { it.avgHeartRate }
@@ -455,15 +510,6 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>, totalLogs: Int) {
     ) {
         Column(Modifier.padding(14.dp)) {
             Text("Пульс", fontWeight = FontWeight.Bold)
-            // [ФИКС] Пояснение, почему считаются не все тренировки
-            if (logs.size != totalLogs) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    "Пульсометр был в ${logs.size} из $totalLogs тренировок",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth()) {
                 StatBlock("Средний", "$avgAll", Modifier.weight(1f))
@@ -544,8 +590,7 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
                     Text("Время в пульсовых зонах", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        // [ФИКС] Уточнили, по скольким тренировкам построено
-                        "Всего: ${formatZoneDuration(totalSec)} · по ${logs.size} тренировкам",
+                        "Всего: ${formatZoneDuration(totalSec)}",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
