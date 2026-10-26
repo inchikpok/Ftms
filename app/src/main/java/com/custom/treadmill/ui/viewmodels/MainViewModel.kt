@@ -50,8 +50,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun showMessage(msg: String) = session.showMessage(msg)
     fun clearStatusMessage() = session.clearStatusMessage()
 
-    fun connectTreadmill(device: BluetoothDevice) { _scanMode.value = ScanMode.NONE; session.connectTreadmill(device) }
-    fun connectHeartRate(device: BluetoothDevice) { _scanMode.value = ScanMode.NONE; session.connectHeartRate(device) }
+    // [ФИКС] Останавливаем скан перед подключением.
+    // Иначе LaunchedEffect(scanMode) в MainScreen отменяется и stopScan() не вызывается —
+    // BLE-скан продолжает висеть в фоне до закрытия приложения.
+    fun connectTreadmill(device: BluetoothDevice) {
+        session.stopScan()
+        _scanMode.value = ScanMode.NONE
+        session.connectTreadmill(device)
+    }
+
+    fun connectHeartRate(device: BluetoothDevice) {
+        session.stopScan()
+        _scanMode.value = ScanMode.NONE
+        session.connectHeartRate(device)
+    }
+
     fun disconnectTreadmill() = session.disconnectTreadmill()
     fun disconnectHeartRate() = session.disconnectHeartRate()
 
