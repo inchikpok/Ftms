@@ -167,7 +167,6 @@ class BleConnection(
         log("Подключение к ${device.address}…")
         _state.value = BleConnectionState.CONNECTING
         
-        // Закрываем старое подключение, если было
         closeSilently(gatt)
         gatt = null
         
@@ -192,9 +191,6 @@ class BleConnection(
         }
         log("Запрос на отключение…")
         
-        // [ФИКС] НЕ вызываем close() сразу. Ждём onConnectionStateChange(DISCONNECTED).
-        // Иначе BLE-стек не отправит LL_TERMINATE периферии, и та продолжит рекламировать 
-        // "подключено" ещё 30-60 секунд.
         try {
             g.disconnect()
         } catch (e: Exception) {
