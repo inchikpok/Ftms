@@ -1,9 +1,7 @@
 package com.custom.treadmill.ui.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,7 +40,7 @@ fun HeartRateChart(
         return
     }
 
-    // 1. Расчет Y-оси
+    // 1. Умный расчет Y-оси
     val dataMin = points.minOf { it.bpm }
     val dataMax = points.maxOf { it.bpm }
     
@@ -85,11 +83,11 @@ fun HeartRateChart(
         // График + ось Y
         Row(Modifier.fillMaxWidth().weight(1f)) {
             
-            // Ось Y (подписи)
+            // Ось Y (подписи слева)
             Column(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .padding(end = 8.dp, top = 4.dp, bottom = 4.dp), // Небольшой отступ, чтобы текст не прилипал
+                    .padding(end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End
             ) {
@@ -182,7 +180,7 @@ fun HeartRateChart(
             }
         }
 
-        // Ось X (даты) под графиком
+        // Ось X (даты)
         Row(
             Modifier.fillMaxWidth().padding(start = 32.dp, top = 4.dp, end = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -190,32 +188,5 @@ fun HeartRateChart(
             Text(fmt.format(Date(minT)), fontSize = 10.sp, color = textColor)
             Text(fmt.format(Date(maxT)), fontSize = 10.sp, color = textColor)
         }
-
-        // Легенда зон (если есть)
-        if (zoneBounds.size == 5) {
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                ZoneItem("Z1", "<${zoneBounds[0]}", zoneColors[0])
-                ZoneItem("Z2", "${zoneBounds[0]}-${zoneBounds[1]}", zoneColors[1])
-                ZoneItem("Z3", "${zoneBounds[1]}-${zoneBounds[2]}", zoneColors[2])
-                ZoneItem("Z4", "${zoneBounds[2]}-${zoneBounds[3]}", zoneColors[3])
-                ZoneItem("Z5", ">${zoneBounds[3]}", zoneColors[4])
-            }
-        }
-    }
-}
-
-@Composable
-private fun ZoneItem(name: String, range: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(6.dp).background(color, CircleShape))
-            Spacer(Modifier.width(3.dp))
-            Text(name, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text(range, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
     }
 }
