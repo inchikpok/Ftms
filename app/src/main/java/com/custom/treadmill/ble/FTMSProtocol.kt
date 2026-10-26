@@ -67,7 +67,6 @@ class FTMSProtocol : ITreadmillProtocol {
             }
         }
 
-        // === Читаем возможности дорожки ===
         var caps = TreadmillCapabilities()
         var anyLoaded = false
 
@@ -247,12 +246,8 @@ class FTMSProtocol : ITreadmillProtocol {
         val c = conn ?: return false
         lastRequestedSpeed = 0.0
 
-        val alreadyStopped = _data.value.speedKmh < 0.1
-        if (alreadyStopped) {
-            log("стоп (уже стоит, без команды)")
-            return true
-        }
-
+        // [ФИКС] Всегда отправляем 08 01, даже если кажется, что дорожка уже стоит.
+        // Это очищает буфер дорожки и гарантирует остановку.
         sendMutex.withLock {
             c.writeSuspend(uuid, byteArrayOf(0x08, 0x01), true)
         }
