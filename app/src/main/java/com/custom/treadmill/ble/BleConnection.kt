@@ -9,6 +9,8 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -133,7 +135,6 @@ class BleConnection(
 
         override fun onCharacteristicWrite(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
             log("write ${c.uuid} status=$status")
-            // [ФИКС] Сообщаем ожидающей корутине, что запись завершилась
             pendingWrites.remove(c.uuid)?.complete(status == BluetoothGatt.GATT_SUCCESS)
         }
 
@@ -163,16 +164,30 @@ class BleConnection(
     }
 
     fun disconnect() {
+        _state.value = BleConnectionState.DISCONNECTED
+        
+        // [ФИКС] Пытаемся отключиться корректно, не убивая связь мгновенно
+        val localGatt = gatt
         try {
-            gatt?.disconnect()
-            gatt?.close()
-        } catch (_: Exception) {}
-        gatt = null
+            localGatt?.disconnect()
+            
+            // Если через 2 секунды система не вызвала onConnectionStateChange(DISCONNECTED), 
+            // закрываем принудительно, чтобы не было утечки
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (gatt == localGatt) {
+                    try { gatt?.close() } catch (_: Exception) {}
+                    gatt = null
+                }
+            }, 2000)
+        } catch (_: Exception) {
+            try { localGatt?.close() } catch (_: Exception) {}
+            gatt = null
+        }
+        
         pendingReads.values.forEach { it.complete(null) }
         pendingReads.clear()
         pendingWrites.values.forEach { it.complete(false) }
         pendingWrites.clear()
-        _state.value = BleConnectionState.DISCONNECTED
     }
 
     fun isReady(): Boolean = _state.value == BleConnectionState.READY && gatt != null
@@ -244,11 +259,6 @@ class BleConnection(
         return withTimeoutOrNull(2000L) { deferred.await() }
     }
 
-    /**
-     * [ФИКС] Suspend-версия записи. Ждёт onCharacteristicWrite callback перед возвратом.
-     * Это гарантирует, что две последовательные команды не будут отправлены одновременно
-     * (Android BLE-стек отклоняет вторую запись, если первая ещё не завершена).
-     */
     suspend fun writeSuspend(uuid: UUID, data: ByteArray, withResponse: Boolean = true): Boolean {
         val c = findCharacteristic(uuid) ?: run {
             log("writeSuspend: характеристика $uuid не найдена")
@@ -297,10 +307,6 @@ class BleConnection(
         return result
     }
 
-    /**
-     * Старая версия (не ждёт ACK). Оставлена для обратной совместимости.
-     * Везде в FTMSProtocol используй writeSuspend.
-     */
     fun write(c: BluetoothGattCharacteristic, data: ByteArray, withResponse: Boolean): Boolean {
         val g = gatt ?: return false
         log("-> ${c.uuid} ${data.toHex()}")
