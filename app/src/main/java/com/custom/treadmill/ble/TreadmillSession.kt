@@ -94,8 +94,8 @@ class TreadmillSession(private val appContext: Context) {
     private val _uiCalories = MutableStateFlow(0)
     val uiCalories: StateFlow<Int> = _uiCalories.asStateFlow()
 
-    private val _scanCooldownUntil = MutableStateFlow(0L)
-    val scanCooldownUntil: StateFlow<Long> = _scanCooldownUntil.asStateFlow()
+    // [ФИКС] Кулдаун теперь хранится в BleManager
+    val scanCooldownUntil: StateFlow<Long> = ble.scanCooldownUntil
 
     val logs: StateFlow<List<String>> = DebugLog.lines
 
@@ -306,23 +306,28 @@ class TreadmillSession(private val appContext: Context) {
     }
 
     fun startScanTreadmill() {
-        val wait = (_scanCooldownUntil.value - System.currentTimeMillis()).coerceAtLeast(0)
+        // [ФИКС] Дублирующая проверка (основная — в BleManager.startScan)
+        val wait = (ble.scanCooldownUntil.value - System.currentTimeMillis()).coerceAtLeast(0)
         if (wait > 0) {
-            _statusMessage.value = "Подождите ${(wait / 1000).toInt() + 1} сек перед повторным сканированием"
+            _statusMessage.value = "Подождите ${(wait / 1000).toInt() + 1} сек перед сканированием"
+            addLog("startScanTreadmill: BLOCKED, wait=$wait")
             return
         }
+        addLog("startScanTreadmill: запуск")
         ble.startScan()
     }
-    
+
     fun startScanHeartRate() {
-        val wait = (_scanCooldownUntil.value - System.currentTimeMillis()).coerceAtLeast(0)
+        val wait = (ble.scanCooldownUntil.value - System.currentTimeMillis()).coerceAtLeast(0)
         if (wait > 0) {
-            _statusMessage.value = "Подождите ${(wait / 1000).toInt() + 1} сек"
+            _statusMessage.value = "Подождите ${(wait / 1000).toInt() + 1} сек перед сканированием"
+            addLog("startScanHeartRate: BLOCKED, wait=$wait")
             return
         }
+        addLog("startScanHeartRate: запуск")
         ble.startScan()
     }
-    
+
     fun stopScan() = ble.stopScan()
     fun clearStatusMessage() { _statusMessage.value = null }
 
@@ -447,8 +452,8 @@ class TreadmillSession(private val appContext: Context) {
         lastConnectedMac = null
         addLog("Ручное отключение дорожки")
         
-        // [ФИКС] Теперь GATT закрывается моментально, кулдаун можно сделать 5 секунд
-        _scanCooldownUntil.value = System.currentTimeMillis() + 5_000L
+        // [ФИКС] Устанавливаем кулдаун 5 секунд на уровне BleManager
+        ble.setScanCooldown(5_000L)
         _statusMessage.value = "Отключено. Подождите 5 сек перед повторным сканированием."
         
         autoReconnectJob?.cancel()
@@ -462,15 +467,7 @@ class TreadmillSession(private val appContext: Context) {
     private fun disconnectTreadmillInternal() {
         treadmillStateJob?.cancel()
         treadmillNotifyJob?.cancel()
-        
-        // [ФИКС] Не отменяем логгер сразу, чтобы увидеть процесс закрытия GATT
-        val oldLogJob = treadmillLogJob
-        scope.launch {
-            delay(2000L)
-            oldLogJob?.cancel()
-        }
-        treadmillLogJob = null
-        
+        treadmillLogJob?.cancel()
         autoHrJob?.cancel()
         autoHrJob = null
         startJob?.cancel()
