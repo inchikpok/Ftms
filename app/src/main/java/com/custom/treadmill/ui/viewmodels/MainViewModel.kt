@@ -21,6 +21,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val settingsStore = TreadmillApp.instance.settingsStore
 
     val settings = settingsStore.settings
+    val capabilities = session.capabilities
 
     val treadmillState = session.treadmillState
     val treadmillName = session.treadmillName
@@ -74,14 +75,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateSettings(transform: (AppSettings) -> AppSettings) = settingsStore.update(transform)
     fun setHrMode(mode: HrMode) = settingsStore.update { it.copy(hrMode = mode) }
-    
-    // Профили
+
     fun updateProfile(profile: UserProfile) = settingsStore.updateProfile(profile)
     fun addProfile(profile: UserProfile) = settingsStore.addProfile(profile)
     fun deleteProfile(id: String) = settingsStore.deleteProfile(id)
     fun setActiveProfile(id: String) = settingsStore.setActiveProfile(id)
 
-    // [TTS] Тестовая озвучка
     fun testSpeak(template: String) {
         val text = template
             .replace("{name}", "Тестовая тренировка")
