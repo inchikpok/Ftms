@@ -22,6 +22,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val settings = settingsStore.settings
     val capabilities = session.capabilities
+    val scanCooldownUntil = session.scanCooldownUntil
 
     val treadmillState = session.treadmillState
     val treadmillName = session.treadmillName
