@@ -272,7 +272,7 @@ private fun CompactLogCard(
                 CompactMetric(Icons.Default.LocalFireDepartment, "${log.calories} ккал")
             }
 
-            // Спойлер (Доп. метрики + Зона пульса)
+            // Спойлер (Доп. метрики + Детализация зон)
             AnimatedVisibility(visible = isExpanded) {
                 Column(Modifier.padding(top = 12.dp)) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
@@ -285,60 +285,41 @@ private fun CompactLogCard(
 
                     if (log.avgHeartRate > 0 && zoneBounds.size == 5) {
                         Spacer(Modifier.height(12.dp))
-                        val zoneIdx = zoneIndexFor(log.avgHeartRate, zoneBounds)
-                        val zoneRange = zoneRangeText(zoneIdx, zoneBounds)
-
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "Пульсовая зона",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                formatZoneDuration(log.durationSec.toLong()),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                        val zoneDurations = remember(log, zoneBounds) {
+                            estimateZoneDurations(log.durationSec, log.avgHeartRate, log.maxHeartRate, zoneBounds)
                         }
-                        Spacer(Modifier.height(4.dp))
-                        ZoneBarForAvgHr(log.avgHeartRate, zoneBounds)
-                        Spacer(Modifier.height(4.dp))
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                ZoneNames[zoneIdx],
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = ZoneColors[zoneIdx]
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                zoneRange,
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        val totalSec = zoneDurations.sum().coerceAtLeast(1L)
+
+                        Text("Пульсовые зоны", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
+                        
+                        // Мини-бар распределения
+                        Row(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))) {
+                            zoneDurations.forEachIndexed { i, sec ->
+                                if (sec > 0) {
+                                    Box(Modifier.weight(sec.toFloat()).fillMaxHeight().background(ZoneColors[i]))
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+
+                        // Детальный список
+                        zoneDurations.forEachIndexed { i, sec ->
+                            if (sec > 0) {
+                                val pct = (sec.toFloat() / totalSec) * 100f
+                                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(6.dp).background(ZoneColors[i], CircleShape))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(ZoneNames[i], fontSize = 12.sp, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
+                                    Text(formatZoneDuration(sec), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(50.dp), textAlign = TextAlign.End)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("%.0f%%".format(pct), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(36.dp), textAlign = TextAlign.End)
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun ZoneBarForAvgHr(hr: Int, zoneBounds: List<Int>) {
-    val zoneIdx = zoneIndexFor(hr, zoneBounds)
-
-    Row(
-        Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp))
-    ) {
-        for (i in 0..4) {
-            Box(
-                Modifier.weight(1f).fillMaxHeight().background(
-                    if (i == zoneIdx) ZoneColors[i] else ZoneColors[i].copy(alpha = 0.15f)
-                )
-            )
         }
     }
 }
@@ -535,9 +516,12 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
         if (logs.isEmpty() || zoneBounds.size != 5) return@remember List(5) { ZoneStat(0L, 0f) }
         val durations = LongArray(5)
         logs.forEach { log ->
-            val hr = log.avgHeartRate
-            if (hr > 0 && log.durationSec > 0) {
-                durations[zoneIndexFor(hr, zoneBounds)] += log.durationSec.toLong()
+            if (log.avgHeartRate > 0 && log.durationSec > 0) {
+                // Суммируем распределение по зонам для каждой тренировки
+                val est = estimateZoneDurations(log.durationSec, log.avgHeartRate, log.maxHeartRate, zoneBounds)
+                for (i in 0..4) {
+                    durations[i] += est[i]
+                }
             }
         }
         val total = durations.sum().coerceAtLeast(1L)
@@ -621,7 +605,7 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "Расчёт по средней ЧСС за тренировку",
+                "Расчёт на основе аппроксимации средней и максимальной ЧСС",
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -670,18 +654,54 @@ private fun ChartCard(
 
 // ---------- helpers ----------
 
-private fun zoneIndexFor(hr: Int, zoneBounds: List<Int>): Int = when {
-    hr < zoneBounds[0] -> 0
-    hr < zoneBounds[1] -> 1
-    hr < zoneBounds[2] -> 2
-    hr < zoneBounds[3] -> 3
-    else -> 4
-}
-
-private fun zoneRangeText(zoneIdx: Int, zoneBounds: List<Int>): String = when (zoneIdx) {
-    0 -> "до ${zoneBounds[0]}"
-    4 -> "${zoneBounds[3]}+"
-    else -> "${zoneBounds[zoneIdx - 1]}–${zoneBounds[zoneIdx]}"
+private fun estimateZoneDurations(
+    durationSec: Int,
+    avgHr: Int,
+    maxHr: Int,
+    zoneBounds: List<Int>
+): LongArray {
+    if (avgHr <= 0 || durationSec <= 0 || zoneBounds.size != 5) return LongArray(5)
+    val safeMax = maxHr.coerceAtLeast(avgHr)
+    
+    // Центры зон (для расчёта весов)
+    val centers = doubleArrayOf(
+        (70.0 + zoneBounds[0]) / 2.0,
+        (zoneBounds[0] + zoneBounds[1]) / 2.0,
+        (zoneBounds[1] + zoneBounds[2]) / 2.0,
+        (zoneBounds[2] + zoneBounds[3]) / 2.0,
+        (zoneBounds[3] + 200.0) / 2.0
+    )
+    
+    // Сигма зависит от разброса между средним и максимальным
+    val sigma = ((safeMax - avgHr).coerceAtLeast(10) / 1.5).coerceAtLeast(8.0)
+    val variance2 = 2.0 * sigma * sigma
+    
+    val weights = DoubleArray(5) { i ->
+        val dist = centers[i] - avgHr
+        val base = kotlin.math.exp(-(dist * dist) / variance2)
+        // Добавляем бонус зоне, в которую попал maxHr (там проводим пиковое время)
+        val isPeakZone = (i == 4 && safeMax >= zoneBounds[3]) ||
+                         (i == 3 && safeMax >= zoneBounds[2] && safeMax < zoneBounds[3]) ||
+                         (i == 2 && safeMax >= zoneBounds[1] && safeMax < zoneBounds[2])
+        if (isPeakZone) base + 0.4 else base
+    }
+    
+    val sumW = weights.sum()
+    if (sumW == 0.0) return LongArray(5).also { it[0] = durationSec.toLong() }
+    
+    val result = LongArray(5)
+    var remaining = durationSec.toLong()
+    for (i in 0..4) {
+        val sec = (durationSec * weights[i] / sumW).toLong()
+        result[i] = sec
+        remaining -= sec
+    }
+    // Если из-за округления остались секунды, кидаем их в доминирующую зону
+    if (remaining > 0) {
+        val maxIdx = weights.indices.maxByOrNull { weights[it] } ?: 0
+        result[maxIdx] += remaining
+    }
+    return result
 }
 
 private fun formatZoneDuration(sec: Long): String {
