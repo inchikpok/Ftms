@@ -42,22 +42,30 @@ object ProgramGenerator {
             ExperienceLevel.ADVANCED -> 15.0
         }
         val levelIncline = when (profile.level) {
-            ExperienceLevel.BEGINNER -> 3.0
-            ExperienceLevel.INTERMEDIATE -> 6.0
-            ExperienceLevel.ADVANCED -> 10.0
+            ExperienceLevel.BEGINNER -> 4.0
+            ExperienceLevel.INTERMEDIATE -> 8.0
+            ExperienceLevel.ADVANCED -> 12.0
+        }
+        
+        // Множитель для наклона в зависимости от уровня
+        val inclineLevelMult = when (profile.level) {
+            ExperienceLevel.BEGINNER -> 0.6
+            ExperienceLevel.INTERMEDIATE -> 0.8
+            ExperienceLevel.ADVANCED -> 1.0
         }
 
         val userMult = intensityPercent / 100.0
 
-        // Защита от некорректных настроек (чтобы coerceIn не упал)
+        // Защита от некорректных настроек
         val safeMaxSpeed = maxSpeedLimit.coerceAtLeast(5.0)
         val safeMaxIncline = maxInclineLimit.coerceAtLeast(1.0)
 
-        // Применяем лимиты пользователя
         val walkSpeed = (4.5 * bmiMult * userMult).coerceIn(2.0, safeMaxSpeed).roundToTenth()
         val jogSpeed = (levelJog * bmiMult * userMult).coerceIn(4.5, safeMaxSpeed).roundToTenth()
         val runSpeed = (levelRun * bmiMult * userMult).coerceIn(6.0, safeMaxSpeed).roundToTenth()
-        val maxIncline = (levelIncline * userMult).coerceIn(0.0, safeMaxIncline)
+        
+        // Базовый наклон для программы с учетом уровня и интенсивности
+        val baseIncline = (levelIncline * inclineLevelMult * userMult).coerceIn(0.0, safeMaxIncline)
 
         when (goal) {
             WorkoutGoal.WEIGHT_LOSS -> {
@@ -67,11 +75,14 @@ object ProgramGenerator {
 
                 segments.add(ProgramSegment(warmupMin * 60, walkSpeed, 0.0, "Разминка (Ходьба)"))
                 
+                // Ходьба в горку - 80% от baseIncline
+                val hillIncline = (baseIncline * 0.8).coerceIn(1.0, safeMaxIncline)
+                
                 var remainingSec = mainMin * 60
                 var block = 1
                 while (remainingSec > 0) {
                     val fastSec = minOf(3 * 60, remainingSec)
-                    segments.add(ProgramSegment(fastSec, jogSpeed, maxIncline * 0.5, "Ходьба в горку $block"))
+                    segments.add(ProgramSegment(fastSec, jogSpeed, hillIncline, "Ходьба в горку $block"))
                     remainingSec -= fastSec
                     if (remainingSec <= 0) break
                     
@@ -89,8 +100,16 @@ object ProgramGenerator {
                 val mainMin = durationMin - warmupMin - cooldownMin
 
                 segments.add(ProgramSegment(warmupMin * 60, walkSpeed, 0.0, "Разминка (Ходьба)"))
+                
+                // Основной бег разбиваем на 3 части с разным наклоном (волны)
                 if (mainMin > 0) {
-                    segments.add(ProgramSegment(mainMin * 60, jogSpeed, maxIncline * 0.3, "Основной бег (Кардио)"))
+                    val mainSec = mainMin * 60
+                    val partSec = mainSec / 3
+                    val partIncline = (baseIncline * 0.4).coerceIn(0.0, safeMaxIncline)
+                    
+                    segments.add(ProgramSegment(partSec, jogSpeed, 0.0, "Бег (ровно)"))
+                    segments.add(ProgramSegment(partSec, jogSpeed, partIncline, "Бег (подъем)"))
+                    segments.add(ProgramSegment(mainSec - partSec * 2, jogSpeed, 0.0, "Бег (ровно)"))
                 }
                 segments.add(ProgramSegment(cooldownMin * 60, walkSpeed, 0.0, "Заминка"))
             }
@@ -112,12 +131,15 @@ object ProgramGenerator {
                     ExperienceLevel.INTERMEDIATE -> 60
                     ExperienceLevel.ADVANCED -> 60
                 }
+                
+                // Интервалы в горку - 60% от baseIncline
+                val speedIncline = (baseIncline * 0.6).coerceIn(0.0, safeMaxIncline)
 
                 var remainingSec = mainMin * 60
                 var intNum = 1
                 while (remainingSec > 0) {
                     val fast = minOf(fastSec, remainingSec)
-                    segments.add(ProgramSegment(fast, runSpeed, maxIncline * 0.2, "Интервал $intNum"))
+                    segments.add(ProgramSegment(fast, runSpeed, speedIncline, "Интервал $intNum (горка)"))
                     remainingSec -= fast
                     if (remainingSec <= 0) break
                     
