@@ -5,7 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel // 🚀 ДОБАВЛЕН ИМПОРТ
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +24,9 @@ class FTMSProtocol : ITreadmillProtocol {
 
     private val _data = MutableStateFlow(TreadmillData())
     override val data: StateFlow<TreadmillData> = _data
+
+    private val _capabilities = MutableStateFlow(TreadmillCapabilities())
+    override val capabilities: StateFlow<TreadmillCapabilities> = _capabilities
 
     private var conn: BleConnection? = null
     private var controlPointUuid: UUID? = null
@@ -64,10 +67,60 @@ class FTMSProtocol : ITreadmillProtocol {
             }
         }
 
-        val featureChar = conn.findCharacteristic(Uuids.FTMS_FEATURE)
-        if (featureChar != null) {
-            conn.read(featureChar.uuid)?.let { Log.d("FTMS", "Feature: ${it.toHex()}") }
+        // === Читаем возможности дорожки ===
+        var caps = TreadmillCapabilities()
+        var anyLoaded = false
+
+        val featureBytes = conn.findCharacteristic(Uuids.FTMS_FEATURE)?.let {
+            conn.read(it.uuid)?.also { b -> log("Feature: ${b.toHex()}") }
         }
+        featureBytes?.let {
+            anyLoaded = true
+            val fmap = TreadmillCapabilities.parseFeature(it)
+            caps = caps.copy(
+                supportsIncline = fmap["incline"] == true,
+                supportsDistance = fmap["distance"] == true,
+                supportsCalories = fmap["calories"] == true,
+                supportsHeartRate = fmap["heartRate"] == true,
+                supportsElapsedTime = fmap["elapsedTime"] == true
+            )
+        }
+
+        val speedRangeBytes = conn.findCharacteristic(Uuids.FTMS_SUPPORTED_SPEED_RANGE)?.let {
+            conn.read(it.uuid)?.also { b -> log("Speed Range: ${b.toHex()}") }
+        }
+        speedRangeBytes?.let {
+            TreadmillCapabilities.parseSpeedRange(it)?.let { (mn, mx, inc) ->
+                anyLoaded = true
+                caps = caps.copy(minSpeedKmh = mn, maxSpeedKmh = mx, speedIncrementKmh = inc)
+            }
+        }
+
+        val inclineRangeBytes = conn.findCharacteristic(Uuids.FTMS_SUPPORTED_INCLINE_RANGE)?.let {
+            conn.read(it.uuid)?.also { b -> log("Incline Range: ${b.toHex()}") }
+        }
+        inclineRangeBytes?.let {
+            TreadmillCapabilities.parseInclineRange(it)?.let { (mn, mx, inc) ->
+                anyLoaded = true
+                caps = caps.copy(
+                    minInclinePercent = mn,
+                    maxInclinePercent = mx,
+                    inclineIncrementPercent = inc,
+                    supportsIncline = true
+                )
+            }
+        }
+
+        if (anyLoaded) {
+            caps = caps.copy(isLoaded = true)
+            log("Возможности загружены: скорость %.1f–%.1f, наклон %s".format(
+                caps.minSpeedKmh, caps.maxSpeedKmh,
+                if (caps.supportsIncline) "%.1f–%.1f%%".format(caps.minInclinePercent, caps.maxInclinePercent) else "нет"
+            ))
+        } else {
+            log("FTMS-возможности не предоставлены — используем дефолты")
+        }
+        _capabilities.value = caps
 
         if (conn.findCharacteristic(Uuids.FTMS_TREADMILL_DATA) != null) {
             conn.setNotify(Uuids.FTMS_TREADMILL_DATA, true, indicate = false)
@@ -104,12 +157,17 @@ class FTMSProtocol : ITreadmillProtocol {
                     }
                 }
 
-                val inclineTarget = lastRequestedIncline
-                if (beltSpeed >= 0.5 && now - lastInclineSentAt >= 5000L) {
-                    if (abs(beltIncline - inclineTarget) >= 0.5) {
-                        sendInclineRaw(inclineTarget)
-                        lastInclineSentAt = now
-                        log("retry incline $inclineTarget (belt at $beltIncline)")
+                val caps = _capabilities.value
+                if (caps.isLoaded && !caps.supportsIncline) {
+                    // наклон не поддерживается — не ретраим
+                } else {
+                    val inclineTarget = lastRequestedIncline
+                    if (beltSpeed >= 0.5 && now - lastInclineSentAt >= 5000L) {
+                        if (abs(beltIncline - inclineTarget) >= 0.5) {
+                            sendInclineRaw(inclineTarget)
+                            lastInclineSentAt = now
+                            log("retry incline $inclineTarget (belt at $beltIncline)")
+                        }
                     }
                 }
             }
@@ -124,7 +182,8 @@ class FTMSProtocol : ITreadmillProtocol {
 
     private fun applySpeedResolution(v: Double): Double {
         if (v <= 0.0) return 0.0
-        val res = speedResolutionKmh
+        val caps = _capabilities.value
+        val res = if (caps.isLoaded && caps.speedIncrementKmh > 0.0) caps.speedIncrementKmh else speedResolutionKmh
         if (res <= 0.0) return v
         val floored = floor(v / res) * res
         return floored.coerceAtLeast(res)
@@ -211,6 +270,11 @@ class FTMSProtocol : ITreadmillProtocol {
     }
 
     override suspend fun setIncline(percent: Double): Boolean {
+        val caps = _capabilities.value
+        if (caps.isLoaded && !caps.supportsIncline) {
+            log("наклон не поддерживается дорожкой — команда проигнорирована")
+            return false
+        }
         val t = if (roundInclineToWhole) percent.coerceIn(0.0, 30.0).roundToInt().toDouble() else percent.coerceIn(0.0, 30.0)
         lastRequestedIncline = t
         lastInclineSentAt = System.currentTimeMillis()
@@ -219,7 +283,6 @@ class FTMSProtocol : ITreadmillProtocol {
         return true
     }
 
-    /** [НОВОЕ] Отправка произвольных байт через sendMutex — используется из sendRawHex. */
     suspend fun sendRaw(bytes: ByteArray): Boolean {
         val uuid = controlPointUuid ?: return false
         val c = conn ?: return false
