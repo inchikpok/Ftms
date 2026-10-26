@@ -345,23 +345,28 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
 
 @Composable
 private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
+    // Считаем распределение времени по зонам (используем MutableList, чтобы избежать багов компилятора Kotlin)
     val percentages = remember(logs, zoneBounds) {
         if (logs.isEmpty() || zoneBounds.size != 5) return@remember List(5) { 0f }
-        val durations = DoubleArray(5)
+        
+        val durations = mutableListOf(0.0, 0.0, 0.0, 0.0, 0.0)
         var totalDuration = 0.0
+        
         logs.forEach { log ->
             val hr = log.avgHeartRate
             if (hr > 0 && log.durationSec > 0) {
                 totalDuration += log.durationSec
+                val d = log.durationSec.toDouble()
                 when {
-                    hr < zoneBounds[0] -> durations[0] += log.durationSec
-                    hr < zoneBounds[1] -> durations[1] += log.durationSec
-                    hr < zoneBounds[2] -> durations[2] += log.durationSec
-                    hr < zoneBounds[3] -> durations[3] += log.durationSec
-                    else -> durations[4] += log.durationSec
+                    hr < zoneBounds[0] -> durations[0] = durations[0] + d
+                    hr < zoneBounds[1] -> durations[1] = durations[1] + d
+                    hr < zoneBounds[2] -> durations[2] = durations[2] + d
+                    hr < zoneBounds[3] -> durations[3] = durations[3] + d
+                    else -> durations[4] = durations[4] + d
                 }
             }
         }
+        
         if (totalDuration == 0.0) return@remember List(5) { 0f }
         durations.map { ((it / totalDuration) * 100).toFloat() }
     }
