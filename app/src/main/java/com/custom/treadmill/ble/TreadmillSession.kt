@@ -53,6 +53,9 @@ class TreadmillSession(private val appContext: Context) {
     private val _treadmillName = MutableStateFlow<String?>(null)
     val treadmillName: StateFlow<String?> = _treadmillName.asStateFlow()
 
+    private val _capabilities = MutableStateFlow(TreadmillCapabilities())
+    val capabilities: StateFlow<TreadmillCapabilities> = _capabilities.asStateFlow()
+
     private val _hrName = MutableStateFlow<String?>(null)
     val hrName: StateFlow<String?> = _hrName.asStateFlow()
 
@@ -391,6 +394,7 @@ class TreadmillSession(private val appContext: Context) {
             protocol = p
             addLog("Протокол: ${p.protocolName}")
             scope.launch { p.data.collect { _treadmillData.value = it } }
+            scope.launch { p.capabilities.collect { _capabilities.value = it } }
             val ok = p.initialize(conn)
             addLog(if (ok) "Протокол инициализирован" else "Ошибка инициализации")
             _statusMessage.value = if (ok) "Дорожка готова" else "Не найдены характеристики"
@@ -419,6 +423,7 @@ class TreadmillSession(private val appContext: Context) {
         protocol = null
         _treadmillState.value = BleConnectionState.DISCONNECTED
         _treadmillData.value = TreadmillData()
+        _capabilities.value = TreadmillCapabilities()
         _targetSpeed.value = 0.0
         _targetIncline.value = 0.0
         _treadmillName.value = null
@@ -475,7 +480,10 @@ class TreadmillSession(private val appContext: Context) {
 
     fun setSpeed(kmh: Double) {
         val s = settingsStore.settings.value
-        val safe = kmh.coerceIn(s.minSpeedKmh, s.maxSpeedKmh)
+        val caps = _capabilities.value
+        val minS = if (caps.isLoaded) maxOf(s.minSpeedKmh, caps.minSpeedKmh) else s.minSpeedKmh
+        val maxS = if (caps.isLoaded) minOf(s.maxSpeedKmh, caps.maxSpeedKmh) else s.maxSpeedKmh
+        val safe = kmh.coerceIn(minS, maxS)
         _targetSpeed.value = safe
         lastSpeedCmdTime = System.currentTimeMillis()
         scope.launch { protocol?.setSpeed(safe) }
@@ -483,7 +491,13 @@ class TreadmillSession(private val appContext: Context) {
 
     fun setIncline(percent: Double) {
         val s = settingsStore.settings.value
-        val safe = percent.coerceIn(0.0, s.maxInclinePercent)
+        val caps = _capabilities.value
+        if (caps.isLoaded && !caps.supportsIncline) {
+            _targetIncline.value = 0.0
+            return
+        }
+        val maxI = if (caps.isLoaded) minOf(s.maxInclinePercent, caps.maxInclinePercent) else s.maxInclinePercent
+        val safe = percent.coerceIn(0.0, maxI)
         _targetIncline.value = safe
         lastInclineCmdTime = System.currentTimeMillis()
         scope.launch { protocol?.setIncline(safe) }
@@ -511,7 +525,6 @@ class TreadmillSession(private val appContext: Context) {
         val isResume = _isPaused.value
         if (isResume) speak("Продолжаем")
         if (!isResume) {
-            // [ФИКС] Очищаем состояние предыдущей программы, если она была
             workoutManager.stop()
             resetMetrics()
             resetStats()
@@ -530,7 +543,10 @@ class TreadmillSession(private val appContext: Context) {
 
                 if (waitForBeltRunning(0.9, 30000L)) {
                     val targetInclineLocal = _targetIncline.value
-                    if (targetInclineLocal > 0.0) protocol?.setIncline(targetInclineLocal)
+                    val caps = _capabilities.value
+                    if (targetInclineLocal > 0.0 && (!caps.isLoaded || caps.supportsIncline)) {
+                        protocol?.setIncline(targetInclineLocal)
+                    }
                 } else {
                     _statusMessage.value = "Дорожка не отвечает. Нажмите кнопку."
                 }
@@ -580,17 +596,26 @@ class TreadmillSession(private val appContext: Context) {
                         scope = scope, program = program,
                         onSetSpeed = {
                             val s = settingsStore.settings.value
-                            val safe = it.coerceIn(s.minSpeedKmh, s.maxSpeedKmh)
+                            val caps = _capabilities.value
+                            val minS = if (caps.isLoaded) maxOf(s.minSpeedKmh, caps.minSpeedKmh) else s.minSpeedKmh
+                            val maxS = if (caps.isLoaded) minOf(s.maxSpeedKmh, caps.maxSpeedKmh) else s.maxSpeedKmh
+                            val safe = it.coerceIn(minS, maxS)
                             _targetSpeed.value = safe
                             lastSpeedCmdTime = System.currentTimeMillis()
                             protocol?.setSpeed(safe)
                         },
                         onSetIncline = {
                             val s = settingsStore.settings.value
-                            val safe = it.coerceIn(0.0, s.maxInclinePercent)
-                            _targetIncline.value = safe
-                            lastInclineCmdTime = System.currentTimeMillis()
-                            protocol?.setIncline(safe)
+                            val caps = _capabilities.value
+                            if (!caps.isLoaded || caps.supportsIncline) {
+                                val maxI = if (caps.isLoaded) minOf(s.maxInclinePercent, caps.maxInclinePercent) else s.maxInclinePercent
+                                val safe = it.coerceIn(0.0, maxI)
+                                _targetIncline.value = safe
+                                lastInclineCmdTime = System.currentTimeMillis()
+                                protocol?.setIncline(safe)
+                            } else {
+                                _targetIncline.value = 0.0
+                            }
                         },
                         onFinish = {
                             val avgHr = if (hrCount > 0) (hrSum / hrCount).toInt() else 0
@@ -639,7 +664,7 @@ class TreadmillSession(private val appContext: Context) {
     fun resumeWorkout() {
         val text = settingsStore.settings.value.ttsResumeText
         if (text.isNotBlank()) speak(text)
-        
+
         isStartingBelt = true
         scope.launch {
             try {
@@ -680,12 +705,9 @@ class TreadmillSession(private val appContext: Context) {
     fun saveWorkoutLog() {
         if (workoutLogSaved) return
         val ws = workoutManager.state.value
-        
-        // [ФИКС] Берем время программы, ТОЛЬКО если у нас реально есть активная программа.
-        // Иначе берем время ручной тренировки _uiElapsedSec.
         val isProgram = ws.programName.isNotBlank()
         val durationSec = if (isProgram && ws.totalElapsedSec > 0) ws.totalElapsedSec else _uiElapsedSec.value
-        
+
         if (durationSec <= 0) return
         workoutLogSaved = true
 
@@ -695,7 +717,6 @@ class TreadmillSession(private val appContext: Context) {
         scope.launch {
             repository.addLog(WorkoutLogEntity(
                 dateMillis = System.currentTimeMillis(),
-                // Если это программа — берем ее имя, иначе "Ручная тренировка"
                 programName = if (isProgram) ws.programName else "Ручная тренировка",
                 durationSec = durationSec,
                 distanceKm = _uiDistanceKm.value,
