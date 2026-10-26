@@ -149,25 +149,30 @@ fun WorkoutScreen(
             Spacer(Modifier.height(6.dp))
 
             Card(Modifier.fillMaxWidth().weight(1f)) {
-                Column(Modifier.fillMaxSize().padding(10.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                        Text("Пульс (30 мин)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        RollingText(text = if (hr > 0) "$hr" else "—", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
-                        Spacer(Modifier.width(3.dp))
-                        Text("уд/мин", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
-                        if (targetHr > 0) {
-                            Spacer(Modifier.width(8.dp))
-                            Text("Цель: $targetHr", fontSize = 10.sp, color = Color(0xFF1976D2), modifier = Modifier.padding(bottom = 3.dp))
+                Column(Modifier.fillMaxSize()) {
+                    // Заголовок графика с отдельным фоном
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.Bottom) {
+                            Text("Пульс (30 мин)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            RollingText(text = if (hr > 0) "$hr" else "—", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
+                            Spacer(Modifier.width(3.dp))
+                            Text("уд/мин", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
+                            if (targetHr > 0) {
+                                Spacer(Modifier.width(8.dp))
+                                Text("Цель: $targetHr", fontSize = 10.sp, color = Color(0xFF1976D2), modifier = Modifier.padding(bottom = 3.dp))
+                            }
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
-                    HeartRateChart(
-                        points = hrHistory, 
-                        targetHr = targetHr, 
-                        zoneBounds = zoneBounds,
-                        showTargetLine = true,
-                        modifier = Modifier.fillMaxWidth().weight(1f)
-                    )
+                    
+                    Box(Modifier.padding(10.dp).weight(1f)) {
+                        HeartRateChart(
+                            points = hrHistory, 
+                            targetHr = targetHr, 
+                            zoneBounds = zoneBounds,
+                            showTargetLine = true,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
 
