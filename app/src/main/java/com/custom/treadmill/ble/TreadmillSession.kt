@@ -94,6 +94,10 @@ class TreadmillSession(private val appContext: Context) {
     private val _uiCalories = MutableStateFlow(0)
     val uiCalories: StateFlow<Int> = _uiCalories.asStateFlow()
 
+    // [ФИКС] Кулдаун после ручного отключения — чтобы не сканировать сразу
+    private val _scanCooldownUntil = MutableStateFlow(0L)
+    val scanCooldownUntil: StateFlow<Long> = _scanCooldownUntil.asStateFlow()
+
     val logs: StateFlow<List<String>> = DebugLog.lines
 
     private var lastSpeedCmdTime = 0L
@@ -302,8 +306,25 @@ class TreadmillSession(private val appContext: Context) {
         }
     }
 
-    fun startScanTreadmill() = ble.startScan()
-    fun startScanHeartRate() = ble.startScan()
+    fun startScanTreadmill() {
+        // [ФИКС] Не даём сканировать слишком быстро после отключения
+        val wait = (_scanCooldownUntil.value - System.currentTimeMillis()).coerceAtLeast(0)
+        if (wait > 0) {
+            _statusMessage.value = "Подождите ${(wait / 1000).toInt() + 1} сек перед повторным сканированием"
+            return
+        }
+        ble.startScan()
+    }
+    
+    fun startScanHeartRate() {
+        val wait = (_scanCooldownUntil.value - System.currentTimeMillis()).coerceAtLeast(0)
+        if (wait > 0) {
+            _statusMessage.value = "Подождите ${(wait / 1000).toInt() + 1} сек"
+            return
+        }
+        ble.startScan()
+    }
+    
     fun stopScan() = ble.stopScan()
     fun clearStatusMessage() { _statusMessage.value = null }
 
@@ -311,7 +332,6 @@ class TreadmillSession(private val appContext: Context) {
         lastConnectedMac = device.address
         isManualDisconnect = false
         
-        // [ФИКС] Отменяем автопереподключение перед ручным подключением
         autoReconnectJob?.cancel()
         autoReconnectJob = null
         isAutoReconnecting = false
@@ -365,7 +385,6 @@ class TreadmillSession(private val appContext: Context) {
                 if (device != null) {
                     _treadmillState.value = BleConnectionState.CONNECTING
                     
-                    // [ФИКС] Закрываем старое соединение перед созданием нового
                     treadmillConn?.disconnect()
                     
                     val conn = BleConnection(appContext, "TR")
@@ -374,7 +393,7 @@ class TreadmillSession(private val appContext: Context) {
                     treadmillLogJob?.cancel()
                     treadmillLogJob = scope.launch { conn.log.collect { addLog(it) } }
 
-                    treadmillStateJob?.cancel() // [ФИКС] Отменяем старый Job
+                    treadmillStateJob?.cancel()
                     treadmillStateJob = scope.launch {
                         conn.state.collect { state ->
                             _treadmillState.value = state
@@ -382,7 +401,7 @@ class TreadmillSession(private val appContext: Context) {
                         }
                     }
                     
-                    treadmillNotifyJob?.cancel() // [ФИКС] Отменяем старый Job
+                    treadmillNotifyJob?.cancel()
                     treadmillNotifyJob = scope.launch { conn.notifications.collect { protocol?.onNotification(it) } }
                     
                     conn.connect(device)
@@ -406,7 +425,6 @@ class TreadmillSession(private val appContext: Context) {
 
     private fun onTreadmillReady(conn: BleConnection) {
         scope.launch {
-            // [ФИКС] Останавливаем старый протокол, чтобы не было утечки retry-loop
             protocol?.shutdown()
             
             val p = FTMSProtocol().apply {
@@ -430,6 +448,10 @@ class TreadmillSession(private val appContext: Context) {
         isManualDisconnect = true
         lastConnectedMac = null
         addLog("Ручное отключение дорожки")
+        
+        // [ФИКС] Ставим кулдаун 10 секунд перед повторным сканированием
+        _scanCooldownUntil.value = System.currentTimeMillis() + 10_000L
+        _statusMessage.value = "Отключено. Подождите 10 сек перед повторным сканированием."
         
         autoReconnectJob?.cancel()
         autoReconnectJob = null
@@ -455,7 +477,6 @@ class TreadmillSession(private val appContext: Context) {
         treadmillConn?.disconnect()
         treadmillConn = null
         
-        // [ФИКС] Останавливаем протокол при отключении
         protocol?.shutdown()
         protocol = null
         
