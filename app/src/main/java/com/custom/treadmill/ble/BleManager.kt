@@ -10,6 +10,8 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,14 +34,20 @@ class BleManager(private val context: Context) {
     private val _scanLog = MutableSharedFlow<String>(extraBufferCapacity = 512)
     val scanLog: SharedFlow<String> = _scanLog.asSharedFlow()
 
-    // [ФИКС] Кулдаун сканирования на уровне BleManager
     private val _scanCooldownUntil = MutableStateFlow(0L)
     val scanCooldownUntil: StateFlow<Long> = _scanCooldownUntil.asStateFlow()
 
     private var scanning = false
 
+    // [ФИКС] Защита от ALREADY_STARTED: если скан не запустился — перезапустим.
+    @Volatile private var shouldScan = false
+    @Volatile private var scanRetryCount = 0
+    private val maxScanRetries = 3
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
+            scanRetryCount = 0
             val name = safeName(result)
             val existing = _scanResults.value
             if (existing.none { it.device.address == result.device.address }) {
@@ -51,6 +59,33 @@ class BleManager(private val context: Context) {
         override fun onScanFailed(errorCode: Int) {
             _scanLog.tryEmit("Ошибка сканирования: код $errorCode")
             scanning = false
+
+            when (errorCode) {
+                ScanCallback.SCAN_FAILED_ALREADY_STARTED -> {
+                    if (shouldScan && scanRetryCount < maxScanRetries) {
+                        scanRetryCount++
+                        _scanLog.tryEmit("ALREADY_STARTED — перезапуск #$scanRetryCount")
+                        mainHandler.postDelayed({
+                            if (shouldScan) doStartScanInternal(clearResults = false)
+                        }, 300L)
+                    } else {
+                        _scanLog.tryEmit("ALREADY_STARTED — лимит попыток исчерпан")
+                    }
+                }
+                ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED -> {
+                    _scanLog.tryEmit("Регистрация приложения не удалась — вкл/выкл Bluetooth")
+                }
+                ScanCallback.SCAN_FAILED_INTERNAL_ERROR -> {
+                    _scanLog.tryEmit("Внутренняя ошибка сканера — попробуйте ещё раз")
+                }
+                ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED -> {
+                    _scanLog.tryEmit("BLE-сканирование не поддерживается")
+                }
+                else -> {
+                    // 4 = SCAN_FAILED_SCANNING_TOO_FREQUENTLY (Android 8+)
+                    _scanLog.tryEmit("Слишком частое сканирование — подождите немного")
+                }
+            }
         }
     }
 
@@ -73,7 +108,6 @@ class BleManager(private val context: Context) {
 
     fun isBluetoothEnabled(): Boolean = adapter?.isEnabled == true
 
-    /** [ФИКС] Установить кулдаун — блокирует любые сканирования на N мс. */
     fun setScanCooldown(ms: Long) {
         val until = System.currentTimeMillis() + ms
         _scanCooldownUntil.value = until
@@ -86,7 +120,6 @@ class BleManager(private val context: Context) {
             return
         }
 
-        // [ФИКС] Проверяем кулдаун на самом низком уровне
         val now = System.currentTimeMillis()
         val wait = (_scanCooldownUntil.value - now).coerceAtLeast(0)
         if (wait > 0) {
@@ -95,6 +128,12 @@ class BleManager(private val context: Context) {
             return
         }
 
+        shouldScan = true
+        scanRetryCount = 0
+        doStartScanInternal(clearResults = true)
+    }
+
+    private fun doStartScanInternal(clearResults: Boolean) {
         val a = adapter ?: run {
             _scanLog.tryEmit("Bluetooth адаптер недоступен")
             return
@@ -112,7 +151,10 @@ class BleManager(private val context: Context) {
             scanner.stopScan(scanCallback)
         } catch (_: Exception) {}
 
-        _scanResults.value = emptyList()
+        if (clearResults) {
+            _scanResults.value = emptyList()
+        }
+
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
@@ -126,6 +168,8 @@ class BleManager(private val context: Context) {
     }
 
     fun stopScan() {
+        shouldScan = false
+        scanRetryCount = 0
         try { adapter?.bluetoothLeScanner?.stopScan(scanCallback) } catch (_: Exception) {}
         scanning = false
         _scanLog.tryEmit("Сканирование остановлено")
