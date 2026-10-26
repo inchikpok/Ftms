@@ -63,7 +63,6 @@ class BleConnection(
     private val pendingReads = ConcurrentHashMap<UUID, CompletableDeferred<ByteArray?>>()
     private val pendingWrites = ConcurrentHashMap<UUID, CompletableDeferred<Boolean>>()
 
-    // [ФИКС] Флаг «идёт запрошенное отключение» + таймаут на случай, если callback не придёт.
     @Volatile private var isDisconnecting = false
     private var disconnectTimeoutJob: Job? = null
 
@@ -78,7 +77,6 @@ class BleConnection(
             log("onConnectionStateChange status=$status newState=$newState")
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    // [ФИКС] Если мы уже запросили disconnect пока шло подключение — отрубаемся сразу.
                     if (isDisconnecting) {
                         log("CONNECTED после запроса disconnect — отключаемся повторно")
                         try { g.disconnect() } catch (_: Exception) {}
@@ -90,10 +88,8 @@ class BleConnection(
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     log("DISCONNECTED callback")
                     if (gatt === g) {
-                        // Это текущий GATT — закрываем и чистим
                         forceCloseGatt(g)
                     } else {
-                        // Старый GATT (уже заменён новым) — просто сбрасываем флаг
                         log("Старый GATT отключился — игнорируем")
                         isDisconnecting = false
                     }
@@ -165,7 +161,6 @@ class BleConnection(
         _state.value = BleConnectionState.CONNECTING
         isDisconnecting = false
 
-        // Defensive: если есть старый GATT (маловероятно, но на всякий) — вычищаем
         gatt?.let { old ->
             try { old.disconnect() } catch (_: Exception) {}
             closeGattSilently(old)
@@ -186,17 +181,11 @@ class BleConnection(
     }
 
     /**
-     * [ФИКС] Правильное отключение:
-     *  1. Отправляем disconnect() в стек BLE.
-     *  2. Ждём onConnectionStateChange(DISCONNECTED) — это значит, что L2CAP-разъединение
-     *     уже улетело на дорожку и она переходит в advertising.
-     *  3. Только теперь refresh() + close() освобождают GATT-клиент.
-     *
-     * Если закрыть GATT мгновенно (как было раньше) — дорожка FitShow «залипает» в
-     * connected-состоянии на 30–60 сек, перестаёт рекламироваться и не находится при
-     * повторном сканировании.
-     *
-     * Фолбэк: если callback не пришёл за 3 сек — принудительно закрываем.
+     * Правильное отключение:
+     *  1. Отправляем disconnect() в стек.
+     *  2. Ждём onConnectionStateChange(DISCONNECTED) — L2CAP-разъединение уже на дорожке.
+     *  3. Затем refresh() + close() освобождают GATT-клиент.
+     * Фолбэк: 3 сек таймаут на случай, если callback не придёт.
      */
     fun disconnect() {
         if (isDisconnecting) {
@@ -206,7 +195,9 @@ class BleConnection(
 
         val g = gatt
         if (g == null) {
+            log("disconnect: gatt уже null — только сброс состояния")
             _state.value = BleConnectionState.DISCONNECTED
+            completePending()
             return
         }
 
