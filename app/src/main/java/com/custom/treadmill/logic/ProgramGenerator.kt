@@ -17,7 +17,9 @@ object ProgramGenerator {
         profile: UserProfile,
         goal: WorkoutGoal,
         durationMin: Int,
-        intensityPercent: Int = 100
+        intensityPercent: Int = 100,
+        maxSpeedLimit: Double = 20.0,
+        maxInclineLimit: Double = 15.0
     ): ProgramData {
         val segments = mutableListOf<ProgramSegment>()
         val bmi = profile.weightKg / ((profile.heightCm / 100.0) * (profile.heightCm / 100.0))
@@ -47,10 +49,15 @@ object ProgramGenerator {
 
         val userMult = intensityPercent / 100.0
 
-        val walkSpeed = (4.5 * bmiMult * userMult).coerceIn(3.0, 6.5).roundToTenth()
-        val jogSpeed = (levelJog * bmiMult * userMult).coerceIn(4.5, 16.0).roundToTenth()
-        val runSpeed = (levelRun * bmiMult * userMult).coerceIn(6.0, 20.0).roundToTenth()
-        val maxIncline = (levelIncline * userMult).coerceIn(1.0, 15.0)
+        // Защита от некорректных настроек (чтобы coerceIn не упал)
+        val safeMaxSpeed = maxSpeedLimit.coerceAtLeast(5.0)
+        val safeMaxIncline = maxInclineLimit.coerceAtLeast(1.0)
+
+        // Применяем лимиты пользователя
+        val walkSpeed = (4.5 * bmiMult * userMult).coerceIn(2.0, safeMaxSpeed).roundToTenth()
+        val jogSpeed = (levelJog * bmiMult * userMult).coerceIn(4.5, safeMaxSpeed).roundToTenth()
+        val runSpeed = (levelRun * bmiMult * userMult).coerceIn(6.0, safeMaxSpeed).roundToTenth()
+        val maxIncline = (levelIncline * userMult).coerceIn(0.0, safeMaxIncline)
 
         when (goal) {
             WorkoutGoal.WEIGHT_LOSS -> {
@@ -63,12 +70,12 @@ object ProgramGenerator {
                 var remainingSec = mainMin * 60
                 var block = 1
                 while (remainingSec > 0) {
-                    val fastSec = minOf(3 * 60, remainingSec) // 3 минуты в горку
+                    val fastSec = minOf(3 * 60, remainingSec)
                     segments.add(ProgramSegment(fastSec, jogSpeed, maxIncline * 0.5, "Ходьба в горку $block"))
                     remainingSec -= fastSec
                     if (remainingSec <= 0) break
                     
-                    val slowSec = minOf(2 * 60, remainingSec) // 2 минуты отдыха
+                    val slowSec = minOf(2 * 60, remainingSec)
                     segments.add(ProgramSegment(slowSec, walkSpeed, 0.0, "Восстановление $block"))
                     remainingSec -= slowSec
                     block++
