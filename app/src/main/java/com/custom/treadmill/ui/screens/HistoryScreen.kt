@@ -1,43 +1,18 @@
 package com.custom.treadmill.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -240,16 +215,19 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
 
         Spacer(Modifier.height(12.dp))
         HeartSummaryCard(withHr)
-        Spacer(Modifier.height(12.dp))
         
+        Spacer(Modifier.height(12.dp))
+        ZoneStatsCard(withHr, zoneBounds)
+        
+        Spacer(Modifier.height(12.dp))
         ChartCard(
             title = "Средний пульс",
             subtitle = "${withHr.size} тренировок",
             points = withHr.map { HrPoint(it.dateMillis, it.avgHeartRate) },
             zoneBounds = zoneBounds
         )
-        Spacer(Modifier.height(12.dp))
         
+        Spacer(Modifier.height(12.dp))
         ChartCard(
             title = "Максимальный пульс",
             subtitle = "Пик за тренировку",
@@ -366,6 +344,69 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
 }
 
 @Composable
+private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
+    // Считаем распределение времени по зонам
+    val percentages = remember(logs, zoneBounds) {
+        if (logs.isEmpty() || zoneBounds.size != 5) return@remember List(5) { 0f }
+        val durations = DoubleArray(5)
+        var totalDuration = 0.0
+        logs.forEach { log ->
+            val hr = log.avgHeartRate
+            if (hr > 0 && log.durationSec > 0) {
+                totalDuration += log.durationSec
+                when {
+                    hr < zoneBounds[0] -> durations[0] += log.durationSec
+                    hr < zoneBounds[1] -> durations[1] += log.durationSec
+                    hr < zoneBounds[2] -> durations[2] += log.durationSec
+                    hr < zoneBounds[3] -> durations[3] += log.durationSec
+                    else -> durations[4] += log.durationSec
+                }
+            }
+        }
+        if (totalDuration == 0.0) return@remember List(5) { 0f }
+        durations.map { ((it / totalDuration) * 100).toFloat() }
+    }
+
+    val zoneColors = listOf(
+        Color(0xFF64B5F6), Color(0xFF81C784), Color(0xFFFFD54F), Color(0xFFFFB74D), Color(0xFFE57373)
+    )
+    val zoneNames = listOf("Z1 Восстановление", "Z2 Лёгкая", "Z3 Аэробная", "Z4 Порог", "Z5 Максимум")
+
+    Card(
+        Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Text("Время в пульсовых зонах", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text("На основе средней ЧСС за тренировку", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(12.dp))
+
+            percentages.forEachIndexed { i, pct ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(8.dp).background(zoneColors[i], CircleShape))
+                    Spacer(Modifier.width(8.dp))
+                    Text(zoneNames[i], fontSize = 13.sp, modifier = Modifier.width(110.dp))
+                    
+                    Box(
+                        Modifier.weight(1f).height(6.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(3.dp))
+                    ) {
+                        Box(
+                            Modifier.fillMaxWidth(pct / 100f).fillMaxHeight().background(zoneColors[i], RoundedCornerShape(3.dp))
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text("%.0f%%".format(pct), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(32.dp), textAlign = TextAlign.End)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ChartCard(
     title: String,
     subtitle: String,
@@ -376,9 +417,10 @@ private fun ChartCard(
         Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(14.dp)) {
+            // Название и подзаголовок НАД графиком
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
                 Text(
                     subtitle,
                     fontSize = 12.sp,
@@ -388,6 +430,7 @@ private fun ChartCard(
             
             Spacer(Modifier.height(16.dp))
             
+            // Чистый график
             HeartRateChart(
                 points = points,
                 targetHr = 0,
@@ -395,7 +438,7 @@ private fun ChartCard(
                 showTargetLine = false,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp) // Даем больше высоты, так как легенда и даты встроены
+                    .height(180.dp)
             )
         }
     }
