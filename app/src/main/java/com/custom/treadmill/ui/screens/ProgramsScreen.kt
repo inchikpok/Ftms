@@ -1,7 +1,5 @@
 package com.custom.treadmill.ui.screens
 
-import android.content.ClipboardManager
-import android.content.Context
 import android.widget.NumberPicker
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,7 +22,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -178,23 +175,13 @@ fun ProgramsScreen(
                     Spacer(Modifier.width(16.dp))
                 }
                 Text("Программы", fontWeight = FontWeight.Bold, fontSize = 22.sp, modifier = Modifier.weight(1f))
-                
+
                 IconButton(onClick = { showGenerator = true }) {
                     Icon(Icons.Default.AutoFixHigh, contentDescription = "Генератор", tint = MaterialTheme.colorScheme.tertiary)
                 }
-                
+
                 IconButton(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
                     Icon(Icons.Outlined.FileUpload, contentDescription = "Импорт из файла")
-                }
-                IconButton(onClick = {
-                    try {
-                        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = cm.primaryClip
-                        if (clip == null || clip.itemCount == 0) mainVm.showMessage("Буфер пуст")
-                        else tryImportText(clip.getItemAt(0).coerceToText(ctx)?.toString() ?: "", "буфер")
-                    } catch (e: Exception) { mainVm.showMessage("Ошибка буфера: ${e.message}") }
-                }) {
-                    Icon(Icons.Outlined.ContentPaste, contentDescription = "Вставить из буфера")
                 }
             }
 
@@ -218,7 +205,7 @@ fun ProgramsScreen(
                     modifier = Modifier.weight(1f).height(50.dp),
                     textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
                 )
-                
+
                 Box {
                     IconButton(
                         onClick = { showSortMenu = true },
@@ -244,7 +231,7 @@ fun ProgramsScreen(
                         Text(if (programs.isEmpty()) "Нет программ" else "Ничего не найдено", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            if (programs.isEmpty()) "Нажмите «Создать», «Волшебную палочку» или вставьте из буфера" else "Попробуйте изменить запрос",
+                            if (programs.isEmpty()) "Нажмите «Создать» или «Волшебную палочку»" else "Попробуйте изменить запрос",
                             fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
                         )
                     }
@@ -261,9 +248,9 @@ fun ProgramsScreen(
                             entity = p, data = data, canStart = treadmillReady,
                             onEdit = { editingId = p.id; editingData = data },
                             onDuplicate = { programVm.save(data.copy(name = "${data.name} (копия)"), 0L) },
-                            onDelete = { 
+                            onDelete = {
                                 if (workoutState.running && workoutState.programName == p.name) mainVm.showMessage("Нельзя удалить запущенную программу")
-                                else deleteTarget = p 
+                                else deleteTarget = p
                             },
                             onExport = { exportTarget = data; exportLauncher.launch("${p.name}.json") },
                             onStart = { if (treadmillReady) onStartWorkout(data) else showNotConnectedDialog = true }
@@ -586,7 +573,7 @@ private fun TemplatesDialog(onPick: (ProgramData?) -> Unit, onDismiss: () -> Uni
                         }
                     }
                 }
-                
+
                 items(templates) { (title, data) ->
                     Card(
                         Modifier.fillMaxWidth().clickable { onPick(data) },
@@ -653,9 +640,9 @@ private fun buildTemplates(): List<Pair<String, ProgramData>> {
         )
     )
     return listOf(
-        "Интервалы 4×3 мин" to intervals, 
-        "Пирамида (1-2-3-2-1)" to pyramid, 
-        "Горки 6×1 мин @ 6%" to hills, 
+        "Интервалы 4×3 мин" to intervals,
+        "Пирамида (1-2-3-2-1)" to pyramid,
+        "Горки 6×1 мин @ 6%" to hills,
         "Fartlek 20 мин" to fartlek
     )
 }
@@ -711,9 +698,9 @@ private fun ProgramEditorScreen(
                     Surface(shadowElevation = 8.dp) {
                         Box(Modifier.fillMaxWidth().padding(12.dp)) {
                             Button(
-                                onClick = { 
+                                onClick = {
                                     val last = segments.lastOrNull()
-                                    segments.add(SegmentEdit("Сегмент ${segments.size + 1}", 60, last?.speedKmh ?: 5.0, last?.inclinePercent ?: 0.0)) 
+                                    segments.add(SegmentEdit("Сегмент ${segments.size + 1}", 60, last?.speedKmh ?: 5.0, last?.inclinePercent ?: 0.0))
                                     scope.launch { listState.animateScrollToItem(segments.size - 1) }
                                 },
                                 modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(10.dp)
@@ -730,15 +717,15 @@ private fun ProgramEditorScreen(
                     SlimTextField(value = name, onValueChange = { name = it }, label = "Название программы", modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(4.dp))
                     SlimTextField(value = description, onValueChange = { description = it }, label = "Описание (опционально)", modifier = Modifier.fillMaxWidth())
-                    
+
                     Spacer(Modifier.height(10.dp))
                     Text("Сегменты", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(4.dp))
-                    
+
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.weight(1f), 
-                        verticalArrangement = Arrangement.spacedBy(8.dp), 
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
                         itemsIndexed(segments) { index, seg ->
@@ -748,23 +735,23 @@ private fun ProgramEditorScreen(
                                 maxIncline = maxIncline,
                                 showIncline = showIncline,
                                 onChange = { newSeg -> segments[index] = newSeg },
-                                onMoveUp = { 
-                                    if (index > 0) { 
+                                onMoveUp = {
+                                    if (index > 0) {
                                         val tmp = segments[index - 1]
                                         segments[index - 1] = segments[index]
                                         segments[index] = tmp
                                         scope.launch { listState.animateScrollToItem(index - 1) }
-                                    } 
+                                    }
                                 },
-                                onMoveDown = { 
-                                    if (index < segments.size - 1) { 
+                                onMoveDown = {
+                                    if (index < segments.size - 1) {
                                         val tmp = segments[index + 1]
                                         segments[index + 1] = segments[index]
                                         segments[index] = tmp
                                         scope.launch { listState.animateScrollToItem(index + 1) }
-                                    } 
+                                    }
                                 },
-                                onDuplicate = { 
+                                onDuplicate = {
                                     segments.add(index + 1, seg)
                                     scope.launch { listState.animateScrollToItem(index + 1) }
                                 },
@@ -845,7 +832,7 @@ private fun TimePickerDialog(initialSeconds: Int, onConfirm: (Int) -> Unit, onDi
             Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Выберите время", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.height(16.dp))
-                
+
                 AndroidView(
                     factory = { ctx ->
                         NumberPicker(ctx).apply {
@@ -892,12 +879,12 @@ private fun SegmentEditor(
     var showTimePicker by remember { mutableStateOf(false) }
 
     Card(
-        Modifier.fillMaxWidth(), 
+        Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)),
         shape = RoundedCornerShape(10.dp)
     ) {
         Column(Modifier.padding(8.dp)) {
-            
+
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = MaterialTheme.colorScheme.primary, shape = CircleShape, modifier = Modifier.size(20.dp)) {
                     Box(contentAlignment = Alignment.Center) {
@@ -905,7 +892,7 @@ private fun SegmentEditor(
                     }
                 }
                 Spacer(Modifier.width(6.dp))
-                
+
                 BasicTextField(
                     value = nameState,
                     onValueChange = { nameState = it; onChange(seg.copy(name = it)) },
@@ -929,7 +916,7 @@ private fun SegmentEditor(
                 )
 
                 Spacer(Modifier.width(4.dp))
-                
+
                 Column {
                     Row {
                         IconButton(onClick = onMoveUp, enabled = index > 0, modifier = Modifier.size(22.dp)) { Icon(Icons.Default.ArrowUpward, null, modifier = Modifier.size(14.dp)) }
@@ -970,16 +957,16 @@ private fun SegmentEditor(
                 Text("Скорость", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     HoldableStepButton(
-                        icon = Icons.Default.Remove, 
-                        onClick = { onChange(seg.copy(speedKmh = (seg.speedKmh - 0.1).coerceAtLeast(0.5).roundToTenth())) }, 
-                        enabled = seg.speedKmh > 0.5, 
+                        icon = Icons.Default.Remove,
+                        onClick = { onChange(seg.copy(speedKmh = (seg.speedKmh - 0.1).coerceAtLeast(0.5).roundToTenth())) },
+                        enabled = seg.speedKmh > 0.5,
                         isPlus = false
                     )
                     Text(text = "%.1f".format(seg.speedKmh), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.width(60.dp))
                     HoldableStepButton(
-                        icon = Icons.Default.Add, 
-                        onClick = { onChange(seg.copy(speedKmh = (seg.speedKmh + 0.1).coerceAtMost(maxSpeed).roundToTenth())) }, 
-                        enabled = seg.speedKmh < maxSpeed, 
+                        icon = Icons.Default.Add,
+                        onClick = { onChange(seg.copy(speedKmh = (seg.speedKmh + 0.1).coerceAtMost(maxSpeed).roundToTenth())) },
+                        enabled = seg.speedKmh < maxSpeed,
                         isPlus = true
                     )
                 }
@@ -992,16 +979,16 @@ private fun SegmentEditor(
                     Text("Наклон", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         HoldableStepButton(
-                            icon = Icons.Default.Remove, 
-                            onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent - 1.0).coerceAtLeast(0.0))) }, 
-                            enabled = seg.inclinePercent > 0.0, 
+                            icon = Icons.Default.Remove,
+                            onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent - 1.0).coerceAtLeast(0.0))) },
+                            enabled = seg.inclinePercent > 0.0,
                             isPlus = false
                         )
                         Text(text = "%.0f".format(seg.inclinePercent), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.width(60.dp))
                         HoldableStepButton(
-                            icon = Icons.Default.Add, 
-                            onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent + 1.0).coerceAtMost(maxIncline))) }, 
-                            enabled = seg.inclinePercent < maxIncline, 
+                            icon = Icons.Default.Add,
+                            onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent + 1.0).coerceAtMost(maxIncline))) },
+                            enabled = seg.inclinePercent < maxIncline,
                             isPlus = true
                         )
                     }
