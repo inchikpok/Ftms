@@ -81,6 +81,16 @@ fun ProgramsScreen(
     val treadmillState by mainVm.treadmillState.collectAsState()
     val workoutState by mainVm.workoutState.collectAsState()
     val settings by mainVm.settings.collectAsState()
+    val caps by mainVm.capabilities.collectAsState()
+
+    // Реальные лимиты — минимум из настроек и возможностей дорожки
+    val effectiveMaxSpeed = remember(settings.maxSpeedKmh, caps) {
+        if (caps.isLoaded) minOf(settings.maxSpeedKmh, caps.maxSpeedKmh) else settings.maxSpeedKmh
+    }
+    val effectiveMaxIncline = remember(settings.maxInclinePercent, caps) {
+        if (caps.isLoaded) minOf(settings.maxInclinePercent, caps.maxInclinePercent) else settings.maxInclinePercent
+    }
+    val showIncline = !caps.isLoaded || caps.supportsIncline
 
     val treadmillReady = treadmillState == BleConnectionState.READY
 
@@ -267,16 +277,18 @@ fun ProgramsScreen(
     if (showGenerator) {
         WorkoutGeneratorDialog(
             profile = settings.activeProfile,
-            maxSpeed = settings.maxSpeedKmh,
-            maxIncline = settings.maxInclinePercent,
+            maxSpeed = effectiveMaxSpeed,
+            maxIncline = effectiveMaxIncline,
+            capsLoaded = caps.isLoaded,
+            capsSupportsIncline = caps.supportsIncline,
             onGenerate = { goal, duration, intensity ->
                 val program = ProgramGenerator.generate(
                     profile = settings.activeProfile,
                     goal = goal,
                     durationMin = duration,
                     intensityPercent = intensity,
-                    maxSpeedLimit = settings.maxSpeedKmh,
-                    maxInclineLimit = settings.maxInclinePercent
+                    maxSpeedLimit = effectiveMaxSpeed,
+                    maxInclineLimit = if (showIncline) effectiveMaxIncline else 0.0
                 )
                 programVm.save(program)
                 mainVm.showMessage("Программа сгенерирована и сохранена!")
@@ -322,8 +334,9 @@ fun ProgramsScreen(
         val isNew = editingId == 0L
         ProgramEditorScreen(
             initial = data, isNew = isNew,
-            maxSpeed = settings.maxSpeedKmh,
-            maxIncline = settings.maxInclinePercent,
+            maxSpeed = effectiveMaxSpeed,
+            maxIncline = if (showIncline) effectiveMaxIncline else 0.0,
+            showIncline = showIncline,
             onShowMessage = { mainVm.showMessage(it) },
             onSave = { newData ->
                 programVm.save(newData, if (isNew) 0L else editingId)
@@ -339,6 +352,8 @@ private fun WorkoutGeneratorDialog(
     profile: com.custom.treadmill.data.repository.UserProfile,
     maxSpeed: Double,
     maxIncline: Double,
+    capsLoaded: Boolean,
+    capsSupportsIncline: Boolean,
     onGenerate: (WorkoutGoal, Int, Int) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -385,9 +400,16 @@ private fun WorkoutGeneratorDialog(
                     Text("Легко", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Максимум", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                
+
                 Text(
-                    "Скорость ограничена вашими настройками: до ${"%.1f".format(maxSpeed)} км/ч, наклон до ${maxIncline.toInt()}%",
+                    buildString {
+                        append("Лимиты: до ${"%.1f".format(maxSpeed)} км/ч")
+                        if (capsSupportsIncline) {
+                            append(", наклон до ${maxIncline.toInt()}%")
+                        } else if (capsLoaded) {
+                            append(" (наклон недоступен)")
+                        }
+                    },
                     fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)
                 )
             }
@@ -643,12 +665,13 @@ private data class SegmentEdit(val name: String = "", val durationSec: Int = 60,
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProgramEditorScreen(
-    initial: ProgramData, 
-    isNew: Boolean, 
-    maxSpeed: Double, 
+    initial: ProgramData,
+    isNew: Boolean,
+    maxSpeed: Double,
     maxIncline: Double,
-    onShowMessage: (String) -> Unit, 
-    onSave: (ProgramData) -> Unit, 
+    showIncline: Boolean,
+    onShowMessage: (String) -> Unit,
+    onSave: (ProgramData) -> Unit,
     onDismiss: () -> Unit
 ) {
     val segments = remember(initial) {
@@ -723,6 +746,7 @@ private fun ProgramEditorScreen(
                                 index = index, total = segments.size, seg = seg,
                                 maxSpeed = maxSpeed,
                                 maxIncline = maxIncline,
+                                showIncline = showIncline,
                                 onChange = { newSeg -> segments[index] = newSeg },
                                 onMoveUp = { 
                                     if (index > 0) { 
@@ -861,6 +885,7 @@ private fun SegmentEditor(
     index: Int, total: Int, seg: SegmentEdit,
     maxSpeed: Double,
     maxIncline: Double,
+    showIncline: Boolean,
     onChange: (SegmentEdit) -> Unit, onMoveUp: () -> Unit, onMoveDown: () -> Unit, onDuplicate: () -> Unit, onDelete: () -> Unit, canDelete: Boolean
 ) {
     var nameState by remember(seg) { mutableStateOf(seg.name) }
@@ -960,24 +985,26 @@ private fun SegmentEditor(
                 }
             }
 
-            Spacer(Modifier.height(2.dp))
+            if (showIncline) {
+                Spacer(Modifier.height(2.dp))
 
-            Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Наклон", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    HoldableStepButton(
-                        icon = Icons.Default.Remove, 
-                        onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent - 1.0).coerceAtLeast(0.0))) }, 
-                        enabled = seg.inclinePercent > 0.0, 
-                        isPlus = false
-                    )
-                    Text(text = "%.0f".format(seg.inclinePercent), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.width(60.dp))
-                    HoldableStepButton(
-                        icon = Icons.Default.Add, 
-                        onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent + 1.0).coerceAtMost(maxIncline))) }, 
-                        enabled = seg.inclinePercent < maxIncline, 
-                        isPlus = true
-                    )
+                Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Наклон", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        HoldableStepButton(
+                            icon = Icons.Default.Remove, 
+                            onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent - 1.0).coerceAtLeast(0.0))) }, 
+                            enabled = seg.inclinePercent > 0.0, 
+                            isPlus = false
+                        )
+                        Text(text = "%.0f".format(seg.inclinePercent), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.width(60.dp))
+                        HoldableStepButton(
+                            icon = Icons.Default.Add, 
+                            onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent + 1.0).coerceAtMost(maxIncline))) }, 
+                            enabled = seg.inclinePercent < maxIncline, 
+                            isPlus = true
+                        )
+                    }
                 }
             }
         }
