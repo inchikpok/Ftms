@@ -1,6 +1,9 @@
 package com.custom.treadmill.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,15 +12,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.treadmill.TreadmillApp
@@ -29,6 +34,16 @@ import com.custom.treadmill.ui.viewmodels.ProgramViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+// Общие цвета и названия зон
+private val ZoneColors = listOf(
+    Color(0xFF64B5F6), // Z1
+    Color(0xFF81C784), // Z2
+    Color(0xFFFFD54F), // Z3
+    Color(0xFFFFB74D), // Z4
+    Color(0xFFE57373)  // Z5
+)
+private val ZoneNames = listOf("Z1 Восстановление", "Z2 Лёгкая", "Z3 Аэробная", "Z4 Порог", "Z5 Максимум")
 
 @Composable
 fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
@@ -147,31 +162,181 @@ private fun TabChip(text: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun LogsList(logs: List<WorkoutLogEntity>) {
+    val settings = TreadmillApp.instance.settingsStore.settings.value
+    val maxHr = HeartRateZoneCalculator.getEffectiveMaxHr(settings)
+    val zoneBounds = HeartRateZoneCalculator.getZoneBounds(maxHr, settings.activeProfile.restingHr)
+
+    var expandedIds by remember(logs) { mutableStateOf(setOf<Long>()) }
+    val allExpanded = logs.isNotEmpty() && logs.all { expandedIds.contains(it.id) }
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Всего: ${logs.size}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = {
+                expandedIds = if (allExpanded) emptySet() else logs.map { it.id }.toSet()
+            }) {
+                Text(if (allExpanded) "Свернуть все" else "Развернуть все", fontSize = 13.sp)
+            }
+        }
+
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = 20.dp)
+        ) {
+            items(logs, key = { it.id }) { log ->
+                val isExpanded = expandedIds.contains(log.id)
+                CompactLogCard(
+                    log = log,
+                    isExpanded = isExpanded,
+                    onToggle = {
+                        expandedIds = if (isExpanded) expandedIds - log.id else expandedIds + log.id
+                    },
+                    zoneBounds = zoneBounds
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactLogCard(
+    log: WorkoutLogEntity,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+    zoneBounds: List<Int>
+) {
     val fmt = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
-    LazyColumn(
-        Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(bottom = 20.dp)
+
+    Card(
+        Modifier.fillMaxWidth().clickable { onToggle() },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        items(logs, key = { it.id }) { log ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) {
-                    Text(fmt.format(Date(log.dateMillis)), fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(4.dp))
-                    Text("Программа: ${log.programName}", fontSize = 13.sp)
-                    Text("Время: ${log.durationSec / 60} мин ${log.durationSec % 60} сек", fontSize = 13.sp)
-                    Text("Дистанция: %.2f км".format(log.distanceKm), fontSize = 13.sp)
-                    Text("Калории: ${log.calories}", fontSize = 13.sp)
-                    if (log.avgHeartRate > 0) {
-                        Text(
-                            "Пульс: ср. ${log.avgHeartRate}, макс ${log.maxHeartRate} уд/мин",
-                            fontSize = 13.sp,
-                            color = Color(0xFFC62828),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Text("Средняя скорость: %.1f км/ч".format(log.avgSpeedKmh), fontSize = 13.sp)
+        Column(Modifier.padding(12.dp).animateContentSize()) {
+            // Шапка карточки
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        fmt.format(Date(log.dateMillis)),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        log.programName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
+                if (log.avgHeartRate > 0) {
+                    Surface(
+                        color = Color(0xFFE57373).copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Default.Favorite, contentDescription = null, tint = Color(0xFFC62828), modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "${log.avgHeartRate}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFC62828)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Базовые метрики (Всегда видны)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                CompactMetric(Icons.Default.Timer, formatDuration(log.durationSec))
+                CompactMetric(Icons.Default.DirectionsRun, "%.2f км".format(log.distanceKm))
+                CompactMetric(Icons.Default.LocalFireDepartment, "${log.calories} ккал")
+            }
+
+            // Спойлер (Доп. метрики + Детализация зон)
+            AnimatedVisibility(visible = isExpanded) {
+                Column(Modifier.padding(top = 12.dp)) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    Spacer(Modifier.height(10.dp))
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        CompactMetric(Icons.Default.Speed, "%.1f км/ч".format(log.avgSpeedKmh), "ср. скорость")
+                        CompactMetric(Icons.Default.FavoriteBorder, if (log.maxHeartRate > 0) "${log.maxHeartRate} уд/мин" else "—", "макс. пульс")
+                    }
+
+                    if (log.avgHeartRate > 0 && zoneBounds.size == 5) {
+                        Spacer(Modifier.height(12.dp))
+                        val zoneDurations = remember(log, zoneBounds) {
+                            estimateZoneDurations(log.durationSec, log.avgHeartRate, log.maxHeartRate, zoneBounds)
+                        }
+                        val totalSec = zoneDurations.sum().coerceAtLeast(1L)
+
+                        Text("Пульсовые зоны", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
+                        
+                        // Мини-бар распределения
+                        Row(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))) {
+                            zoneDurations.forEachIndexed { i, sec ->
+                                if (sec > 0) {
+                                    Box(Modifier.weight(sec.toFloat()).fillMaxHeight().background(ZoneColors[i]))
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+
+                        // Детальный список
+                        zoneDurations.forEachIndexed { i, sec ->
+                            if (sec > 0) {
+                                val pct = (sec.toFloat() / totalSec) * 100f
+                                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(6.dp).background(ZoneColors[i], CircleShape))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(ZoneNames[i], fontSize = 12.sp, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
+                                    Text(formatZoneDuration(sec), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(50.dp), textAlign = TextAlign.End)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("%.0f%%".format(pct), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(36.dp), textAlign = TextAlign.End)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactMetric(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    value: String,
+    label: String? = null
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(4.dp))
+        Column {
+            Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+            if (label != null) {
+                Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -215,18 +380,18 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
 
         Spacer(Modifier.height(12.dp))
         HeartSummaryCard(withHr)
-        
+
         Spacer(Modifier.height(12.dp))
         ZoneStatsCard(withHr, zoneBounds)
-        
+
         Spacer(Modifier.height(16.dp))
-        // [ФИКС] Оставили только средний пульс, убрали зоны для фона
+        // [ФИКС] Оставили только график среднего пульса. График максимального пульса убран.
         ChartCard(
             title = "Средний пульс",
             subtitle = "${withHr.size} тренировок",
             points = withHr.map { HrPoint(it.dateMillis, it.avgHeartRate) }
         )
-        
+
         Spacer(Modifier.height(20.dp))
     }
 }
@@ -336,64 +501,106 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
     }
 }
 
+private data class ZoneStat(val seconds: Long, val percent: Float)
+
 @Composable
 private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
-    val percentages = remember(logs, zoneBounds) {
-        if (logs.isEmpty() || zoneBounds.size != 5) return@remember List(5) { 0f }
-        val durations = DoubleArray(5)
-        var totalDuration = 0.0
+    val stats = remember(logs, zoneBounds) {
+        if (logs.isEmpty() || zoneBounds.size != 5) return@remember List(5) { ZoneStat(0L, 0f) }
+        val durations = LongArray(5)
         logs.forEach { log ->
-            val hr = log.avgHeartRate
-            if (hr > 0 && log.durationSec > 0) {
-                totalDuration += log.durationSec
-                when {
-                    hr < zoneBounds[0] -> durations[0] += log.durationSec.toDouble()
-                    hr < zoneBounds[1] -> durations[1] += log.durationSec.toDouble()
-                    hr < zoneBounds[2] -> durations[2] += log.durationSec.toDouble()
-                    hr < zoneBounds[3] -> durations[3] += log.durationSec.toDouble()
-                    else -> durations[4] += log.durationSec.toDouble()
+            if (log.avgHeartRate > 0 && log.durationSec > 0) {
+                val est = estimateZoneDurations(log.durationSec, log.avgHeartRate, log.maxHeartRate, zoneBounds)
+                for (i in 0..4) {
+                    durations[i] += est[i]
                 }
             }
         }
-        if (totalDuration == 0.0) return@remember List(5) { 0f }
-        durations.map { ((it / totalDuration) * 100).toFloat() }
+        val total = durations.sum().coerceAtLeast(1L)
+        durations.map { ZoneStat(it, (it.toFloat() / total) * 100f) }
     }
-
-    val zoneColors = listOf(
-        Color(0xFF64B5F6), Color(0xFF81C784), Color(0xFFFFD54F), Color(0xFFFFB74D), Color(0xFFE57373)
-    )
-    val zoneNames = listOf("Z1 Восстановление", "Z2 Лёгкая", "Z3 Аэробная", "Z4 Порог", "Z5 Максимум")
+    val totalSec = stats.sumOf { it.seconds }
 
     Card(
         Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(Modifier.padding(14.dp)) {
-            Text("Время в пульсовых зонах", fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            Text("На основе средней ЧСС за тренировку", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(12.dp))
-
-            percentages.forEachIndexed { i, pct ->
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(Modifier.size(8.dp).background(zoneColors[i], CircleShape))
-                    Spacer(Modifier.width(8.dp))
-                    Text(zoneNames[i], fontSize = 13.sp, modifier = Modifier.width(110.dp))
-                    
-                    Box(
-                        Modifier.weight(1f).height(6.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(3.dp))
-                    ) {
-                        Box(
-                            Modifier.fillMaxWidth(pct / 100f).fillMaxHeight().background(zoneColors[i], RoundedCornerShape(3.dp))
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text("%.0f%%".format(pct), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(32.dp), textAlign = TextAlign.End)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                Column(Modifier.weight(1f)) {
+                    Text("Время в пульсовых зонах", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Всего: ${formatZoneDuration(totalSec)}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
+            Spacer(Modifier.height(16.dp))
+
+            // Горизонтальный стеклянный бар
+            Row(
+                Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(8.dp))
+            ) {
+                stats.forEachIndexed { i, stat ->
+                    if (stat.percent > 0f) {
+                        Box(
+                            Modifier.weight(stat.percent).fillMaxHeight().background(ZoneColors[i])
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // Легенда: цвет · название · время · процент
+            stats.forEachIndexed { i, stat ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(10.dp).background(ZoneColors[i], CircleShape))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        ZoneNames[i],
+                        fontSize = 13.sp,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        formatZoneDuration(stat.seconds),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (stat.seconds > 0) MaterialTheme.colorScheme.onSurface
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.width(64.dp),
+                        textAlign = TextAlign.End
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "%.1f%%".format(stat.percent),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(48.dp),
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Границы зон (уд/мин): ${zoneBounds.joinToString(" / ")}",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "Расчёт на основе аппроксимации средней и максимальной ЧСС",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -416,7 +623,7 @@ private fun ChartCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        
+
         Card(
             Modifier.fillMaxWidth(),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -425,7 +632,7 @@ private fun ChartCard(
                 HeartRateChart(
                     points = points,
                     targetHr = 0,
-                    zoneBounds = emptyList(), // Отключаем фоновые зоны
+                    zoneBounds = emptyList(), // [ФИКС] Убрали фоновые зоны для графика истории
                     showTargetLine = false,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -433,6 +640,66 @@ private fun ChartCard(
                 )
             }
         }
+    }
+}
+
+// ---------- helpers ----------
+
+private fun estimateZoneDurations(
+    durationSec: Int,
+    avgHr: Int,
+    maxHr: Int,
+    zoneBounds: List<Int>
+): LongArray {
+    if (avgHr <= 0 || durationSec <= 0 || zoneBounds.size != 5) return LongArray(5)
+    val safeMax = maxHr.coerceAtLeast(avgHr)
+    
+    val centers = doubleArrayOf(
+        (70.0 + zoneBounds[0]) / 2.0,
+        (zoneBounds[0] + zoneBounds[1]) / 2.0,
+        (zoneBounds[1] + zoneBounds[2]) / 2.0,
+        (zoneBounds[2] + zoneBounds[3]) / 2.0,
+        (zoneBounds[3] + 200.0) / 2.0
+    )
+    
+    val sigma = ((safeMax - avgHr).coerceAtLeast(10) / 1.5).coerceAtLeast(8.0)
+    val variance2 = 2.0 * sigma * sigma
+    
+    val weights = DoubleArray(5) { i ->
+        val dist = centers[i] - avgHr
+        val base = kotlin.math.exp(-(dist * dist) / variance2)
+        val isPeakZone = (i == 4 && safeMax >= zoneBounds[3]) ||
+                         (i == 3 && safeMax >= zoneBounds[2] && safeMax < zoneBounds[3]) ||
+                         (i == 2 && safeMax >= zoneBounds[1] && safeMax < zoneBounds[2])
+        if (isPeakZone) base + 0.4 else base
+    }
+    
+    val sumW = weights.sum()
+    if (sumW == 0.0) return LongArray(5).also { it[0] = durationSec.toLong() }
+    
+    val result = LongArray(5)
+    var remaining = durationSec.toLong()
+    for (i in 0..4) {
+        val sec = (durationSec * weights[i] / sumW).toLong()
+        result[i] = sec
+        remaining -= sec
+    }
+    if (remaining > 0) {
+        val maxIdx = weights.indices.maxByOrNull { weights[it] } ?: 0
+        result[maxIdx] += remaining
+    }
+    return result
+}
+
+private fun formatZoneDuration(sec: Long): String {
+    if (sec <= 0L) return "—"
+    val h = sec / 3600
+    val m = (sec % 3600) / 60
+    return when {
+        h > 0 && m > 0 -> "${h}ч ${m}м"
+        h > 0 -> "${h}ч"
+        m > 0 -> "${m}м"
+        else -> "${sec}с"
     }
 }
 
