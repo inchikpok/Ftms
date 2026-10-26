@@ -348,22 +348,27 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
     // Считаем распределение времени по зонам
     val percentages = remember(logs, zoneBounds) {
         if (logs.isEmpty() || zoneBounds.size != 5) return@remember List(5) { 0f }
-        val durations = DoubleArray(5)
+        
+        // [ФИКС] Используем mutableListOf вместо DoubleArray, чтобы обойти баг компилятора с +=
+        val durations = mutableListOf(0.0, 0.0, 0.0, 0.0, 0.0)
         var totalDuration = 0.0
+        
         logs.forEach { log ->
             val hr = log.avgHeartRate
             if (hr > 0 && log.durationSec > 0) {
                 totalDuration += log.durationSec
                 when {
-                    hr < zoneBounds[0] -> durations[0] += log.durationSec
-                    hr < zoneBounds[1] -> durations[1] += log.durationSec
-                    hr < zoneBounds[2] -> durations[2] += log.durationSec
-                    hr < zoneBounds[3] -> durations[3] += log.durationSec
-                    else -> durations[4] += log.durationSec
+                    hr < zoneBounds[0] -> durations[0] += log.durationSec.toDouble()
+                    hr < zoneBounds[1] -> durations[1] += log.durationSec.toDouble()
+                    hr < zoneBounds[2] -> durations[2] += log.durationSec.toDouble()
+                    hr < zoneBounds[3] -> durations[3] += log.durationSec.toDouble()
+                    else -> durations[4] += log.durationSec.toDouble()
                 }
             }
         }
+        
         if (totalDuration == 0.0) return@remember List(5) { 0f }
+        
         durations.map { ((it / totalDuration) * 100).toFloat() }
     }
 
