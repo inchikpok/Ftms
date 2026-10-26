@@ -34,8 +34,17 @@ class ProgramRepository(
     suspend fun delete(entity: ProgramEntity) = programDao.delete(entity)
     suspend fun addLog(log: WorkoutLogEntity) = logDao.insert(log)
 
-    /** Заполняет журнал 20 демо-тренировками за ~10 недель с падающим пульсом. */
+    /**
+     * Заполняет журнал демо-тренировками: 15 записей за ~6 недель.
+     * Покрывает все 5 пульсовых зон, показывает тренд улучшения формы
+     * (средний пульс падает от старых к новым), содержит одну тренировку
+     * без пульса для проверки UI.
+     *
+     * Старые демо-записи удаляются — это позволяет перегенерировать набор
+     * без дубликатов.
+     */
     suspend fun addDemoLogs() {
+        logDao.deleteAll()
         logDao.insertAll(buildDemoLogs())
     }
 
@@ -73,62 +82,72 @@ class ProgramRepository(
     // ============================================================
     //  Генератор демо-данных
     // ============================================================
+    private data class DemoSeed(
+        val daysAgo: Int,
+        val name: String,
+        val durationMin: Int,
+        val speedKmh: Double,
+        val avgHr: Int,
+        val maxHr: Int
+    )
+
     private fun buildDemoLogs(): List<WorkoutLogEntity> {
         val dayMs = 24L * 60 * 60 * 1000
         val now = System.currentTimeMillis()
-        val count = 20
         val rnd = Random(42)
+        val weightKg = 75.0
 
-        val programs = listOf(
-            "Интервалы 4×3 мин"   to 1.00,
-            "Длительный бег"      to 1.15,
-            "Темповый бег"        to 1.05,
-            "Восстановительный"   to 0.85,
-            "Fartlek 20 мин"      to 1.00,
-            "Горки 6×1 мин"       to 0.95
+        // Расположены от старых к новым (daysAgo убывает).
+        // avgHr задан так, чтобы при типичном maxHr≈190 покрыть все 5 зон,
+        // а средний пульс во второй половине списка был ниже — для тренда.
+        val seeds = listOf(
+            // Старые — высокий пульс, тяжёлые
+            DemoSeed(40, "Интервалы 4×3 мин", 30, 10.0, 178, 195), // Z5
+            DemoSeed(37, "Лёгкий бег",        30,  8.0, 138, 155), // Z2
+            DemoSeed(34, "Длительный бег",    45,  9.0, 152, 168), // Z3
+            DemoSeed(31, "Ходьба",            30,  4.5, 105, 118), // Z1
+            DemoSeed(28, "Темповый бег",      25, 10.5, 168, 182), // Z4
+            DemoSeed(25, "Интервалы 4×3 мин", 30, 10.5, 172, 188), // Z4
+            DemoSeed(22, "Лёгкий бег",        30,  8.5, 140, 157), // Z2
+            // Середина — восстановление
+            DemoSeed(19, "Восстановительный", 20,  6.5, 118, 132), // Z1
+            DemoSeed(16, "Длительный бег",    50,  9.5, 150, 166), // Z3
+            DemoSeed(13, "Темповый бег",      25, 11.0, 165, 180), // Z4
+            // Без пульса — проверка UI
+            DemoSeed(10, "Лёгкий бег",        30,  8.5,   0,   0),
+            // Новые — при той же/большей скорости пульс ниже
+            DemoSeed( 7, "Интервалы 4×3 мин", 30, 11.0, 168, 185), // Z4–Z5
+            DemoSeed( 4, "Лёгкий бег",        30,  9.0, 135, 152), // Z1–Z2
+            DemoSeed( 2, "Восстановительный", 20,  6.5, 110, 128), // Z1
+            DemoSeed( 1, "Длительный бег",    45, 10.0, 145, 162)  // Z2–Z3
         )
 
-        val logs = ArrayList<WorkoutLogEntity>(count)
+        return seeds.map { s ->
+            val date = now - s.daysAgo.toLong() * dayMs
+            val durationSec = s.durationMin * 60
+            val hours = durationSec / 3600.0
 
-        for (i in 0 until count) {
-            // i = 0 → самая старая тренировка, i = count-1 → самая новая
-            val progress = i.toDouble() / (count - 1)     // 0..1
-            val daysAgo = (count - 1 - i) * 4              // каждые ~4 дня
-            val date = now - daysAgo.toLong() * dayMs
-            val (name, mult) = programs[i % programs.size]
+            // Дистанция ≈ скорость × время, ±2% шума
+            val dist = (s.speedKmh * hours * (1.0 + rnd.nextDouble(-0.02, 0.02)))
+                .coerceAtLeast(0.1)
 
-            // Пульс: 155 → 135 средний, 178 → 168 максимальный
-            val avgHr = (155 - progress * 20).toInt() + rnd.nextInt(-3, 4)
-            val maxHr = (178 - progress * 10).toInt() + rnd.nextInt(-2, 3)
+            // MET как в TreadmillSession.startMetricsLoop
+            val met = if (s.speedKmh < 6.0) 1.0 + s.speedKmh * 0.5
+                      else 1.0 + s.speedKmh * 0.9
+            val kcal = (met * 3.5 * weightKg / 200.0 * s.durationMin *
+                        (1.0 + rnd.nextDouble(-0.03, 0.03)))
+                .toInt().coerceAtLeast(0)
 
-            // Дистанция: 3 → 8 км
-            val distanceKm = (3.0 + progress * 5.0 + rnd.nextDouble(-0.4, 0.4)) * mult
-
-            // Длительность: 30 → 55 мин
-            val durationSec = (1800 + progress * 1500 + rnd.nextInt(-180, 180)).toInt()
-                .coerceAtLeast(900)
-
-            // Калории: 200 → 500
-            val calories = (200 + progress * 300 + rnd.nextInt(-30, 30)).toInt()
-                .coerceAtLeast(80)
-
-            // Средняя скорость: 8.5 → 11 км/ч
-            val avgSpeed = (8.5 + progress * 2.5 + rnd.nextDouble(-0.3, 0.3)) * mult
-
-            logs.add(
-                WorkoutLogEntity(
-                    dateMillis = date,
-                    programName = name,
-                    durationSec = durationSec,
-                    distanceKm = distanceKm.coerceAtLeast(0.5),
-                    calories = calories,
-                    avgHeartRate = avgHr,
-                    maxHeartRate = maxHr,
-                    avgSpeedKmh = avgSpeed.coerceAtLeast(3.0)
-                )
+            WorkoutLogEntity(
+                dateMillis = date,
+                programName = s.name,
+                durationSec = durationSec,
+                distanceKm = dist,
+                calories = kcal,
+                avgHeartRate = s.avgHr,
+                maxHeartRate = s.maxHr,
+                avgSpeedKmh = s.speedKmh
             )
         }
-
-        return logs
     }
 }
