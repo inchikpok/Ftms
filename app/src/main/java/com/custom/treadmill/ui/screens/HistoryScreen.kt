@@ -379,45 +379,30 @@ private fun ChartCard(
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
                 Text(
                     subtitle,
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            
+            Spacer(Modifier.height(16.dp))
             
             HeartRateChart(
                 points = points,
                 targetHr = 0,
                 zoneBounds = zoneBounds,
+                showTargetLine = false,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
+                    .height(160.dp)
             )
             
-            // Легенда зон
             Spacer(Modifier.height(12.dp))
-            ZoneLegend(zoneBounds)
             
-            if (points.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth()) {
-                    val fmt = SimpleDateFormat("dd.MM", Locale.getDefault())
-                    Text(
-                        fmt.format(Date(points.first().timestamp)),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        fmt.format(Date(points.last().timestamp)),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            // Компактная легенда
+            ZoneLegend(zoneBounds)
         }
     }
 }
