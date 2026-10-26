@@ -52,7 +52,6 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val hr by vm.heartRate.collectAsState()
     val scanResults by vm.scanResults.collectAsState()
     val scanMode by vm.scanMode.collectAsState()
-    val statusMessage by vm.statusMessage.collectAsState()
     val settings by vm.settings.collectAsState()
     val paused by vm.isPaused.collectAsState()
 
@@ -66,7 +65,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
 
     var cooldownRemaining by remember { mutableStateOf(0) }
     val cooldownUntil by vm.scanCooldownUntil.collectAsState()
-    
+
     LaunchedEffect(cooldownUntil) {
         while (true) {
             val rem = ((cooldownUntil - System.currentTimeMillis()) / 1000L).toInt() + 1
@@ -77,14 +76,6 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     }
 
     var showCapsDialog by remember { mutableStateOf(false) }
-    var capsShownFor by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(treadmillReady, capabilities, treadmillName) {
-        if (treadmillReady && capabilities.isLoaded && capsShownFor != treadmillName) {
-            showCapsDialog = true
-            capsShownFor = treadmillName
-        }
-    }
 
     val keepScreenOn = settings.keepScreenOn && (treadmillData.isRunning || paused)
     val view = LocalView.current
@@ -143,16 +134,15 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         overflow = TextOverflow.Ellipsis
                     )
                     if (treadmillReady) {
-                        Spacer(Modifier.width(4.dp))
-                        IconButton(
+                        Spacer(Modifier.width(6.dp))
+                        FilledIconButton(
                             onClick = { showCapsDialog = true },
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
                                 Icons.Default.Info,
                                 contentDescription = "Возможности дорожки",
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -272,26 +262,6 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                 Spacer(Modifier.height(8.dp))
             }
 
-            statusMessage?.let { msg ->
-                Card(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp)
-                        .padding(bottom = 4.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                    )
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(msg, modifier = Modifier.weight(1f), fontSize = 12.sp)
-                        TextButton(onClick = { vm.clearStatusMessage() }) { Text("OK") }
-                    }
-                }
-            }
-
             Card(
                 Modifier
                     .fillMaxWidth()
@@ -409,15 +379,17 @@ private fun CompactStatus(
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (connected && deviceName != null) {
-                Text(
-                    deviceName,
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            // [ФИКС] Всегда резервируем строку под имя устройства, чтобы блок не менял
+            // высоту при подключении/отключении — иначе нижние кнопки "плывут".
+            Text(
+                deviceName ?: "\u00A0",
+                fontSize = 10.sp,
+                color = if (deviceName != null)
+                    MaterialTheme.colorScheme.primary
+                else Color.Transparent,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Spacer(Modifier.height(4.dp))
             if (connected) {
                 OutlinedButton(
@@ -431,11 +403,11 @@ private fun CompactStatus(
                     enabled = cooldownRemaining == 0,
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(vertical = 2.dp)
-                ) { 
+                ) {
                     Text(
-                        if (cooldownRemaining > 0) "Ждите ${cooldownRemaining}с" else "Подкл.", 
+                        if (cooldownRemaining > 0) "Ждите ${cooldownRemaining}с" else "Подкл.",
                         fontSize = 11.sp
-                    ) 
+                    )
                 }
             }
         }
