@@ -40,6 +40,7 @@ fun WorkoutScreen(
     val hrHistory by vm.hrHistory.collectAsState()
     val settings by vm.settings.collectAsState()
     val treadmillState by vm.treadmillState.collectAsState()
+    val caps by vm.capabilities.collectAsState()
 
     val elapsedSec by vm.uiElapsedSec.collectAsState()
     val distanceKm by vm.uiDistanceKm.collectAsState()
@@ -47,6 +48,7 @@ fun WorkoutScreen(
 
     val treadmillReady = treadmillState == BleConnectionState.READY
     val speedStep = settings.speedStepKmh
+    val showIncline = !caps.isLoaded || caps.supportsIncline
 
     var showExitConfirm by remember { mutableStateOf(false) }
 
@@ -60,7 +62,6 @@ fun WorkoutScreen(
     val targetHr = if (settings.hrMode == HrMode.TARGET) settings.targetHr
                    else (settings.zoneMin + settings.zoneMax) / 2
 
-    // Берем restingHr из активного профиля
     val maxHr = HeartRateZoneCalculator.getEffectiveMaxHr(settings)
     val zoneBounds = HeartRateZoneCalculator.getZoneBounds(maxHr, settings.activeProfile.restingHr)
 
@@ -134,11 +135,13 @@ fun WorkoutScreen(
                     { vm.setSpeed(targetSpeed + speedStep) }, 
                     Modifier.weight(1f)
                 )
-                MiniControl("Наклон", "${targetIncline.roundToInt()}", "%", 
-                    { vm.setIncline(max(0.0, targetIncline.roundToInt() - 1.0)) }, 
-                    { vm.setIncline(targetIncline.roundToInt() + 1.0) }, 
-                    Modifier.weight(1f)
-                )
+                if (showIncline) {
+                    MiniControl("Наклон", "${targetIncline.roundToInt()}", "%", 
+                        { vm.setIncline(max(0.0, targetIncline.roundToInt() - 1.0)) }, 
+                        { vm.setIncline(targetIncline.roundToInt() + 1.0) }, 
+                        Modifier.weight(1f)
+                    )
+                }
             }
 
             Spacer(Modifier.height(6.dp))
