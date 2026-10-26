@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.ble.BleConnectionState
 import com.custom.treadmill.ui.Routes
+import com.custom.treadmill.ui.components.CapabilitiesDialog
 import com.custom.treadmill.ui.components.RollingText
 import com.custom.treadmill.ui.hasBlePermissions
 import com.custom.treadmill.ui.requiredBlePermissions
@@ -41,6 +43,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val treadmillState by vm.treadmillState.collectAsState()
     val treadmillName by vm.treadmillName.collectAsState()
     val treadmillData by vm.treadmillData.collectAsState()
+    val capabilities by vm.capabilities.collectAsState()
     val hrState by vm.hrState.collectAsState()
     val hrName by vm.hrName.collectAsState()
     val targetSpeed by vm.targetSpeed.collectAsState()
@@ -58,8 +61,18 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
 
     val treadmillReady = treadmillState == BleConnectionState.READY
     val speedStep = settings.speedStepKmh
+    val showIncline = !capabilities.isLoaded || capabilities.supportsIncline
 
-    // Не гасим экран на главном, если belt едет или на паузе (это тренировка).
+    var showCapsDialog by remember { mutableStateOf(false) }
+    var capsShownFor by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(treadmillReady, capabilities, treadmillName) {
+        if (treadmillReady && capabilities.isLoaded && capsShownFor != treadmillName) {
+            showCapsDialog = true
+            capsShownFor = treadmillName
+        }
+    }
+
     val keepScreenOn = settings.keepScreenOn && (treadmillData.isRunning || paused)
     val view = LocalView.current
     DisposableEffect(keepScreenOn) {
@@ -87,9 +100,6 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize()) {
 
-            // ==========================================================
-            //  Верхняя часть (теперь без прокрутки)
-            // ==========================================================
             Column(
                 Modifier
                     .weight(1f)
@@ -105,17 +115,35 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Text(
-                    treadmillName ?: "Дорожка не подключена",
-                    fontSize = 11.sp,
-                    color = if (treadmillName != null)
-                        MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        treadmillName ?: "Дорожка не подключена",
+                        fontSize = 11.sp,
+                        color = if (treadmillName != null)
+                            MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (treadmillReady) {
+                        Spacer(Modifier.width(4.dp))
+                        IconButton(
+                            onClick = { showCapsDialog = true },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = "Возможности дорожки",
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
 
                 Spacer(Modifier.height(6.dp))
 
@@ -150,16 +178,18 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         onPlus = { vm.setSpeed(targetSpeed + speedStep) },
                         modifier = Modifier.weight(1f)
                     )
-                    ControlTile(
-                        label = "Наклон",
-                        value = "${targetIncline.roundToInt()}",
-                        unit = "%",
-                        enabled = treadmillReady,
-                        onMinus = { vm.setIncline(max(0.0, targetIncline.roundToInt() - 1.0)) },
-                        onPlus = { vm.setIncline(targetIncline.roundToInt() + 1.0) },
-                        onReset = { vm.setIncline(0.0) },
-                        modifier = Modifier.weight(1f)
-                    )
+                    if (showIncline) {
+                        ControlTile(
+                            label = "Наклон",
+                            value = "${targetIncline.roundToInt()}",
+                            unit = "%",
+                            enabled = treadmillReady,
+                            onMinus = { vm.setIncline(max(0.0, targetIncline.roundToInt() - 1.0)) },
+                            onPlus = { vm.setIncline(targetIncline.roundToInt() + 1.0) },
+                            onReset = { vm.setIncline(0.0) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(6.dp))
@@ -224,13 +254,9 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     }
                 }
 
-                // Убрали Spacer(Modifier.height(88.dp)), чтобы не растягивать экран
-                Spacer(Modifier.height(8.dp)) 
+                Spacer(Modifier.height(8.dp))
             }
 
-            // ==========================================================
-            //  Всплывающее сообщение — над футером
-            // ==========================================================
             statusMessage?.let { msg ->
                 Card(
                     Modifier
@@ -251,9 +277,6 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                 }
             }
 
-            // ==========================================================
-            //  Фиксированный футер с кнопками Старт/Пауза/Стоп
-            // ==========================================================
             Card(
                 Modifier
                     .fillMaxWidth()
@@ -308,6 +331,14 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                 }
             }
         }
+    }
+
+    if (showCapsDialog) {
+        CapabilitiesDialog(
+            deviceName = treadmillName,
+            caps = capabilities,
+            onDismiss = { showCapsDialog = false }
+        )
     }
 
     if (scanMode != ScanMode.NONE) {
