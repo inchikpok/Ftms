@@ -353,12 +353,13 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
             val hr = log.avgHeartRate
             if (hr > 0 && log.durationSec > 0) {
                 totalDuration += log.durationSec
+                // [ФИКС] Явное приведение Int к Double
                 when {
-                    hr < zoneBounds[0] -> durations[0] += log.durationSec
-                    hr < zoneBounds[1] -> durations[1] += log.durationSec
-                    hr < zoneBounds[2] -> durations[2] += log.durationSec
-                    hr < zoneBounds[3] -> durations[3] += log.durationSec
-                    else -> durations[4] += log.durationSec
+                    hr < zoneBounds[0] -> durations[0] += log.durationSec.toDouble()
+                    hr < zoneBounds[1] -> durations[1] += log.durationSec.toDouble()
+                    hr < zoneBounds[2] -> durations[2] += log.durationSec.toDouble()
+                    hr < zoneBounds[3] -> durations[3] += log.durationSec.toDouble()
+                    else -> durations[4] += log.durationSec.toDouble()
                 }
             }
         }
@@ -415,7 +416,8 @@ private fun ChartCard(
     Column(Modifier.fillMaxWidth()) {
         // Заголовок вынесен НАД карточкой
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 4.dp, bottom = 8.dp),
+            // [ФИКС] Изменен padding для совместимости
+            Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
