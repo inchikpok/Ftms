@@ -10,6 +10,8 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,7 +89,7 @@ class BleManager(private val context: Context) {
             return
         }
 
-        // [ФИКС] Принудительно сбрасываем старый сканер
+        // Принудительно останавливаем старый сканер
         try {
             scanner.stopScan(scanCallback)
         } catch (_: Exception) {}
@@ -96,13 +98,18 @@ class BleManager(private val context: Context) {
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
-        try {
-            scanner.startScan(null, settings, scanCallback)
-            scanning = true
-            _scanLog.tryEmit("Сканирование запущено")
-        } catch (e: Exception) {
-            _scanLog.tryEmit("Ошибка запуска сканирования: ${e.message}")
-        }
+
+        // [ФИКС] Даем Android BLE стеку 500 мс на освобождение ресурсов 
+        // после предыдущего отключения, иначе сканер может "залипнуть"
+        Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                scanner.startScan(null, settings, scanCallback)
+                scanning = true
+                _scanLog.tryEmit("Сканирование запущено")
+            } catch (e: Exception) {
+                _scanLog.tryEmit("Ошибка запуска сканирования: ${e.message}")
+            }
+        }, 500)
     }
 
     fun stopScan() {
