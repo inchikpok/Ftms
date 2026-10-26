@@ -23,6 +23,7 @@ import com.custom.treadmill.data.repository.HrMode
 import com.custom.treadmill.logic.HeartRateZoneCalculator
 import com.custom.treadmill.ui.components.HeartRateChart
 import com.custom.treadmill.ui.components.RollingText
+import com.custom.treadmill.ui.components.ZoneLegend
 import com.custom.treadmill.ui.viewmodels.MainViewModel
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -165,6 +166,8 @@ fun WorkoutScreen(
                         zoneBounds = zoneBounds,
                         modifier = Modifier.fillMaxWidth().weight(1f)
                     )
+                    Spacer(Modifier.height(6.dp))
+                    ZoneLegend(zoneBounds)
                 }
             }
 
