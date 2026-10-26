@@ -77,31 +77,35 @@ fun AboutScreen(onBack: () -> Unit) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Treadmill Control", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
-                    Text("v2.0 — управление беговой дорожкой по BLE", style = MaterialTheme.typography.bodyMedium)
+                    Text("v2.2 — управление беговой дорожкой по BLE (FTMS)", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Работает полностью офлайн. Разрешение INTERNET намеренно не запрашивается.",
+                        "Универсальное приложение для любых беговых дорожек, поддерживающих стандарт FTMS (Fitness Machine Service, Bluetooth SIG). Работает полностью офлайн. Разрешение INTERNET намеренно не запрашивается.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
 
-            InfoSection("Оборудование", listOf(
-                "Дорожка: UNixFit-990x",
-                "Модуль: FitShow FS-E629DD",
-                "Протокол: FTMS (Bluetooth SIG)",
-                "Пульсометр: HR Service 0x180D"
+            InfoSection("Совместимость", listOf(
+                "Протокол: FTMS (стандарт Bluetooth SIG)",
+                "Любая дорожка с поддержкой FTMS",
+                "Например: FitShow, Horizon, Bowflex, Sole, NordicTrack",
+                "Пульсометры: стандарт HR Service (0x180D)",
+                "Возможности дорожки (скорость, наклон) определяются автоматически"
             ))
 
             InfoSection("Возможности", listOf(
+                "Автоопределение функций дорожки по FTMS Feature",
                 "Подключение по BLE, автопереподключение",
                 "Нагрудный пульсометр + график по зонам",
                 "Авторегулировка скорости по пульсу",
-                "Программы тренировок с сегментами",
+                "Программы тренировок (ручные и автоматические)",
+                "Генератор тренировок по профилю (вес, возраст, уровень)",
                 "Пульсовые зоны по формуле Карвонена",
+                "Голосовые подсказки с настройкой фраз (TTS)",
                 "Работа в фоне (Foreground Service)",
                 "Журнал тренировок (Room)",
-                "Debug-экран с полным логом"
+                "Debug-экран с полным логом BLE"
             ))
 
             InfoSection("Стек", listOf(
@@ -248,8 +252,8 @@ private fun buildInstructions(): String = """
    Поля каждого сегмента:
    - "name" — название сегмента (строка)
    - "durationSec" — длительность в СЕКУНДАХ (300 = 5 мин)
-   - "speedKmh" — скорость в км/ч (0.5 – 20.0)
-   - "inclinePercent" — наклон в % (0 – 15)
+   - "speedKmh" — скорость в км/ч
+   - "inclinePercent" — наклон в %
 
 5. Скопируйте весь текст из блокнота
 6. В приложении откройте "Программы" → "Из буфера"
@@ -260,6 +264,7 @@ private fun buildInstructions(): String = """
 - Каждый сегмент в { }
 - Между сегментами запятая, после последнего — нет
 - Можно использовать и целые числа: 300 вместо 300.0
+- Скорость и наклон ограничены возможностями вашей дорожки
 
 ПРИМЕР — интервалы 5×1мин:
 {
@@ -279,10 +284,4 @@ private fun buildInstructions(): String = """
     {"name": "Заминка", "durationSec": 300, "speedKmh": 4.0, "inclinePercent": 0.0}
   ]
 }
-
-ОГРАНИЧЕНИЯ:
-- Минимум 1 сегмент
-- durationSec от 10 до 3600
-- speedKmh от 0.5 до 20.0
-- inclinePercent от 0 до 15
 """.trimIndent()
