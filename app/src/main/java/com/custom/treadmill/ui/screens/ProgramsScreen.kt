@@ -285,7 +285,7 @@ fun ProgramsScreen(
             capsSupportsIncline = caps.supportsIncline,
             onGenerate = { goal, duration, intensity ->
                 val program = ProgramGenerator.generate(
-                    context = ctx
+                    context = ctx,
                     profile = settings.activeProfile,
                     goal = goal,
                     durationMin = duration,
@@ -458,7 +458,7 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
     val maxIncline = 15.0
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val context = LocalContext.current // <-- Получаем контекст для getString внутри Canvas
+    val context = LocalContext.current
 
     Canvas(modifier = modifier) {
         val w = size.width
@@ -506,7 +506,6 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
             val textX = when { i == 0 -> x + 4.dp.toPx(); m >= totalMin -> x - 4.dp.toPx(); else -> x }
             drawLine(axisColor, start = Offset(x, chartH), end = Offset(x, chartH - 3.dp.toPx()), strokeWidth = 1.dp.toPx())
             
-            // [ФИКС] Используем context.getString вместо stringResource
             val label = when { 
                 m < 60 -> "${m.toInt()}" 
                 else -> context.getString(R.string.chart_hours, (m / 60).toInt()) 
