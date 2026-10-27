@@ -27,11 +27,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.treadmill.R
 import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.ble.BleConnectionState
 import com.custom.treadmill.ui.Routes
@@ -108,7 +110,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
 
     LaunchedEffect(Unit) { if (!permsGranted) permLauncher.launch(requiredBlePermissions()) }
     LaunchedEffect(scanMode) {
-        if (scanMode != ScanMode.NONE) { kotlinx.coroutines.delay(15_000); vm.stopScan() }
+        if (scanMode != ScanMode.NONE) { delay(15_000); vm.stopScan() }
     }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -123,7 +125,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                 Spacer(Modifier.height(6.dp))
 
                 Text(
-                    "Treadmill Control",
+                    stringResource(R.string.app_name),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -135,7 +137,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        treadmillName ?: "Дорожка не подключена",
+                        treadmillName ?: stringResource(R.string.main_no_treadmill),
                         fontSize = 11.sp,
                         color = if (treadmillName != null)
                             MaterialTheme.colorScheme.primary
@@ -151,7 +153,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         ) {
                             Icon(
                                 Icons.Default.Info,
-                                contentDescription = "Возможности дорожки",
+                                contentDescription = stringResource(R.string.main_caps_contentdesc),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -162,7 +164,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     CompactStatus(
-                        label = "Дорожка",
+                        label = stringResource(R.string.main_treadmill_label),
                         deviceName = treadmillName,
                         state = treadmillState,
                         onConnect = { vm.startScanTreadmill() },
@@ -171,7 +173,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         modifier = Modifier.weight(1f)
                     )
                     CompactStatus(
-                        label = "Пульсометр",
+                        label = stringResource(R.string.main_hr_label),
                         deviceName = hrName,
                         state = hrState,
                         onConnect = { vm.startScanHeartRate() },
@@ -181,8 +183,6 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     )
                 }
 
-                // [ФИКС] Строка текущего сегмента программы (фиксированной высоты,
-                // чтобы раскладка не «прыгала» при старте/остановке тренировки).
                 SegmentLine(
                     visible = workoutState.running || workoutState.paused,
                     segmentNumber = workoutState.currentSegmentIndex + 1,
@@ -195,9 +195,9 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ControlTile(
-                        label = "Скорость",
+                        label = stringResource(R.string.main_speed),
                         value = "%.1f".format(targetSpeed),
-                        unit = "км/ч",
+                        unit = stringResource(R.string.unit_kmh),
                         enabled = treadmillReady,
                         onMinus = { vm.setSpeed(targetSpeed - speedStep) },
                         onPlus = { vm.setSpeed(targetSpeed + speedStep) },
@@ -205,9 +205,9 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     )
                     if (showIncline) {
                         ControlTile(
-                            label = "Наклон",
+                            label = stringResource(R.string.main_incline),
                             value = "${targetIncline.roundToInt()}",
-                            unit = "%",
+                            unit = stringResource(R.string.unit_percent),
                             enabled = treadmillReady,
                             onMinus = { vm.setIncline(max(0.0, targetIncline.roundToInt() - 1.0)) },
                             onPlus = { vm.setIncline(targetIncline.roundToInt() + 1.0) },
@@ -223,13 +223,13 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     Column(Modifier.padding(vertical = 8.dp, horizontal = 10.dp)) {
                         Row(Modifier.fillMaxWidth()) {
                             MetricBlock(
-                                "Пульс",
+                                stringResource(R.string.main_hr),
                                 if (hr > 0) "$hr" else "—",
-                                "уд/мин",
+                                stringResource(R.string.unit_bpm),
                                 Modifier.weight(1f)
                             )
                             MetricBlock(
-                                "Время",
+                                stringResource(R.string.main_time),
                                 formatTime(elapsedSec),
                                 "",
                                 Modifier.weight(1f)
@@ -238,15 +238,15 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         Spacer(Modifier.height(6.dp))
                         Row(Modifier.fillMaxWidth()) {
                             MetricBlock(
-                                "Дистанция",
+                                stringResource(R.string.main_distance),
                                 "%.2f".format(distanceKm),
-                                "км",
+                                stringResource(R.string.unit_km),
                                 Modifier.weight(1f)
                             )
                             MetricBlock(
-                                "Калории",
+                                stringResource(R.string.main_calories),
                                 "$calories",
-                                "ккал",
+                                stringResource(R.string.unit_calories),
                                 Modifier.weight(1f)
                             )
                         }
@@ -261,9 +261,10 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text("Автопульс", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(stringResource(R.string.main_autohr_title), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             Text(
-                                if (settings.hrEnabled) "Цель: ${settings.targetHr} уд/мин" else "Выключен",
+                                if (settings.hrEnabled) stringResource(R.string.main_autohr_target, settings.targetHr)
+                                else stringResource(R.string.main_autohr_off),
                                 fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -271,7 +272,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         TextButton(
                             onClick = { onNavigate(Routes.SETTINGS) },
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                        ) { Text("Настроить", fontSize = 11.sp) }
+                        ) { Text(stringResource(R.string.main_autohr_configure), fontSize = 11.sp) }
                         Switch(
                             checked = settings.hrEnabled,
                             onCheckedChange = { vm.setAutoHrEnabled(it) }
@@ -298,7 +299,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         contentPadding = PaddingValues(0.dp)
                     ) {
-                        Text("Старт", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.main_btn_start), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
 
                     Button(
@@ -315,14 +316,13 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                             )
                     ) {
                         Text(
-                            if (paused) "Продолжить" else "Пауза",
+                            if (paused) stringResource(R.string.main_btn_resume)
+                            else stringResource(R.string.main_btn_pause),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
 
-                    // [ФИКС] «Стоп» теперь требует удержания 0.8 сек с визуальным прогрессом.
-                    // Случайное нажатие в кармане больше не остановит дорожку.
                     HoldToConfirmButton(
                         enabled = treadmillReady,
                         onConfirmed = { vm.stopTreadmill() },
@@ -349,7 +349,10 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
             }
         }
         ScanDialog(
-            title = if (scanMode == ScanMode.TREADMILL) "Выбор дорожки" else "Выбор пульсометра",
+            title = if (scanMode == ScanMode.TREADMILL)
+                stringResource(R.string.scan_title_treadmill)
+            else
+                stringResource(R.string.scan_title_hr),
             devices = filtered,
             nameProvider = { ble.safeName(it) },
             onSelect = { r ->
@@ -361,11 +364,6 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     }
 }
 
-/**
- * [ФИКС] Строка текущего сегмента программы.
- * Всегда занимает 22dp по высоте — даже когда программа не запущена, чтобы нижние
- * карточки (скорость, метрики, кнопки) не «прыгали» при старте/остановке тренировки.
- */
 @Composable
 private fun SegmentLine(
     visible: Boolean,
@@ -384,7 +382,7 @@ private fun SegmentLine(
         if (visible) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Сегмент $segmentNumber/$totalSegments",
+                    stringResource(R.string.main_segment_progress, segmentNumber, totalSegments),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
@@ -401,7 +399,7 @@ private fun SegmentLine(
                 }
                 if (paused) {
                     Text(
-                        " · ПАУЗА",
+                        " · " + stringResource(R.string.main_segment_paused),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFF9A825)
@@ -412,10 +410,6 @@ private fun SegmentLine(
     }
 }
 
-/**
- * [ФИКС] Кнопка с подтверждением удержанием. Отображает круговой прогресс
- * вокруг контента. При отпускании до завершения — сбрасывается.
- */
 @Composable
 private fun HoldToConfirmButton(
     enabled: Boolean,
@@ -426,6 +420,7 @@ private fun HoldToConfirmButton(
     var isPressing by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     val haptic = LocalHapticFeedback.current
+    val stopLabel = stringResource(R.string.main_btn_stop)
 
     LaunchedEffect(isPressing) {
         if (isPressing && enabled) {
@@ -449,17 +444,16 @@ private fun HoldToConfirmButton(
     }
 
     Box(
-        modifier = modifier
-            .pointerInput(enabled) {
-                if (!enabled) return@pointerInput
-                detectTapGestures(
-                    onPress = {
-                        isPressing = true
-                        tryAwaitRelease()
-                        isPressing = false
-                    }
-                )
-            }
+        modifier = modifier.pointerInput(enabled) {
+            if (!enabled) return@pointerInput
+            detectTapGestures(
+                onPress = {
+                    isPressing = true
+                    tryAwaitRelease()
+                    isPressing = false
+                }
+            )
+        }
     ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -469,7 +463,7 @@ private fun HoldToConfirmButton(
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    "Стоп",
+                    stopLabel,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant
@@ -481,7 +475,6 @@ private fun HoldToConfirmButton(
             Canvas(Modifier.fillMaxSize()) {
                 val strokeWidth = 3.dp.toPx()
                 val inset = strokeWidth / 2
-                // Затемнённый фон при удержании — визуальная «заливка»
                 drawRoundRect(
                     color = Color(0xFFE53935).copy(alpha = 0.15f),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(
@@ -513,12 +506,12 @@ private fun CompactStatus(
     modifier: Modifier = Modifier
 ) {
     val (dotColor, statusText) = when (state) {
-        BleConnectionState.READY -> Color(0xFF2E7D32) to "подключено"
+        BleConnectionState.READY -> Color(0xFF2E7D32) to stringResource(R.string.main_status_connected)
         BleConnectionState.CONNECTING,
         BleConnectionState.CONNECTED,
-        BleConnectionState.DISCOVERING -> Color(0xFFF9A825) to "подключение…"
-        BleConnectionState.FAILED -> Color(0xFFC62828) to "ошибка"
-        BleConnectionState.DISCONNECTED -> Color(0xFF9E9E9E) to "нет"
+        BleConnectionState.DISCOVERING -> Color(0xFFF9A825) to stringResource(R.string.main_status_connecting)
+        BleConnectionState.FAILED -> Color(0xFFC62828) to stringResource(R.string.main_status_error)
+        BleConnectionState.DISCONNECTED -> Color(0xFF9E9E9E) to stringResource(R.string.main_status_none)
     }
     val connected = state == BleConnectionState.READY
 
@@ -535,7 +528,6 @@ private fun CompactStatus(
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            // Всегда резервируем строку под имя устройства, чтобы блок не менял высоту.
             Text(
                 deviceName ?: "\u00A0",
                 fontSize = 10.sp,
@@ -551,7 +543,7 @@ private fun CompactStatus(
                     onClick = onDisconnect,
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(vertical = 2.dp)
-                ) { Text("Откл.", fontSize = 11.sp) }
+                ) { Text(stringResource(R.string.main_btn_disconnect), fontSize = 11.sp) }
             } else {
                 Button(
                     onClick = onConnect,
@@ -560,7 +552,8 @@ private fun CompactStatus(
                     contentPadding = PaddingValues(vertical = 2.dp)
                 ) {
                     Text(
-                        if (cooldownRemaining > 0) "Ждите ${cooldownRemaining}с" else "Подкл.",
+                        if (cooldownRemaining > 0) stringResource(R.string.main_btn_cooldown, cooldownRemaining)
+                        else stringResource(R.string.main_btn_connect),
                         fontSize = 11.sp
                     )
                 }
@@ -619,7 +612,7 @@ private fun ControlTile(
                     modifier = Modifier.weight(1f).height(34.dp),
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Icon(Icons.Default.Remove, contentDescription = "Меньше", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.more_less), modifier = Modifier.size(16.dp))
                 }
                 FilledTonalButton(
                     onClick = onPlus,
@@ -627,7 +620,7 @@ private fun ControlTile(
                     modifier = Modifier.weight(1f).height(34.dp),
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Больше", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.more_greater), modifier = Modifier.size(16.dp))
                 }
             }
             if (onReset != null) {
@@ -636,7 +629,7 @@ private fun ControlTile(
                     enabled = enabled,
                     modifier = Modifier.height(18.dp),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                ) { Text("Сбросить", fontSize = 10.sp) }
+                ) { Text(stringResource(R.string.main_reset), fontSize = 10.sp) }
             } else {
                 Spacer(Modifier.height(18.dp))
             }
@@ -692,7 +685,7 @@ private fun ScanDialog(
         text = {
             Column {
                 if (devices.isEmpty()) {
-                    Text("Поиск устройств…\nУбедитесь, что устройство включено и рядом.")
+                    Text(stringResource(R.string.scan_searching))
                 } else devices.forEach { r ->
                     TextButton(onClick = { onSelect(r) }) {
                         Text("${nameProvider(r)}  [${r.rssi} dBm]")
@@ -700,7 +693,7 @@ private fun ScanDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
 
