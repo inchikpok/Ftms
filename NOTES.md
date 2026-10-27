@@ -7,7 +7,8 @@ Bowflex, Sole, NordicTrack и т.д.
 
 Поддержка нагрудного пульсометра, авторегулировка скорости по пульсу,
 голосовые подсказки, профили пользователей, генератор тренировок,
-автоопределение возможностей железа, фоновая работа (Foreground Service).
+автоопределение возможностей железа, фоновая работа (Foreground Service),
+резервное копирование данных.
 
 Работает полностью офлайн — разрешение INTERNET намеренно не запрашивается.
 
@@ -48,7 +49,7 @@ Bowflex, Sole, NordicTrack и т.д.
     │
     ├── data/
     │   ├── database/
-    │   │   ├── AppDatabase.kt       — Room, версия 2, MIGRATION_1_2
+    │   │   ├── AppDatabase.kt       — Room, версия 2, MIGRATION_1_2, closeAndReset()
     │   │   ├── ProgramDao.kt        — DAO для программ и логов
     │   │   ├── ProgramEntity.kt     — ProgramEntity + WorkoutLogEntity (+ hrSamples)
     │   │   └── HrSamplesCodec.kt    — компактное кодирование кривой пульса
@@ -61,7 +62,8 @@ Bowflex, Sole, NordicTrack и т.д.
     │   ├── HeartRateController.kt   — авторегулировка (AutoHR)
     │   ├── HeartRateZoneCalculator.kt — расчет пульсовых зон (Karvonen)
     │   ├── ProgramGenerator.kt      — генератор тренировок (волшебная палочка)
-    │   └── TtsManager.kt            — обёртка TextToSpeech
+    │   ├── TtsManager.kt            — обёртка TextToSpeech
+    │   └── BackupManager.kt         — экспорт/импорт ZIP (программы, журнал, настройки)
     │
     ├── service/
     │   └── TreadmillService.kt      — Foreground Service (уведомление в шторке с кнопками)
@@ -93,6 +95,7 @@ Bowflex, Sole, NordicTrack и т.д.
 ## BLE — детали
 
 ### UUID (Uuids.kt)
+
 - FTMS Service: 0x1826
 - FTMS Feature: 0x2ACC (read)
 - FTMS Treadmill Data: 0x2ACD (notify)
@@ -105,6 +108,7 @@ Bowflex, Sole, NordicTrack и т.д.
 ### Протокол belt'а FS-E629DD (проверено на железе)
 
 Команды:
+
 - `00` — Request Control. Belt молча принимает.
 - `07` — Start / resume.
 - `02 XX XX` — Speed, км/ч × 100 LE.
@@ -165,6 +169,7 @@ Bowflex, Sole, NordicTrack и т.д.
 ### Обработка потери связи (v2.3)
 
 При `DISCONNECTED` во время активной тренировки/ручного режима:
+
 1. Программа или ручной режим **ставится на паузу** (время/дистанция не накручиваются).
 2. Запускается цикл автопереподключения (10 попыток × 3 сек).
 3. После успешного реконнекта — сообщение «Связь восстановлена. Тренировка на
@@ -189,12 +194,14 @@ Bowflex, Sole, NordicTrack и т.д.
 `AppSettings.profiles: List<UserProfile>` + `activeProfileId`.
 
 Поля `UserProfile`:
+
 - `id`, `name` (по умолчанию `""` — при отображении подставляется placeholder)
 - `weightKg`, `heightCm`, `age`, `isMale`
 - `restingHr` — пульс покоя
 - `level` — BEGINNER / INTERMEDIATE / ADVANCED
 
 Профили используются:
+
 - в расчёте калорий (вес),
 - в пульсовых зонах (возраст, пол, restingHr),
 - в генераторе тренировок (ИМТ, уровень, пол).
@@ -208,6 +215,7 @@ Bowflex, Sole, NordicTrack и т.д.
 `logic/TtsManager.kt` — обёртка `TextToSpeech`, язык из системы.
 
 Шаблоны фраз в `AppSettings` (по умолчанию `""` — заполняются из ресурсов в `SettingsStore.load()`):
+
 - `ttsStartTemplate`
 - `ttsSegmentTemplate`
 - `ttsFinishTemplate`
@@ -215,6 +223,7 @@ Bowflex, Sole, NordicTrack и т.д.
 - `ttsResumeText`
 
 Доступные теги в шаблонах:
+
 - `{name}` — имя программы
 - `{segName}` — имя сегмента
 - `{i}` / `{n}` — номер сегмента / всего сегментов
@@ -238,11 +247,13 @@ Bowflex, Sole, NordicTrack и т.д.
 `logic/ProgramGenerator.kt` — генерирует программу по параметрам профиля.
 
 Параметры:
+
 - Цель: WEIGHT_LOSS / CARDIO / SPEED
 - Длительность: 20-60 мин
 - Интенсивность: 70-130%
 
 Учитывает:
+
 - ИМТ (штраф на скорость для высокого веса, защита коленей)
 - Уровень подготовки (новичок/средний/профи → базовые скорости +30-40%)
 - Плавное масштабирование наклона от уровня (новичок 4%, профи 12%)
@@ -250,13 +261,17 @@ Bowflex, Sole, NordicTrack и т.д.
 
 Кнопка `AutoFixHigh` в шапке `ProgramsScreen`.
 
-**TODO (в бэклоге):** локализация названий программ (сейчас генерируются по-русски).
+**Локализация (v2.3.1):** названия программ и сегментов берутся из
+`strings.xml` через ключи `gen_name_*`, `gen_desc_*`, `gen_seg_*`,
+`gen_level_*`. Генератор получает `Context`, а не `stringResource`
+(он Composable-only).
 
 ---
 
 ## Возможности дорожки (Capabilities)
 
 `ble/TreadmillCapabilities.kt` — парсер трёх характеристик FTMS:
+
 - `FTMS Feature` (0x2ACC) — битовая маска поддерживаемых функций
 - `Speed Range` (0x2AD4) — min/max/increment скорость
 - `Incline Range` (0x2AD5) — min/max/increment наклон
@@ -282,17 +297,101 @@ Bowflex, Sole, NordicTrack и т.д.
   `stepKmh` / `intervalSec` / `thresholdHigh` / `thresholdLow`
 - **Max HR**: `autoMaxHr` (Tanaka/Gulati) / `maxHr` (ручной)
 
+Настройки хранятся в `SharedPreferences` под именем `treadmill_settings`
+(ключ `settings_json`, значение — сериализованный `AppSettings`).
+Файл prefs-а тоже попадает в резервную копию (см. ниже).
+
+---
+
+## Резервное копирование (v2.3.1)
+
+`logic/BackupManager.kt` — экспорт/импорт ZIP через SAF (`CreateDocument` /
+`OpenDocument`). Новых зависимостей нет: `java.util.zip` + `kotlinx.serialization`.
+
+### Формат ZIP
+
+    manifest.json
+    database/treadmill.db
+    database/treadmill.db-wal   (если есть)
+    database/treadmill.db-shm   (если есть)
+    shared_prefs/treadmill_settings.xml
+
+### Поля manifest.json
+
+    version         Int    — версия формата архива, сейчас 1
+    appVersionName  String — versionName приложения на момент экспорта
+    dbVersion       Int    — версия схемы Room (2)
+    createdAt       Long   — миллисекунды Unix
+    programCount    Int    — количество программ
+    workoutCount    Int    — количество тренировок в журнале
+    profileCount    Int    — количество профилей спортсменов
+
+Пример содержимого (для наглядности, в самом файле — компактный JSON):
+
+    {
+      "version": 1,
+      "appVersionName": "2.3.1",
+      "dbVersion": 2,
+      "createdAt": 1700000000000,
+      "programCount": 5,
+      "workoutCount": 42,
+      "profileCount": 2
+    }
+
+`version` — версия формата архива. При несовместимости — увеличивать.
+
+### Экспорт
+
+1. `PRAGMA wal_checkpoint(TRUNCATE)` — склеивает WAL в основной `.db`.
+2. Сборка `manifest.json` (количество программ/логов через `COUNT(*)`, чтобы
+   не зависеть от DAO).
+3. Запись ZIP в URI, выбранный пользователем. Имя по умолчанию —
+   `treadmill-backup-YYYY-MM-DD-HHmmss.zip`.
+
+Экспорт **не блокируется** во время тренировки — просто снимает консистентный
+снимок. Если checkpoint не удался (БД занята) — в ZIP попадут `.db` + `.db-wal`
++ `.db-shm`, что тоже валидно.
+
+### Восстановление
+
+1. `readManifest(uri)` — читает **только** `manifest.json`, не распаковывая
+   остальное. Показывает диалог с превью (дата, кол-во программ/логов/профилей).
+2. **Блокировка:** если запущен `TreadmillService` (значит, идёт тренировка
+   или просто подключена дорожка) — показывается диалог «Сейчас нельзя
+   восстановить». Сделано через `ActivityManager.getRunningServices()`
+   (для собственных сервисов работает и на Android 12+).
+3. После подтверждения:
+   - `AppDatabase.closeAndReset()` — закрывает Room и обнуляет singleton.
+   - Распаковка ZIP во временную папку → валидация (`manifest.json` + `.db`).
+   - Замена `.db`, `.db-wal`, `.db-shm`, `treadmill_settings.xml` на диске.
+   - `AppDatabase.get(context)` — переоткрытие (sanity check).
+4. **Авто-перезапуск** процесса: `AlarmManager.set(RTC, now+150ms, pendingIntent)`
+   + `Process.killProcess(myPid())` через 100 мс. Так новые данные гарантированно
+   прочитаются в `Application.onCreate`. Если `AlarmManager` недоступен —
+   fallback на `startActivity + finishAffinity()`.
+
+### Важно
+
+- `AppDatabase.closeAndReset()` вызывать **только** из `BackupManager.restoreFrom()`.
+- После восстановления все in-memory синглтоны (`TreadmillApp.instance.session`,
+  `settingsStore`, `programRepository`, `ttsManager`) **устаревают** — именно
+  поэтому нужен полный перезапуск, а не «горячее» применение.
+- SAF-пикер не требует `WRITE_EXTERNAL_STORAGE` и работает на API 21+.
+- Восстановление во время активного сервиса запрещено.
+
 ---
 
 ## UI — визуальная структура
 
 ### Общая навигация
+
 - **Нижняя панель** (NavigationBar) на 4 вкладки: **Главная**, **Программы**, **Журнал**, **Настройки**.
 - **Свайп** между вкладками через `HorizontalPager`.
 - **FAB с жучком** (Debug) — **удалён** из навигации (перекрывал кнопки). Доступ через «Настройки → О приложении → Debug».
 - **Локализация**: все тексты через `stringResource()`. Язык берётся из системных настроек Android.
 
 ### Главный экран (MainScreen)
+
 Вертикальная колонка сверху вниз (без прокрутки, всё влезает):
 
 1. **Заголовок** «Treadmill Control» (или локализованный `app_name`).
@@ -319,6 +418,7 @@ Bowflex, Sole, NordicTrack и т.д.
 **Убрано:** всплывающая подсказка statusMessage снизу (дёргала вёрстку).
 
 ### Экран тренировки (WorkoutScreen)
+
 1. **Заголовок** «← Назад | Тренировка [имя программы] | 🐛 (Debug)».
 2. **Карточка прогресса**:
    - Строка: `Сегмент 3/12: Название` + бейдж `ПАУЗА` (жёлтый) + остаток времени.
@@ -335,6 +435,7 @@ Bowflex, Sole, NordicTrack и т.д.
 7. **Диалог подтверждения выхода** при «Назад» / «Стоп».
 
 ### Экран Программ (ProgramsScreen)
+
 - **Scaffold** с `ExtendedFloatingActionButton` «Создать».
 - **Заголовок** «Программы» + иконки: ✨ (генератор), 📤 (импорт JSON), ◀️ (назад).
 - **Поиск** (OutlinedTextField) + **Сортировка** (круглая кнопка → меню).
@@ -350,10 +451,12 @@ Bowflex, Sole, NordicTrack и т.д.
   - `ProgramEditorScreen` (полноэкранный) — название, описание, список сегментов с кнопками ±/↑↓/⎘/🗑, TimePicker (Wheel Picker).
 
 ### Экран Журнала (HistoryScreen)
+
 - **Заголовок** «Журнал тренировок» + ⋮ (меню: загрузить демо, очистить).
 - **Два таб-чипа**: **«Список»** | **«Статистика»** + **ℹ️** (пояснение к статистике).
 
 **Вкладка «Список»:**
+
 - Строка «Всего: N» + «Развернуть все / Свернуть все».
 - `LazyColumn` раскрывающихся карточек `CompactLogCard`:
   - **Шапка**: дата, название программы (или «Ручная тренировка» для пустых), бейдж пульса (красный).
@@ -364,6 +467,7 @@ Bowflex, Sole, NordicTrack и т.д.
     - **Пульсовые зоны** (мини-бар + детализация). Пометка «≈ приближённо» для старых записей.
 
 **Вкладка «Статистика»:**
+
 - **Общая сводка** (2×2): тренировок, время, дистанция, калории.
 - **Пульс**: средний, максимум, лучший средний + **тренд** (↓/↑, цвет, текст).
 - **Время в зонах**: горизонтальный бар + легенда (цвет, название, время, %).
@@ -371,6 +475,7 @@ Bowflex, Sole, NordicTrack и т.д.
 - **Info-диалог**: сколько всего тренировок, сколько с пульсометром, сколько без, объяснение почему.
 
 ### Экран Настроек (SettingsScreen)
+
 - **Заголовок** «Настройки».
 - **Спортсмены** (Person icon): «Профили тренировок» с текущим профилем → `ProfilesScreen`.
 - **Внешний вид и звук** (Palette):
@@ -389,9 +494,13 @@ Bowflex, Sole, NordicTrack и т.д.
   - Интервал, шаг скорости.
   - Авторасчёт максимального пульса (Switch) + рассчитанный максимум (Tanaka / Gulati).
   - Или ручной максимум.
+- **Данные** (Storage):
+  - «Экспорт резервной копии» (SAF CreateDocument).
+  - «Восстановление из копии» (SAF OpenDocument + превью + авто-перезапуск).
 - **О приложении** (Info): Debug (BLE) → `DebugScreen`, О программе → `AboutScreen`.
 
 ### Экран Профилей (ProfilesScreen)
+
 - **FAB** «Добавить».
 - Список карточек `ProfileCard`:
   - Радио-кнопка выбора активного.
@@ -401,18 +510,21 @@ Bowflex, Sole, NordicTrack и т.д.
 - **Диалог редактирования**: имя, вес, рост, возраст, пульс покоя, пол (Switch), уровень (FilterChips: Новичок / Средний / Профи).
 
 ### TTS-настройки (TtsSettingsScreen)
+
 - **Карточка-справка** с доступными тегами.
 - **5 полей**: старт, смена сегмента, финиш, пауза, продолжение.
 - Под каждым — кнопка **«Прослушать»**.
 - Внизу — **«Сбросить настройки по умолчанию»** (ставит значения на текущем языке).
 
 ### About (AboutScreen)
+
 - Карточка с версией, описанием, принципом офлайн.
 - **Совместимость**, **Возможности**, **Стек**.
 - **Инструкция** «Как создать тренировку» + кнопки копирования шаблона/инструкции.
 - Тексты полностью локализованы.
 
 ### Debug (DebugScreen)
+
 - **Карточка статуса**: имя дорожки, состояние, скорость, наклон, счётчик логов.
 - **Ввод hex**: поле + кнопка «Отпр.».
 - **Три таба**: Лог | Справочник | Конструктор.
@@ -426,6 +538,7 @@ Bowflex, Sole, NordicTrack и т.д.
 ## Компоненты (ui/components/)
 
 ### HeartRateChart
+
 - Чистый Canvas без заголовков.
 - Заголовок/subtitle вынесены наружу.
 - Ось Y слева, даты X снизу (min / mid / max).
@@ -436,20 +549,24 @@ Bowflex, Sole, NordicTrack и т.д.
 - Опциональная линия цели.
 
 ### HrSparkline
+
 - Мини-график пульса для одной тренировки.
 - Без осей, без зон, только линия + градиент.
 - Использует `durationSec` для нормализации X.
 
 ### ZoneLegend
+
 - Компактная легенда Z1–Z5.
 - Формат: `Z1 <123`, `Z2 123-134`, …
 
 ### CapabilitiesDialog
+
 - Показывается только по кнопке ℹ️.
 - Список возможностей с ✓ / ✗.
 - Форматированные диапазоны скорости и наклона.
 
 ### RollingText
+
 - Плавная анимация смены чисел.
 
 ---
@@ -457,6 +574,7 @@ Bowflex, Sole, NordicTrack и т.д.
 ## Сборка
 
 ### .github/workflows/build.yml
+
 - Сборка APK при каждом push.
 - `versionCode` из `github.run_number` (+10000).
 - Шаги `Verify keystore` и `Show APK signature`.
@@ -467,12 +585,14 @@ Bowflex, Sole, NordicTrack и т.д.
 пакетов» при установке поверх старого APK.
 
 **Решение:**
+
 - Постоянный файл `app/keystore/treadmill.keystore` в репо
   (пароли `treadmill123`, alias `treadmill`).
 - В `app/build.gradle.kts` — явный `signingConfigs.create("stable")`.
 - В CI — `Verify keystore` (падает при отсутствии) + `Show APK signature`.
 
 **⚠️ Нельзя:**
+
 - Удалять/заменять `app/keystore/treadmill.keystore`.
 - Менять пароли/alias в `build.gradle.kts`.
 - Полагаться на `~/.android/debug.keystore`.
@@ -511,12 +631,18 @@ Bowflex, Sole, NordicTrack и т.д.
     текстом «Ручная тренировка» / «Manual workout» — тоже распознаются.
 15. **`WorkoutMiniChart`**: `stringResource` нельзя звать внутри `Canvas {}`.
     Вычисляй `hourSuffix` до `Canvas`.
+16. **`AppDatabase.closeAndReset()`** — вызывать **только** из
+    `BackupManager.restoreFrom()`, иначе Room потеряет соединение и DAO
+    начнут падать. После восстановления обязателен полный перезапуск процесса
+    (`BackupManager.restartApp()`), т.к. `TreadmillApp.instance.*` держит
+    старые синглтоны.
 
 ---
 
 ## Тесты — статус
 
-### Пройдено (актуально на v2.3)
+### Пройдено (актуально на v2.3.1)
+
 - A1, A2, B1-B7 (все базовые команды, кроме наклона — он принимается,
   но не двигается).
 - C1-C6 (программы, пауза, стоп).
@@ -530,7 +656,8 @@ Bowflex, Sole, NordicTrack и т.д.
 - **TTS**: все 5 шаблонов работают, кнопка «Прослушать» озвучивает фразу.
 - **Автопульс**: скорость меняется при выходе пульса за границы.
 - **Профили**: переключение активного профиля влияет на зоны/калории.
-- **Генератор**: разница между новичком и профи — колоссальная.
+- **Генератор**: разница между новичком и профи — колоссальная. Названия
+  программ и сегментов локализованы (RU/EN).
 - **Capabilities**: UNixFit отдаёт 1.0-20.0 км/ч, 0-15% наклон.
 - **SOS-защита**: Stop во время startJob мгновенно прекращает команды.
 - **HoldToConfirmButton**: удержание 0.8 сек с прогрессом и haptic.
@@ -540,11 +667,14 @@ Bowflex, Sole, NordicTrack и т.д.
 - **Кривая пульса в БД**: сохраняется, sparkline рисуется, зоны точные.
 - **Локализация RU/EN**: экраны, шаблоны, кнопки, диалоги переключаются по системе.
 - **Connect→disconnect→connect**: дорожка снова находится в сканере после корректного GATT-дисконнекта.
+- **AndroidManifest**: `foregroundServiceType="connectedDevice"` + `FOREGROUND_SERVICE_CONNECTED_DEVICE` присутствуют. `BLUETOOTH_ADVERTISE` удалён как ненужный.
+- **Резервная копия**: экспорт в ZIP, восстановление с превью манифеста,
+  блокировка при активном сервисе, авто-перезапуск. SAF без разрешений.
 
 ### Не проверено / требует внимания
-- Android 14+ и `foregroundServiceType` (нужен `AndroidManifest.xml` для проверки).
-- Android 12+ и `BLUETOOTH_SCAN` (проверить, что запрос разрешений корректен).
-- Генератор тренировок (названия на английском — TODO).
+
+- Android 12+ и `BLUETOOTH_SCAN` (манифест корректен, поведение на
+  конкретных прошивках не тестировалось).
 - Планшеты и складные устройства.
 
 ---
@@ -565,10 +695,11 @@ Bowflex, Sole, NordicTrack и т.д.
 - [x] Обработка потери связи во время тренировки.
 - [x] Кривая пульса в БД (точные пульсовые зоны).
 - [x] Исправление «залипания» GATT-подключения.
-- [ ] Локализация названий программ в `ProgramGenerator.kt`.
-- [ ] Проверка `AndroidManifest.xml` на `foregroundServiceType` (Android 14+).
-- [ ] Экспорт в TCX / FIT (для Strava/Garmin).
-- [ ] Резервное копирование БД (ZIP).
+- [x] Локализация названий программ в `ProgramGenerator.kt`.
+- [x] Проверка `AndroidManifest.xml` на `foregroundServiceType` (Android 14+).
+- [x] Резервное копирование БД (ZIP) с SAF-экспортом в файл для компьютера.
+- [ ] Экспорт в TCX (для Strava/Garmin) — следующий приоритет.
+- [ ] Экспорт в FIT (требует сторонней библиотеки, отложено).
 - [ ] Onboarding при первом запуске.
 - [ ] Виджет на рабочий стол.
 - [ ] Достижения / медали.
@@ -579,7 +710,25 @@ Bowflex, Sole, NordicTrack и т.д.
 
 ## Changelog
 
+### v2.3.1 (резервное копирование + синхронизация docs)
+
+- **BackupManager** (`logic/BackupManager.kt`):
+  - SAF-экспорт `CreateDocument("application/zip")` — сохранение в любую папку,
+    включая USB-MTP и облака.
+  - SAF-импорт `OpenDocument()` — выбор ZIP + превью манифеста.
+  - Формат архива: `manifest.json` + `database/treadmill.db{,-wal,-shm}` +
+    `shared_prefs/treadmill_settings.xml`.
+  - `PRAGMA wal_checkpoint(TRUNCATE)` перед экспортом.
+  - Блокировка восстановления, если запущен `TreadmillService` (идёт тренировка).
+  - Авто-перезапуск процесса через `AlarmManager` + `Process.killProcess`.
+- **AppDatabase.closeAndReset()** — закрытие Room и сброс singleton для restore.
+- **SettingsScreen**: новая секция «Данные» с кнопками экспорта/импорта.
+- **AndroidManifest**: удалён `BLUETOOTH_ADVERTISE` (не нужен — central-only).
+- **Docs**: NOTES.md и README.md синхронизированы с реальностью; исправлено
+  противоречие про `08 01` vs `02 00 00` и про NordicTrack/iFit.
+
 ### v2.3 (локализация + итерации 1–5)
+
 - **Локализация RU + EN**: 
   - `values/strings.xml` (EN, дефолт) + `values-ru/strings.xml` (RU).
   - Все экраны переведены на `stringResource`.
@@ -622,6 +771,7 @@ Bowflex, Sole, NordicTrack и т.д.
   - **Результат**: после ручного отключения дорожка снова находится при сканировании (проблема была в преждевременном закрытии GATT).
 
 ### v2.2 (TTS / AutoHR / Профили / Генератор / Capabilities)
+
 - **TTS**: полностью реализован. `TtsManager`, `TtsSettingsScreen` с
   редактируемыми шаблонами (5 фраз), кнопки «Прослушать», теги `{name}`,
   `{segName}`, `{speed}`, `{speed_text}`, `{angle}`, `{angle_text}`, `{i}`,
@@ -647,6 +797,7 @@ Bowflex, Sole, NordicTrack и т.д.
 - **Универсализация**: убраны упоминания UNixFit/FitShow из AboutScreen.
 
 ### v2.1 (UI & BLE Fixes)
+
 - **UI Редизайн**: экран «Программы» и «Редактор» полностью переработаны.
   Карточки раскрывающиеся, кнопки +/- с авто-повтором, ввод времени ММ:СС
   (Wheel Picker). Debug сжат, добавлено логирование тапов/свайпов и экспорт
@@ -659,11 +810,13 @@ Bowflex, Sole, NordicTrack и т.д.
 - **DebugLog**: единый хаб логирования в файл и память.
 
 ### v2.0+ (CI fix)
+
 - **Подпись**: keystore в репо, `signingConfigs.create("stable")`,
   `Verify keystore` + `Show APK signature` в CI.
 - `.gitignore` добавлен.
 
 ### v2.0+
+
 - **Архитектура**: `TreadmillSession` + `TreadmillService` (Foreground).
 - **Протокол**: `08 01` для остановки (сбрасывает таймер).
 - **Автопульс и зоны**: профиль спортсмена, зоны Карвонена на графике.
