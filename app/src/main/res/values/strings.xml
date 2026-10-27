@@ -403,11 +403,8 @@
     <string name="history_zone_z4">Z4 Threshold</string>
     <string name="history_zone_z5">Z5 Maximum</string>
     <string name="manual_workout">Manual workout</string>
-    <string name="hr_waiting_for_data">Waiting for heart rate data…</string>
-    <string name="debug_cmd_start_belt">Start treadmill (00→07)</string>
-    <string name="debug_cmd_reset_short">Reset</string>
 
-        <!-- Session messages -->
+    <!-- Session messages -->
     <string name="session_lost_connection">Connection lost. Reconnecting…</string>
     <string name="session_reconnected">Connection restored!</string>
     <string name="session_reconnected_paused">Connection restored. Workout is paused — press "Resume".</string>
