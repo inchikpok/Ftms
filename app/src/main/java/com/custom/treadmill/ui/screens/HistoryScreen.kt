@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,11 +39,11 @@ import java.util.Date
 import java.util.Locale
 
 private val ZoneColors = listOf(
-    Color(0xFF64B5F6), // Z1
-    Color(0xFF81C784), // Z2
-    Color(0xFFFFD54F), // Z3
-    Color(0xFFFFB74D), // Z4
-    Color(0xFFE57373)  // Z5
+    Color(0xFF64B5F6),
+    Color(0xFF81C784),
+    Color(0xFFFFD54F),
+    Color(0xFFFFB74D),
+    Color(0xFFE57373)
 )
 private val ZoneNames = listOf("Z1 Восстановление", "Z2 Лёгкая", "Z3 Аэробная", "Z4 Порог", "Z5 Максимум")
 
@@ -183,17 +184,15 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
                         Spacer(Modifier.height(10.dp))
                         Text(
                             "График, тренд и пульсовые зоны строятся только по тренировкам, " +
-                                    "во время которых был активен пульсометр. Тренировки без пульса " +
-                                    "не учитываются, чтобы не искажать картину.",
+                                    "во время которых был активен пульсометр.",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "Пульсовые зоны в раскрытой карточке тренировки считаются по реальной " +
-                                "кривой пульса, если она сохранена. Для старых записей используется " +
-                                "аппроксимация по среднему и максимальному пульсу.",
+                        "Пульсовые зоны в раскрытой карточке считаются по реальной кривой пульса, " +
+                                "если она сохранена. Для старых записей используется аппроксимация.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -338,10 +337,13 @@ private fun CompactLogCard(
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         CompactMetric(Icons.Default.Speed, "%.1f км/ч".format(log.avgSpeedKmh), "ср. скорость")
-                        CompactMetric(Icons.Default.FavoriteBorder, if (log.maxHeartRate > 0) "${log.maxHeartRate} уд/мин" else "—", "макс. пульс")
+                        CompactMetric(
+                            Icons.Default.FavoriteBorder,
+                            if (log.maxHeartRate > 0) "${log.maxHeartRate} уд/мин" else "—",
+                            "макс. пульс"
+                        )
                     }
 
-                    // [ИТ.2] Мини-график пульса из сохранённой кривой
                     if (log.avgHeartRate > 0) {
                         val samples = remember(log.hrSamples) { HrSamplesCodec.decode(log.hrSamples) }
                         Spacer(Modifier.height(12.dp))
@@ -375,7 +377,6 @@ private fun CompactLogCard(
 
                     if (log.avgHeartRate > 0 && zoneBounds.size == 5) {
                         Spacer(Modifier.height(12.dp))
-                        // [ИТ.2] Точные зоны из кривой (или аппроксимация для старых записей)
                         val zoneDurations = remember(log, zoneBounds) {
                             computeZoneDurations(log, zoneBounds)
                         }
@@ -394,7 +395,7 @@ private fun CompactLogCard(
                                     "≈ приближённо",
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                    fontStyle = FontStyle.Italic
                                 )
                             }
                         }
@@ -412,13 +413,33 @@ private fun CompactLogCard(
                         zoneDurations.forEachIndexed { i, sec ->
                             if (sec > 0) {
                                 val pct = (sec.toFloat() / totalSec) * 100f
-                                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Box(Modifier.size(6.dp).background(ZoneColors[i], CircleShape))
                                     Spacer(Modifier.width(8.dp))
-                                    Text(ZoneNames[i], fontSize = 12.sp, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
-                                    Text(formatZoneDuration(sec), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(50.dp), textAlign = TextAlign.End)
+                                    Text(
+                                        ZoneNames[i],
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.weight(1f),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        formatZoneDuration(sec),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.width(50.dp),
+                                        textAlign = TextAlign.End
+                                    )
                                     Spacer(Modifier.width(8.dp))
-                                    Text("%.0f%%".format(pct), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(36.dp), textAlign = TextAlign.End)
+                                    Text(
+                                        "%.0f%%".format(pct),
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.width(36.dp),
+                                        textAlign = TextAlign.End
+                                    )
                                 }
                             }
                         }
@@ -610,11 +631,12 @@ private data class ZoneStat(val seconds: Long, val percent: Float)
 @Composable
 private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
     val stats = remember(logs, zoneBounds) {
-        if (logs.isEmpty() || zoneBounds.size != 5) return@remember List(5) { ZoneStat(0L, 0f) }
+        if (logs.isEmpty() || zoneBounds.size != 5) {
+            return@remember List(5) { ZoneStat(0L, 0f) }
+        }
         val durations = LongArray(5)
         logs.forEach { log ->
             if (log.avgHeartRate > 0 && log.durationSec > 0) {
-                // [ИТ.2] Точные зоны из кривой, если есть
                 val est = computeZoneDurations(log, zoneBounds)
                 for (i in 0..4) {
                     durations[i] += est[i]
@@ -742,12 +764,6 @@ private fun ChartCard(
     }
 }
 
-// ---------- helpers ----------
-
-/**
- * [ИТ.2] Считает точные зоны по сохранённой кривой пульса.
- * Fallback на estimateZoneDurations для старых записей без кривой.
- */
 private fun computeZoneDurations(log: WorkoutLogEntity, zoneBounds: List<Int>): LongArray {
     if (zoneBounds.size != 5 || log.durationSec <= 0) return LongArray(5)
     val samples = HrSamplesCodec.decode(log.hrSamples)
@@ -767,18 +783,17 @@ private fun computeZoneDurations(log: WorkoutLogEntity, zoneBounds: List<Int>): 
     val endT = log.durationSec
 
     for (i in 0 until samples.size - 1) {
-        val (t0, bpm0) = samples[i]
-        val (t1, _) = samples[i + 1]
+        val t0 = samples[i].first
+        val bpm0 = samples[i].second
+        val t1 = samples[i + 1].first
         if (t0 >= endT) break
         val dt = (t1 - t0).coerceAtLeast(0)
         if (dt <= 0) continue
-        // Ограничиваем вклад одного интервала: если данных долго не было (пауза),
-        // не засчитываем весь разрыв одной зоне.
         val cappedDt = dt.coerceAtMost(10)
         durations[zoneOf(bpm0)] += cappedDt.toLong()
     }
-    // Хвост после последнего сэмпла
-    val (lastT, lastBpm) = samples.last()
+    val lastT = samples.last().first
+    val lastBpm = samples.last().second
     val tail = (endT - lastT.coerceAtLeast(0)).coerceAtLeast(0).coerceAtMost(10)
     if (tail > 0) durations[zoneOf(lastBpm)] += tail.toLong()
 
@@ -809,8 +824,8 @@ private fun estimateZoneDurations(
         val dist = centers[i] - avgHr
         val base = kotlin.math.exp(-(dist * dist) / variance2)
         val isPeakZone = (i == 4 && safeMax >= zoneBounds[3]) ||
-                         (i == 3 && safeMax >= zoneBounds[2] && safeMax < zoneBounds[3]) ||
-                         (i == 2 && safeMax >= zoneBounds[1] && safeMax < zoneBounds[2])
+                (i == 3 && safeMax >= zoneBounds[2] && safeMax < zoneBounds[3]) ||
+                (i == 2 && safeMax >= zoneBounds[1] && safeMax < zoneBounds[2])
         if (isPeakZone) base + 0.4 else base
     }
 
