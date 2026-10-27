@@ -14,8 +14,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.treadmill.R
 
 @Composable
 fun HrSparkline(
@@ -27,7 +29,7 @@ fun HrSparkline(
     if (samples.size < 2) {
         Box(modifier, contentAlignment = Alignment.Center) {
             Text(
-                "Нет данных пульса",
+                stringResource(R.string.history_no_hr_title),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
