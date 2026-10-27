@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Treadmill Control</string>
+
+    <!-- Common -->
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="close">Close</string>
+    <string name="done">Done</string>
+    <string name="listen">Listen</string>
+    <string name="clear">Clear</string>
+    <string name="share">Share</string>
+    <string name="more_less">Less</string>
+    <string name="more_greater">More</string>
+    <string name="menu">Menu</string>
+    <string name="start">Start</string>
+
+    <!-- Units -->
+    <string name="unit_kmh">km/h</string>
+    <string name="unit_percent">%</string>
+    <string name="unit_bpm">bpm</string>
+    <string name="unit_sec">s</string>
+    <string name="unit_min">min</string>
+    <string name="unit_calories">kcal</string>
+    <string name="unit_km">km</string>
+
+    <!-- Tabs -->
+    <string name="tab_main">Home</string>
+    <string name="tab_programs">Programs</string>
+    <string name="tab_history">Log</string>
+    <string name="tab_settings">Settings</string>
+    <string name="debug">Debug</string>
+
+    <!-- Main screen -->
+    <string name="main_no_treadmill">Treadmill not connected</string>
+    <string name="main_caps_contentdesc">Treadmill capabilities</string>
+    <string name="main_treadmill_label">Treadmill</string>
+    <string name="main_hr_label">Heart rate</string>
+    <string name="main_status_connected">connected</string>
+    <string name="main_status_connecting">connecting…</string>
+    <string name="main_status_error">error</string>
+    <string name="main_status_none">none</string>
+    <string name="main_btn_connect">Connect</string>
+    <string name="main_btn_disconnect">Disconnect</string>
+    <string name="main_btn_cooldown">Wait %1$ds</string>
+    <string name="main_speed">Speed</string>
+    <string name="main_incline">Incline</string>
+    <string name="main_reset">Reset</string>
+    <string name="main_hr">Heart rate</string>
+    <string name="main_time">Time</string>
+    <string name="main_distance">Distance</string>
+    <string name="main_calories">Calories</string>
+    <string name="main_autohr_title">Auto HR</string>
+    <string name="main_autohr_target">Target: %1$d bpm</string>
+    <string name="main_autohr_off">Off</string>
+    <string name="main_autohr_configure">Setup</string>
+    <string name="main_btn_start">Start</string>
+    <string name="main_btn_pause">Pause</string>
+    <string name="main_btn_resume">Resume</string>
+    <string name="main_btn_stop">Stop</string>
+    <string name="main_segment_progress">Segment %1$d/%2$d</string>
+    <string name="main_segment_paused">PAUSED</string>
+
+    <!-- Scan dialog -->
+    <string name="scan_title_treadmill">Select treadmill</string>
+    <string name="scan_title_hr">Select heart rate monitor</string>
+    <string name="scan_searching">Searching for devices…\nMake sure the device is on and nearby.</string>
+    <string name="scan_cancel">Cancel</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_group_profiles">Athletes</string>
+    <string name="settings_profiles_title">Training profiles</string>
+    <string name="settings_profiles_subtitle">Current: %1$s (%2$.1f kg)</string>
+    <string name="settings_group_appearance">Appearance and sound</string>
+    <string name="settings_theme_label">Theme</string>
+    <string name="settings_theme_system">Follow system</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_keep_screen_title">Keep screen on</string>
+    <string name="settings_keep_screen_subtitle">Screen stays on during a workout and while the treadmill is moving</string>
+    <string name="settings_tts_title">Voice prompts</string>
+    <string name="settings_tts_subtitle">Segment changes, start and finish</string>
+    <string name="settings_tts_customize">Customize phrases</string>
+    <string name="settings_tts_customize_subtitle">Edit voice prompt texts</string>
+    <string name="settings_group_speed">Speed and incline</string>
+    <string name="settings_min_speed">Minimum speed</string>
+    <string name="settings_max_speed">Maximum speed</string>
+    <string name="settings_step_label">Adjustment step</string>
+    <string name="settings_max_incline">Maximum incline</string>
+    <string name="settings_group_hr">Auto HR</string>
+    <string name="settings_hr_enabled_title">Auto regulation</string>
+    <string name="settings_hr_enabled_subtitle">Adjust speed based on heart rate</string>
+    <string name="settings_hr_mode_label">Mode</string>
+    <string name="settings_hr_mode_target">Target heart rate</string>
+    <string name="settings_hr_mode_zone">Range (min–max)</string>
+    <string name="settings_hr_target">Target heart rate</string>
+    <string name="settings_hr_threshold_high">Threshold above target</string>
+    <string name="settings_hr_threshold_low">Threshold below target</string>
+    <string name="settings_hr_min">Lower limit</string>
+    <string name="settings_hr_max">Upper limit</string>
+    <string name="settings_hr_interval">Check interval</string>
+    <string name="settings_hr_step">Speed step</string>
+    <string name="settings_hr_auto_max_title">Auto-calculate max heart rate</string>
+    <string name="settings_hr_auto_max_subtitle">By the Tanaka / Gulati formula</string>
+    <string name="settings_hr_calc_max">Calculated maximum</string>
+    <string name="settings_hr_manual_max">Maximum heart rate (manual)</string>
+    <string name="settings_group_about">About</string>
+    <string name="settings_debug_title">Debug (BLE)</string>
+    <string name="settings_debug_subtitle">Logs, hex commands, reference</string>
+    <string name="settings_about_title">About the app</string>
+    <string name="settings_about_subtitle">Instructions and reference</string>
+
+    <!-- Workout screen -->
+    <string name="workout_title">Workout</string>
+    <string name="workout_manual">Manual</string>
+    <string name="workout_finished">Workout complete</string>
+    <string name="workout_segment_progress">Segment %1$d/%2$d: %3$s</string>
+    <string name="workout_paused">PAUSED</string>
+    <string name="workout_overall_progress">Overall progress: %1$d%%</string>
+    <string name="workout_speed">Speed</string>
+    <string name="workout_incline">Incline</string>
+    <string name="workout_hr_chart_title">Heart rate (30 min)</string>
+    <string name="workout_hr_target">Target: %1$d</string>
+    <string name="workout_time">Time</string>
+    <string name="workout_distance">Distance</string>
+    <string name="workout_calories">Calories</string>
+    <string name="workout_btn_resume">Resume</string>
+    <string name="workout_btn_pause">Pause</string>
+    <string name="workout_btn_skip">Skip</string>
+    <string name="workout_btn_stop">Stop</string>
+    <string name="workout_finish_dialog_title">Finish workout?</string>
+    <string name="workout_finish_dialog_text">Current progress will be saved to the log. The treadmill will stop.</string>
+    <string name="workout_finish_confirm">Finish</string>
+    <string name="workout_finish_dismiss">Keep running</string>
+
+    <!-- Programs screen -->
+    <string name="programs_title">Programs</string>
+    <string name="programs_create">Create</string>
+    <string name="programs_generator_tooltip">Generator</string>
+    <string name="programs_import">Import from file</string>
+    <string name="programs_search">Search…</string>
+    <string name="programs_sort">Sort</string>
+    <string name="programs_sort_name_asc">A–Z</string>
+    <string name="programs_sort_name_desc">Z–A</string>
+    <string name="programs_sort_newest">Newest first</string>
+    <string name="programs_empty_title">No programs</string>
+    <string name="programs_empty_subtitle">Tap "Create" or use the magic wand</string>
+    <string name="programs_no_results_title">Nothing found</string>
+    <string name="programs_no_results_subtitle">Try changing the search query</string>
+    <string name="programs_cannot_delete_running">Cannot delete a running program</string>
+    <string name="programs_export_json">Export to JSON</string>
+    <string name="programs_duplicate">Duplicate</string>
+    <string name="programs_copy_suffix">%1$s (copy)</string>
+    <string name="programs_segments_count">%1$d seg.</string>
+    <string name="programs_minutes_short">%1$d min</string>
+    <string name="programs_seconds_short">%1$d s</string>
+    <string name="programs_duration_format">%1$dm %2$ds</string>
+    <string name="programs_segment_default">Segment %1$d</string>
+    <string name="programs_expand">Expand</string>
+    <string name="programs_start">Start</string>
+    <string name="programs_import_source_file">file</string>
+    <string name="programs_import_error_empty">Text is empty</string>
+    <string name="programs_import_error_no_program">Error: file contains no program</string>
+    <string name="programs_import_error_invalid_segments">Error: segments with zero time or speed found</string>
+    <string name="programs_import_success">Program "%1$s" imported (%2$s)</string>
+    <string name="programs_import_error_generic">Error: %1$s</string>
+    <string name="programs_import_error_save">Save error: %1$s</string>
+    <string name="programs_import_error_read">Read error: %1$s</string>
+    <string name="programs_generated_toast">Program generated and saved!</string>
+
+    <!-- Program generator dialog -->
+    <string name="generator_title">Workout generator</string>
+    <string name="generator_profile_label">Profile: %1$s (%2$.0f kg, %3$d y.o.)</string>
+    <string name="generator_goal">Goal:</string>
+    <string name="generator_duration_label">Duration: %1$d min</string>
+    <string name="generator_intensity_label">Intensity: %1$d%%</string>
+    <string name="generator_easy">Easy</string>
+    <string name="generator_max">Max</string>
+    <string name="generator_limits">Limits: up to %1$.1f km/h</string>
+    <string name="generator_limits_with_incline">Limits: up to %1$.1f km/h, incline up to %2$d%%</string>
+    <string name="generator_limits_no_incline">Limits: up to %1$.1f km/h (incline unavailable)</string>
+    <string name="generator_create">Create</string>
+
+    <!-- Goals -->
+    <string name="goal_weight_loss_title">Weight loss</string>
+    <string name="goal_weight_loss_desc">Moderate steady pace</string>
+    <string name="goal_cardio_title">Cardio</string>
+    <string name="goal_cardio_desc">Alternating intervals</string>
+    <string name="goal_speed_title">Speed</string>
+    <string name="goal_speed_desc">Fast segments with rest</string>
+
+    <!-- Templates dialog -->
+    <string name="templates_title">Create workout</string>
+    <string name="templates_empty">Empty (start from scratch)</string>
+
+    <!-- Not connected dialog -->
+    <string name="not_connected_title">Treadmill not connected</string>
+    <string name="not_connected_text">Connect the treadmill on the home screen, then return and start the program.</string>
+
+    <!-- Delete program dialog -->
+    <string name="delete_program_title">Delete program?</string>
+    <string name="delete_program_text">Program "%1$s" will be deleted.</string>
+
+    <!-- Program editor -->
+    <string name="editor_new_title">New program</string>
+    <string name="editor_edit_title">Editor</string>
+    <string name="editor_total">Total: %1$d min</string>
+    <string name="editor_add_segment">Add segment</string>
+    <string name="editor_name_label">Program name</string>
+    <string name="editor_description_label">Description (optional)</string>
+    <string name="editor_segments_title">Segments</string>
+    <string name="editor_segment_name_placeholder">Name</string>
+    <string name="editor_time">Time</string>
+    <string name="editor_speed">Speed</string>
+    <string name="editor_incline">Incline</string>
+    <string name="editor_pick_time">Select time</string>
+    <string name="editor_validate_name">Enter a program name</string>
+    <string name="editor_validate_segments">Check segments: time and speed must be greater than zero</string>
+    <string name="editor_segment_short">Segment</string>
+
+    <!-- Profiles -->
+    <string name="profiles_title">Profiles</string>
+    <string name="profiles_add">Add</string>
+    <string name="profiles_edit">Edit</string>
+    <string name="profiles_stats_format">%1$.1f kg · %2$d cm · %3$d y.o. · %4$s</string>
+    <string name="profiles_male_short">M</string>
+    <string name="profiles_female_short">F</string>
+    <string name="profiles_zones_header">Heart rate zones (max %1$d)</string>
+    <string name="profiles_new_title">New profile</string>
+    <string name="profiles_edit_title">Edit profile</string>
+    <string name="profiles_name">Name</string>
+    <string name="profiles_weight">Weight (kg)</string>
+    <string name="profiles_height">Height (cm)</string>
+    <string name="profiles_age">Age</string>
+    <string name="profiles_resting_hr">Resting HR</string>
+    <string name="profiles_gender">Gender:</string>
+    <string name="profiles_level">Experience level:</string>
+    <string name="profiles_level_beginner">Beginner</string>
+    <string name="profiles_level_intermediate">Intermediate</string>
+    <string name="profiles_level_advanced">Advanced</string>
+
+    <!-- TTS settings -->
+    <string name="tts_title">Voice phrases</string>
+    <string name="tts_variables_title">Available variables (tags):</string>
+    <string name="tts_variables_start">Start: {name}, {segName}, {speed}, {speed_text}</string>
+    <string name="tts_variables_segment">Segment: {i}, {n}, {segName}, {speed}, {speed_text}, {angle}, {angle_text}</string>
+    <string name="tts_variables_finish">Finish: {dist}, {hr}</string>
+    <string name="tts_variables_note">Note: {speed} gives a number (8.5), {speed_text} gives words (8.5 kilometers per hour).</string>
+    <string name="tts_start_label">Workout start</string>
+    <string name="tts_segment_label">Segment change</string>
+    <string name="tts_finish_label">Workout finish</string>
+    <string name="tts_pause_label">Pause</string>
+    <string name="tts_resume_label">Resume</string>
+    <string name="tts_reset_defaults">Reset to defaults</string>
+
+    <string name="tts_default_start">Workout "{name}" started. Segment 1: {segName}, speed {speed_text}</string>
+    <string name="tts_default_segment">Segment {i} of {n}: {segName}, speed {speed_text}, incline {angle_text}</string>
+    <string name="tts_default_finish">Workout complete. Distance {dist} km, average heart rate {hr}</string>
+    <string name="tts_default_pause">Paused</string>
+    <string name="tts_default_resume">Resuming</string>
+
+    <plurals name="tts_kmh_plural">
+        <item quantity="one">%d kilometer per hour</item>
+        <item quantity="other">%d kilometers per hour</item>
+    </plurals>
+    <plurals name="tts_percent_plural">
+        <item quantity="one">%d percent</item>
+        <item quantity="other">%d percent</item>
+    </plurals>
+
+    <!-- About -->
+    <string name="about_title">About</string>
+    <string name="about_version">v2.2 — BLE treadmill control (FTMS)</string>
+    <string name="about_description">Universal app for treadmills supporting the FTMS standard (Fitness Machine Service, Bluetooth SIG). Works fully offline. INTERNET permission is intentionally not requested.</string>
+    <string name="about_compat_title">Compatibility</string>
+    <string name="about_compat_items">• Protocol: FTMS (Bluetooth SIG standard)\n• Any treadmill with FTMS support\n• e.g. FitShow, Horizon, Bowflex, Sole, NordicTrack\n• Heart rate monitors: HR Service (0x180D)\n• Treadmill capabilities (speed, incline) are detected automatically</string>
+    <string name="about_features_title">Features</string>
+    <string name="about_features_items">• Auto-detection of treadmill features via FTMS Feature\n• BLE connection with auto-reconnect\n• Chest strap HR + zone chart\n• Auto speed regulation by heart rate\n• Training programs (manual and auto)\n• Workout generator by profile (weight, age, level)\n• Heart rate zones via Karvonen formula\n• Voice prompts with customizable phrases (TTS)\n• Background work (Foreground Service)\n• Workout log (Room)\n• Debug screen with full BLE log</string>
+    <string name="about_stack_title">Stack</string>
+    <string name="about_stack_items">• Kotlin 1.9.22 · JVM 17\n• Jetpack Compose · Material 3\n• Room 2.6.1 · kotlinx.serialization\n• minSdk 21 · targetSdk 34 · AGP 8.2.2</string>
+    <string name="about_custom_workout_title">Create your own workout</string>
+    <string name="about_custom_workout_desc">Copy the template, edit it in any notes app, copy back and paste into "Programs → From file". No need to save any files.</string>
+    <string name="about_copy_template">Template</string>
+    <string name="about_copy_instructions">Instructions</string>
+    <string name="about_template_copied">JSON template copied</string>
+    <string name="about_instructions_copied">Instructions copied</string>
+    <string name="about_footer">Made for personal use. Works offline.</string>
+    <string name="about_instructions">HOW TO CREATE YOUR OWN WORKOUT\n\n1. Tap "Template" — JSON is copied to clipboard\n2. Open any notes app\n3. Paste the template\n4. Edit:\n   - "name" — program name\n   - "description" — optional\n   - "segments" — list of segments\n\n   Segment fields:\n   - "name" — segment name (string)\n   - "durationSec" — duration in SECONDS (300 = 5 min)\n   - "speedKmh" — speed in km/h\n   - "inclinePercent" — incline in %\n\n5. Copy all text from notes\n6. In the app open "Programs" → import from file\n7. Done — the program appears in the list\n\nIMPORTANT:\n- Do not remove quotes and commas\n- Each segment in { }\n- Comma between segments, none after the last\n- Integers are fine: 300 instead of 300.0\n- Speed and incline are limited by your treadmill</string>
+
+    <!-- Capabilities dialog -->
+    <string name="caps_title">Treadmill capabilities</string>
+    <string name="caps_no_feature">The treadmill does not provide capability information (FTMS Feature). Universal settings will be used.</string>
+    <string name="caps_speed">Speed</string>
+    <string name="caps_speed_range">%1$.1f – %2$.1f km/h</string>
+    <string name="caps_speed_step">Speed step</string>
+    <string name="caps_incline">Incline control</string>
+    <string name="caps_incline_range">%1$.1f – %2$.1f %%</string>
+    <string name="caps_distance">Distance measurement</string>
+    <string name="caps_calories">Calorie tracking</string>
+    <string name="caps_hr">Heart rate (built-in)</string>
+    <string name="caps_time">Time measurement</string>
+    <string name="caps_footer">If something is missing, the app still works, but the corresponding features will be unavailable.</string>
+
+    <!-- Debug -->
+    <string name="debug_clear">Clear</string>
+    <string name="debug_save">Save</string>
+    <string name="debug_share">Share</string>
+    <string name="debug_saved">Saved</string>
+    <string name="debug_save_error">Error: %1$s</string>
+    <string name="debug_share_subject">Treadmill debug log</string>
+    <string name="debug_share_chooser">Share log</string>
+    <string name="debug_no_connection">Not connected</string>
+    <string name="debug_status_format">Speed: %1$.1f · Incline: %2$.0f%% · Logs: %3$d</string>
+    <string name="debug_send">Send</string>
+    <string name="debug_tab_log">Log</string>
+    <string name="debug_tab_reference">Reference</string>
+    <string name="debug_tab_constructor">Builder</string>
+    <string name="debug_log_title">Event log</string>
+    <string name="debug_frames_ftms">FTMS frames (2ACD)</string>
+    <string name="debug_cmd_group_control">Control</string>
+    <string name="debug_cmd_group_speed">Speed — change on the fly</string>
+    <string name="debug_cmd_group_incline">Incline (whole %%)</string>
+    <string name="debug_cmd_request_control">Request Control</string>
+    <string name="debug_cmd_request_control_note">Request control</string>
+    <string name="debug_cmd_reset_note">Standard FTMS Reset</string>
+    <string name="debug_cmd_start_note">Only AFTER 00 + pause</string>
+    <string name="debug_cmd_stop">Stop (our way)</string>
+    <string name="debug_cmd_stop_note">Speed → 0</string>
+    <string name="debug_cmd_pause">Pause (FTMS standard)</string>
+    <string name="debug_cmd_pause_note">Resets treadmill timer</string>
+    <string name="debug_cmd_speed_label">%1$.1f km/h</string>
+    <string name="debug_cmd_speed_note">Only while running</string>
+    <string name="debug_cmd_incline_label">%1$d %%</string>
+    <string name="debug_not_connected">Treadmill not connected</string>
+    <string name="debug_quick_adjust">Quick adjust</string>
+    <string name="debug_current_speed">Current: %1$.1f km/h</string>
+    <string name="debug_start_treadmill">Start treadmill (00→07)</string>
+    <string name="debug_last_sent">Sent: %1$s</string>
+    <string name="debug_speed">Speed</string>
+    <string name="debug_incline">Incline</string>
+    <string name="debug_apply">Apply</string>
+    <string name="debug_stop">Stop</string>
+    <string name="debug_send_incline">Send incline</string>
+
+    <!-- History -->
+    <string name="history_title">Workout log</string>
+    <string name="history_tab_list">List</string>
+    <string name="history_tab_stats">Statistics</string>
+    <string name="history_empty_title">Log is empty</string>
+    <string name="history_empty_subtitle">Train with the app or load demo data via the ⋮ menu</string>
+    <string name="history_menu_load_demo">Load demo data</string>
+    <string name="history_menu_clear">Clear log</string>
+    <string name="history_clear_dialog_title">Clear log?</string>
+    <string name="history_clear_dialog_text">All workout records will be deleted. This action cannot be undone.</string>
+    <string name="history_clear_confirm">Clear</string>
+    <string name="history_total">Total: %1$d</string>
+    <string name="history_expand_all">Expand all</string>
+    <string name="history_collapse_all">Collapse all</string>
+    <string name="history_hr_info_contentdesc">Statistics explanation</string>
+    <string name="history_hr_info_title">Heart rate statistics</string>
+    <string name="history_hr_info_total">Total workouts: %1$d</string>
+    <string name="history_hr_info_with_hr">With HR monitor data: %1$d</string>
+    <string name="history_hr_info_without_hr">Without HR monitor data: %1$d</string>
+    <string name="history_hr_info_explain">The chart, trend and HR zones are built only from workouts where the HR monitor was active.</string>
+    <string name="history_hr_info_zones_note">HR zones in the expanded card are computed from the real HR curve when available. For older records, approximation is used.</string>
+    <string name="history_hr_info_ok">Got it</string>
+    <string name="history_hr_in_workout">Heart rate during workout</string>
+    <string name="history_hr_minmax">min %1$d · max %2$d</string>
+    <string name="history_hr_zones">Heart rate zones</string>
+    <string name="history_hr_zones_approx">≈ approximate</string>
+    <string name="history_avg_speed">avg speed</string>
+    <string name="history_max_hr">max HR</string>
+    <string name="history_summary_title">Summary</string>
+    <string name="history_summary_workouts">Workouts</string>
+    <string name="history_summary_time">Time</string>
+    <string name="history_summary_distance">Distance</string>
+    <string name="history_summary_calories">Calories</string>
+    <string name="history_hr_card_title">Heart rate</string>
+    <string name="history_hr_avg">Average</string>
+    <string name="history_hr_max">Maximum</string>
+    <string name="history_hr_best">Best avg</string>
+    <string name="history_trend">Trend: %1$s%2$d bpm</string>
+    <string name="history_trend_falling">HR is dropping — fitness improving</string>
+    <string name="history_trend_rising">HR is rising — possibly accumulated fatigue</string>
+    <string name="history_trend_stable">HR is stable</string>
+    <string name="history_trend_need_more">At least 4 workouts with HR monitor needed for trend evaluation.</string>
+    <string name="history_zones_title">Time in HR zones</string>
+    <string name="history_zones_total">Total: %1$s</string>
+    <string name="history_zones_bounds">Zone bounds (bpm): %1$s</string>
+    <string name="history_zones_note">Computed from real HR curve; approximation for old records</string>
+    <string name="history_chart_avg_title">Average heart rate</string>
+    <string name="history_chart_workouts_count">%1$d workouts</string>
+    <string name="history_no_hr_title">No heart rate data</string>
+    <string name="history_no_hr_text">Train with a connected HR monitor to see statistics.</string>
+    <string name="history_zone_z1">Z1 Recovery</string>
+    <string name="history_zone_z2">Z2 Light</string>
+    <string name="history_zone_z3">Z3 Aerobic</string>
+    <string name="history_zone_z4">Z4 Threshold</string>
+    <string name="history_zone_z5">Z5 Maximum</string>
+    <string name="manual_workout">Manual workout</string>
+</resources>
