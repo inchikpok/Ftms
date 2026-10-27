@@ -26,16 +26,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.treadmill.TreadmillApp
+import com.custom.treadmill.data.database.HrSamplesCodec
 import com.custom.treadmill.data.database.WorkoutLogEntity
 import com.custom.treadmill.logic.HeartRateZoneCalculator
 import com.custom.treadmill.ui.components.HeartRateChart
 import com.custom.treadmill.ui.components.HrPoint
+import com.custom.treadmill.ui.components.HrSparkline
 import com.custom.treadmill.ui.viewmodels.ProgramViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Общие цвета и названия зон
 private val ZoneColors = listOf(
     Color(0xFF64B5F6), // Z1
     Color(0xFF81C784), // Z2
@@ -107,7 +108,6 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
             TabChip("Список", tab == 0) { tab = 0 }
             TabChip("Статистика", tab == 1) { tab = 1 }
             Spacer(Modifier.weight(1f))
-            // [ФИКС] Info-кнопка вместо текстовых пояснений. Видна только на вкладке "Статистика".
             if (tab == 1) {
                 IconButton(onClick = { showHrInfo = true }) {
                     Icon(
@@ -163,19 +163,12 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
         AlertDialog(
             onDismissRequest = { showHrInfo = false },
             icon = {
-                Icon(
-                    Icons.Default.Favorite,
-                    contentDescription = null,
-                    tint = Color(0xFFC62828)
-                )
+                Icon(Icons.Default.Favorite, contentDescription = null, tint = Color(0xFFC62828))
             },
             title = { Text("Пульсовая статистика") },
             text = {
                 Column {
-                    Text(
-                        "Всего тренировок в журнале: ${logs.size}",
-                        fontSize = 13.sp
-                    )
+                    Text("Всего тренировок в журнале: ${logs.size}", fontSize = 13.sp)
                     Text(
                         "С данными пульсометра: $withHr",
                         fontSize = 13.sp,
@@ -196,6 +189,14 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Пульсовые зоны в раскрытой карточке тренировки считаются по реальной " +
+                                "кривой пульса, если она сохранена. Для старых записей используется " +
+                                "аппроксимация по среднему и максимальному пульсу.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = {
@@ -278,7 +279,6 @@ private fun CompactLogCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(Modifier.padding(12.dp).animateContentSize()) {
-            // Шапка карточки
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -325,14 +325,12 @@ private fun CompactLogCard(
 
             Spacer(Modifier.height(10.dp))
 
-            // Базовые метрики (Всегда видны)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 CompactMetric(Icons.Default.Timer, formatDuration(log.durationSec))
                 CompactMetric(Icons.Default.DirectionsRun, "%.2f км".format(log.distanceKm))
                 CompactMetric(Icons.Default.LocalFireDepartment, "${log.calories} ккал")
             }
 
-            // Спойлер (Доп. метрики + Детализация зон)
             AnimatedVisibility(visible = isExpanded) {
                 Column(Modifier.padding(top = 12.dp)) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
@@ -343,17 +341,65 @@ private fun CompactLogCard(
                         CompactMetric(Icons.Default.FavoriteBorder, if (log.maxHeartRate > 0) "${log.maxHeartRate} уд/мин" else "—", "макс. пульс")
                     }
 
+                    // [ИТ.2] Мини-график пульса из сохранённой кривой
+                    if (log.avgHeartRate > 0) {
+                        val samples = remember(log.hrSamples) { HrSamplesCodec.decode(log.hrSamples) }
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Пульс за тренировку",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (samples.isNotEmpty()) {
+                                val mn = samples.minOf { it.second }
+                                val mx = samples.maxOf { it.second }
+                                Text(
+                                    "мин $mn · макс $mx",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        HrSparkline(
+                            samples = samples,
+                            durationSec = log.durationSec,
+                            modifier = Modifier.fillMaxWidth().height(56.dp)
+                        )
+                    }
+
                     if (log.avgHeartRate > 0 && zoneBounds.size == 5) {
                         Spacer(Modifier.height(12.dp))
+                        // [ИТ.2] Точные зоны из кривой (или аппроксимация для старых записей)
                         val zoneDurations = remember(log, zoneBounds) {
-                            estimateZoneDurations(log.durationSec, log.avgHeartRate, log.maxHeartRate, zoneBounds)
+                            computeZoneDurations(log, zoneBounds)
                         }
                         val totalSec = zoneDurations.sum().coerceAtLeast(1L)
+                        val hasRealData = log.hrSamples.isNotBlank()
 
-                        Text("Пульсовые зоны", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Пульсовые зоны",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (!hasRealData) {
+                                Text(
+                                    "≈ приближённо",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(6.dp))
 
-                        // Мини-бар распределения
                         Row(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))) {
                             zoneDurations.forEachIndexed { i, sec ->
                                 if (sec > 0) {
@@ -363,7 +409,6 @@ private fun CompactLogCard(
                         }
                         Spacer(Modifier.height(8.dp))
 
-                        // Детальный список
                         zoneDurations.forEachIndexed { i, sec ->
                             if (sec > 0) {
                                 val pct = (sec.toFloat() / totalSec) * 100f
@@ -569,7 +614,8 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
         val durations = LongArray(5)
         logs.forEach { log ->
             if (log.avgHeartRate > 0 && log.durationSec > 0) {
-                val est = estimateZoneDurations(log.durationSec, log.avgHeartRate, log.maxHeartRate, zoneBounds)
+                // [ИТ.2] Точные зоны из кривой, если есть
+                val est = computeZoneDurations(log, zoneBounds)
                 for (i in 0..4) {
                     durations[i] += est[i]
                 }
@@ -598,22 +644,16 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
             }
             Spacer(Modifier.height(16.dp))
 
-            // Горизонтальный стеклянный бар
-            Row(
-                Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(8.dp))
-            ) {
+            Row(Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(8.dp))) {
                 stats.forEachIndexed { i, stat ->
                     if (stat.percent > 0f) {
-                        Box(
-                            Modifier.weight(stat.percent).fillMaxHeight().background(ZoneColors[i])
-                        )
+                        Box(Modifier.weight(stat.percent).fillMaxHeight().background(ZoneColors[i]))
                     }
                 }
             }
 
             Spacer(Modifier.height(14.dp))
 
-            // Легенда: цвет · название · время · процент
             stats.forEachIndexed { i, stat ->
                 Row(
                     Modifier.fillMaxWidth().padding(vertical = 5.dp),
@@ -656,7 +696,7 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "Расчёт на основе аппроксимации средней и максимальной ЧСС",
+                "Расчёт по реальной кривой пульса; для старых записей — аппроксимация",
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -703,6 +743,47 @@ private fun ChartCard(
 }
 
 // ---------- helpers ----------
+
+/**
+ * [ИТ.2] Считает точные зоны по сохранённой кривой пульса.
+ * Fallback на estimateZoneDurations для старых записей без кривой.
+ */
+private fun computeZoneDurations(log: WorkoutLogEntity, zoneBounds: List<Int>): LongArray {
+    if (zoneBounds.size != 5 || log.durationSec <= 0) return LongArray(5)
+    val samples = HrSamplesCodec.decode(log.hrSamples)
+    if (samples.isEmpty()) {
+        return estimateZoneDurations(log.durationSec, log.avgHeartRate, log.maxHeartRate, zoneBounds)
+    }
+
+    fun zoneOf(bpm: Int): Int = when {
+        bpm < zoneBounds[0] -> 0
+        bpm < zoneBounds[1] -> 1
+        bpm < zoneBounds[2] -> 2
+        bpm < zoneBounds[3] -> 3
+        else -> 4
+    }
+
+    val durations = LongArray(5)
+    val endT = log.durationSec
+
+    for (i in 0 until samples.size - 1) {
+        val (t0, bpm0) = samples[i]
+        val (t1, _) = samples[i + 1]
+        if (t0 >= endT) break
+        val dt = (t1 - t0).coerceAtLeast(0)
+        if (dt <= 0) continue
+        // Ограничиваем вклад одного интервала: если данных долго не было (пауза),
+        // не засчитываем весь разрыв одной зоне.
+        val cappedDt = dt.coerceAtMost(10)
+        durations[zoneOf(bpm0)] += cappedDt.toLong()
+    }
+    // Хвост после последнего сэмпла
+    val (lastT, lastBpm) = samples.last()
+    val tail = (endT - lastT.coerceAtLeast(0)).coerceAtLeast(0).coerceAtMost(10)
+    if (tail > 0) durations[zoneOf(lastBpm)] += tail.toLong()
+
+    return durations
+}
 
 private fun estimateZoneDurations(
     durationSec: Int,
