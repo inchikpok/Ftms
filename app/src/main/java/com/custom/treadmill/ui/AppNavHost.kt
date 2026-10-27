@@ -1,5 +1,6 @@
 package com.custom.treadmill.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -7,13 +8,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -23,12 +21,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.custom.treadmill.DebugLog
+import com.custom.treadmill.R
 import com.custom.treadmill.ui.screens.*
 import com.custom.treadmill.ui.viewmodels.MainViewModel
 import com.custom.treadmill.ui.viewmodels.ProgramViewModel
@@ -85,7 +85,7 @@ fun AppNavHost() {
     }
 }
 
-private data class Tab(val title: String, val icon: ImageVector)
+private data class Tab(@StringRes val titleRes: Int, val icon: ImageVector)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -99,37 +99,31 @@ private fun MainTabs(
     onOpenTts: () -> Unit
 ) {
     val tabs = listOf(
-        Tab("Главная", Icons.Default.Home),
-        Tab("Программы", Icons.AutoMirrored.Filled.List),
-        Tab("Журнал", Icons.Default.History),
-        Tab("Настройки", Icons.Default.Settings),
+        Tab(R.string.tab_main, Icons.Default.Home),
+        Tab(R.string.tab_programs, Icons.AutoMirrored.Filled.List),
+        Tab(R.string.tab_history, Icons.Default.History),
+        Tab(R.string.tab_settings, Icons.Default.Settings),
     )
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
 
+    // [ФИКС] Убрали floatingActionButton с жучком Debug, который перекрывал кнопки на главном экране.
+    // Доступ к Debug остался в настройках.
     Scaffold(
         bottomBar = {
             NavigationBar {
                 tabs.forEachIndexed { index, tab ->
+                    val title = stringResource(tab.titleRes)
                     NavigationBarItem(
                         selected = pagerState.currentPage == index,
                         onClick = {
-                            DebugLog.d("NAV", "tab tap: ${tab.title}")
+                            DebugLog.d("NAV", "tab tap: ${tab.titleRes}")
                             scope.launch { pagerState.scrollToPage(index) }
                         },
-                        icon = { Icon(tab.icon, contentDescription = tab.title) },
-                        label = { Text(tab.title, fontSize = 11.sp) }
+                        icon = { Icon(tab.icon, contentDescription = title) },
+                        label = { Text(title, fontSize = 11.sp) }
                     )
                 }
-            }
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onOpenDebug,
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-            ) {
-                Icon(Icons.Default.BugReport, contentDescription = "Debug")
             }
         }
     ) { padding ->
