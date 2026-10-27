@@ -20,12 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.treadmill.R
 import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.data.database.HrSamplesCodec
 import com.custom.treadmill.data.database.WorkoutLogEntity
@@ -45,7 +47,15 @@ private val ZoneColors = listOf(
     Color(0xFFFFB74D),
     Color(0xFFE57373)
 )
-private val ZoneNames = listOf("Z1 Восстановление", "Z2 Лёгкая", "Z3 Аэробная", "Z4 Порог", "Z5 Максимум")
+
+@Composable
+private fun zoneNames(): List<String> = listOf(
+    stringResource(R.string.history_zone_z1),
+    stringResource(R.string.history_zone_z2),
+    stringResource(R.string.history_zone_z3),
+    stringResource(R.string.history_zone_z4),
+    stringResource(R.string.history_zone_z5)
+)
 
 @Composable
 fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
@@ -63,33 +73,33 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
             Spacer(Modifier.height(12.dp))
             if (onBack != null) {
                 TextButton(onClick = onBack, contentPadding = PaddingValues(4.dp)) {
-                    Text("← Назад")
+                    Text("← " + stringResource(R.string.back))
                 }
                 Spacer(Modifier.width(8.dp))
             }
             Text(
-                "Журнал тренировок",
+                stringResource(R.string.history_title),
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
                 modifier = Modifier.weight(1f)
             )
             Box {
                 IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Меню")
+                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.menu))
                 }
                 DropdownMenu(
                     expanded = menuOpen,
                     onDismissRequest = { menuOpen = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Загрузить демо-данные") },
+                        text = { Text(stringResource(R.string.history_menu_load_demo)) },
                         onClick = {
                             menuOpen = false
                             programVm.seedDemoLogs()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Очистить журнал", color = MaterialTheme.colorScheme.error) },
+                        text = { Text(stringResource(R.string.history_menu_clear), color = MaterialTheme.colorScheme.error) },
                         onClick = {
                             menuOpen = false
                             confirmClear = true
@@ -106,14 +116,14 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TabChip("Список", tab == 0) { tab = 0 }
-            TabChip("Статистика", tab == 1) { tab = 1 }
+            TabChip(stringResource(R.string.history_tab_list), tab == 0) { tab = 0 }
+            TabChip(stringResource(R.string.history_tab_stats), tab == 1) { tab = 1 }
             Spacer(Modifier.weight(1f))
             if (tab == 1) {
                 IconButton(onClick = { showHrInfo = true }) {
                     Icon(
                         Icons.Default.Info,
-                        contentDescription = "Пояснение к статистике",
+                        contentDescription = stringResource(R.string.history_hr_info_contentdesc),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -123,11 +133,10 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
         if (logs.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Журнал пуст", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.history_empty_title), fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Тренируйтесь с приложением или\n" +
-                                "загрузите демо-данные через меню ⋮ справа",
+                        stringResource(R.string.history_empty_subtitle),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center
@@ -144,16 +153,16 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("Очистить журнал?") },
-            text = { Text("Будут удалены все записи о тренировках. Действие необратимо.") },
+            title = { Text(stringResource(R.string.history_clear_dialog_title)) },
+            text = { Text(stringResource(R.string.history_clear_dialog_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmClear = false
                     programVm.clearLogs()
-                }) { Text("Очистить", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.history_clear_confirm), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmClear = false }) { Text("Отмена") }
+                TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -166,40 +175,38 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
             icon = {
                 Icon(Icons.Default.Favorite, contentDescription = null, tint = Color(0xFFC62828))
             },
-            title = { Text("Пульсовая статистика") },
+            title = { Text(stringResource(R.string.history_hr_info_title)) },
             text = {
                 Column {
-                    Text("Всего тренировок в журнале: ${logs.size}", fontSize = 13.sp)
+                    Text(stringResource(R.string.history_hr_info_total, logs.size), fontSize = 13.sp)
                     Text(
-                        "С данными пульсометра: $withHr",
+                        stringResource(R.string.history_hr_info_with_hr, withHr),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     )
                     if (withoutHr > 0) {
                         Text(
-                            "Без данных пульсометра: $withoutHr",
+                            stringResource(R.string.history_hr_info_without_hr, withoutHr),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            "График, тренд и пульсовые зоны строятся только по тренировкам, " +
-                                    "во время которых был активен пульсометр.",
+                            stringResource(R.string.history_hr_info_explain),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "Пульсовые зоны в раскрытой карточке считаются по реальной кривой пульса, " +
-                                "если она сохранена. Для старых записей используется аппроксимация.",
+                        stringResource(R.string.history_hr_info_zones_note),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showHrInfo = false }) { Text("Понятно") }
+                TextButton(onClick = { showHrInfo = false }) { Text(stringResource(R.string.history_hr_info_ok)) }
             }
         )
     }
@@ -235,11 +242,15 @@ private fun LogsList(logs: List<WorkoutLogEntity>) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Всего: ${logs.size}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.history_total, logs.size), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             TextButton(onClick = {
                 expandedIds = if (allExpanded) emptySet() else logs.map { it.id }.toSet()
             }) {
-                Text(if (allExpanded) "Свернуть все" else "Развернуть все", fontSize = 13.sp)
+                Text(
+                    if (allExpanded) stringResource(R.string.history_collapse_all)
+                    else stringResource(R.string.history_expand_all),
+                    fontSize = 13.sp
+                )
             }
         }
 
@@ -271,6 +282,13 @@ private fun CompactLogCard(
     zoneBounds: List<Int>
 ) {
     val fmt = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+    val names = zoneNames()
+
+    // [ФИКС] Обратная совместимость: старые записи имели programName = "Ручная тренировка".
+    // Новые записи сохраняются с пустой строкой (см. TreadmillSession.saveWorkoutLog).
+    val displayName = if (log.programName.isBlank() || log.programName == "Ручная тренировка") {
+        stringResource(R.string.manual_workout)
+    } else log.programName
 
     Card(
         Modifier.fillMaxWidth().clickable { onToggle() },
@@ -286,7 +304,7 @@ private fun CompactLogCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        log.programName,
+                        displayName,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -326,8 +344,8 @@ private fun CompactLogCard(
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 CompactMetric(Icons.Default.Timer, formatDuration(log.durationSec))
-                CompactMetric(Icons.Default.DirectionsRun, "%.2f км".format(log.distanceKm))
-                CompactMetric(Icons.Default.LocalFireDepartment, "${log.calories} ккал")
+                CompactMetric(Icons.Default.DirectionsRun, "%.2f ${stringResource(R.string.unit_km)}".format(log.distanceKm))
+                CompactMetric(Icons.Default.LocalFireDepartment, "${log.calories} ${stringResource(R.string.unit_calories)}")
             }
 
             AnimatedVisibility(visible = isExpanded) {
@@ -336,11 +354,11 @@ private fun CompactLogCard(
                     Spacer(Modifier.height(10.dp))
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        CompactMetric(Icons.Default.Speed, "%.1f км/ч".format(log.avgSpeedKmh), "ср. скорость")
+                        CompactMetric(Icons.Default.Speed, "%.1f ${stringResource(R.string.unit_kmh)}".format(log.avgSpeedKmh), stringResource(R.string.history_avg_speed))
                         CompactMetric(
                             Icons.Default.FavoriteBorder,
-                            if (log.maxHeartRate > 0) "${log.maxHeartRate} уд/мин" else "—",
-                            "макс. пульс"
+                            if (log.maxHeartRate > 0) "${log.maxHeartRate} ${stringResource(R.string.unit_bpm)}" else "—",
+                            stringResource(R.string.history_max_hr)
                         )
                     }
 
@@ -353,7 +371,7 @@ private fun CompactLogCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                "Пульс за тренировку",
+                                stringResource(R.string.history_hr_in_workout),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -361,7 +379,7 @@ private fun CompactLogCard(
                                 val mn = samples.minOf { it.second }
                                 val mx = samples.maxOf { it.second }
                                 Text(
-                                    "мин $mn · макс $mx",
+                                    stringResource(R.string.history_hr_minmax, mn, mx),
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -377,22 +395,20 @@ private fun CompactLogCard(
 
                     if (log.avgHeartRate > 0 && zoneBounds.size == 5) {
                         Spacer(Modifier.height(12.dp))
-                        val zoneDurations = remember(log, zoneBounds) {
-                            computeZoneDurations(log, zoneBounds)
-                        }
+                        val zoneDurations = remember(log, zoneBounds) { computeZoneDurations(log, zoneBounds) }
                         val totalSec = zoneDurations.sum().coerceAtLeast(1L)
                         val hasRealData = log.hrSamples.isNotBlank()
 
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "Пульсовые зоны",
+                                stringResource(R.string.history_hr_zones),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f)
                             )
                             if (!hasRealData) {
                                 Text(
-                                    "≈ приближённо",
+                                    stringResource(R.string.history_hr_zones_approx),
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontStyle = FontStyle.Italic
@@ -420,7 +436,7 @@ private fun CompactLogCard(
                                     Box(Modifier.size(6.dp).background(ZoneColors[i], CircleShape))
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        ZoneNames[i],
+                                        names[i],
                                         fontSize = 12.sp,
                                         modifier = Modifier.weight(1f),
                                         color = MaterialTheme.colorScheme.onSurface
@@ -491,10 +507,10 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
             Spacer(Modifier.height(12.dp))
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Нет данных пульса", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.history_no_hr_title), fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Для отображения статистики тренируйтесь с подключённым пульсометром.",
+                        stringResource(R.string.history_no_hr_text),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -512,8 +528,8 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
 
         Spacer(Modifier.height(16.dp))
         ChartCard(
-            title = "Средний пульс",
-            subtitle = "${withHr.size} тренировок",
+            title = stringResource(R.string.history_chart_avg_title),
+            subtitle = stringResource(R.string.history_chart_workouts_count, withHr.size),
             points = withHr.map { HrPoint(it.dateMillis, it.avgHeartRate) }
         )
 
@@ -532,16 +548,16 @@ private fun SummaryCard(logs: List<WorkoutLogEntity>) {
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(Modifier.padding(14.dp)) {
-            Text("Общая сводка", fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.history_summary_title), fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth()) {
-                StatBlock("Тренировок", "${logs.size}", Modifier.weight(1f))
-                StatBlock("Время", formatDuration(totalSec), Modifier.weight(1f))
+                StatBlock(stringResource(R.string.history_summary_workouts), "${logs.size}", Modifier.weight(1f))
+                StatBlock(stringResource(R.string.history_summary_time), formatDuration(totalSec), Modifier.weight(1f))
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth()) {
-                StatBlock("Дистанция", "%.1f км".format(totalKm), Modifier.weight(1f))
-                StatBlock("Калории", "$totalKcal", Modifier.weight(1f))
+                StatBlock(stringResource(R.string.history_summary_distance), "%.1f ${stringResource(R.string.unit_km)}".format(totalKm), Modifier.weight(1f))
+                StatBlock(stringResource(R.string.history_summary_calories), "$totalKcal", Modifier.weight(1f))
             }
         }
     }
@@ -575,12 +591,12 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(Modifier.padding(14.dp)) {
-            Text("Пульс", fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.history_hr_card_title), fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth()) {
-                StatBlock("Средний", "$avgAll", Modifier.weight(1f))
-                StatBlock("Максимум", "$maxAll", Modifier.weight(1f))
-                StatBlock("Лучший ср.", "$minAll", Modifier.weight(1f))
+                StatBlock(stringResource(R.string.history_hr_avg), "$avgAll", Modifier.weight(1f))
+                StatBlock(stringResource(R.string.history_hr_max), "$maxAll", Modifier.weight(1f))
+                StatBlock(stringResource(R.string.history_hr_best), "$minAll", Modifier.weight(1f))
             }
 
             if (trend != null) {
@@ -590,9 +606,9 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
                 val arrow = if (diff < 0) "↓" else if (diff > 0) "↑" else "→"
                 val sign = if (diff > 0) "+" else ""
                 val message = when {
-                    diff < -2 -> "Пульс снижается — форма растёт"
-                    diff > 2 -> "Пульс растёт — возможно, накопилась усталость"
-                    else -> "Пульс стабилен"
+                    diff < -2 -> stringResource(R.string.history_trend_falling)
+                    diff > 2 -> stringResource(R.string.history_trend_rising)
+                    else -> stringResource(R.string.history_trend_stable)
                 }
                 Surface(
                     color = color.copy(alpha = 0.1f),
@@ -606,7 +622,7 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "Тренд: $sign$diff уд/мин",
+                                stringResource(R.string.history_trend, sign, diff),
                                 color = color,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -617,7 +633,7 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
             } else {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Для оценки тренда нужно минимум 4 тренировки с пульсометром.",
+                    stringResource(R.string.history_trend_need_more),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -630,6 +646,7 @@ private data class ZoneStat(val seconds: Long, val percent: Float)
 
 @Composable
 private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
+    val names = zoneNames()
     val stats = remember(logs, zoneBounds) {
         if (logs.isEmpty() || zoneBounds.size != 5) {
             return@remember List(5) { ZoneStat(0L, 0f) }
@@ -655,10 +672,10 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
         Column(Modifier.padding(14.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Column(Modifier.weight(1f)) {
-                    Text("Время в пульсовых зонах", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.history_zones_title), fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "Всего: ${formatZoneDuration(totalSec)}",
+                        stringResource(R.string.history_zones_total, formatZoneDuration(totalSec)),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -684,7 +701,7 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
                     Box(Modifier.size(10.dp).background(ZoneColors[i], CircleShape))
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        ZoneNames[i],
+                        names[i],
                         fontSize = 13.sp,
                         modifier = Modifier.weight(1f),
                         color = MaterialTheme.colorScheme.onSurface
@@ -713,12 +730,12 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
             Spacer(Modifier.height(6.dp))
             Text(
-                "Границы зон (уд/мин): ${zoneBounds.joinToString(" / ")}",
+                stringResource(R.string.history_zones_bounds, zoneBounds.joinToString(" / ")),
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "Расчёт по реальной кривой пульса; для старых записей — аппроксимация",
+                stringResource(R.string.history_zones_note),
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
