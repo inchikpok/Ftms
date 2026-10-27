@@ -1,19 +1,20 @@
 package com.custom.treadmill.logic
 
+import android.content.Context
+import com.custom.treadmill.R
 import com.custom.treadmill.data.database.ProgramData
 import com.custom.treadmill.data.database.ProgramSegment
 import com.custom.treadmill.data.repository.ExperienceLevel
 import com.custom.treadmill.data.repository.UserProfile
 import kotlin.math.roundToInt
 
-enum class WorkoutGoal(val title: String, val description: String) {
-    WEIGHT_LOSS("Похудение", "Жиросжигание, низкий пульс, ходьба в горку"),
-    CARDIO("Выносливость", "Крепкое сердце, ровный бег в среднем темпе"),
-    SPEED("Скорость", "Интервалы, высокий пульс, развитие скорости")
+enum class WorkoutGoal {
+    WEIGHT_LOSS, CARDIO, SPEED
 }
 
 object ProgramGenerator {
     fun generate(
+        context: Context,
         profile: UserProfile,
         goal: WorkoutGoal,
         durationMin: Int,
@@ -47,7 +48,6 @@ object ProgramGenerator {
             ExperienceLevel.ADVANCED -> 12.0
         }
         
-        // Множитель для наклона в зависимости от уровня
         val inclineLevelMult = when (profile.level) {
             ExperienceLevel.BEGINNER -> 0.6
             ExperienceLevel.INTERMEDIATE -> 0.8
@@ -56,7 +56,6 @@ object ProgramGenerator {
 
         val userMult = intensityPercent / 100.0
 
-        // Защита от некорректных настроек
         val safeMaxSpeed = maxSpeedLimit.coerceAtLeast(5.0)
         val safeMaxIncline = maxInclineLimit.coerceAtLeast(1.0)
 
@@ -64,7 +63,6 @@ object ProgramGenerator {
         val jogSpeed = (levelJog * bmiMult * userMult).coerceIn(4.5, safeMaxSpeed).roundToTenth()
         val runSpeed = (levelRun * bmiMult * userMult).coerceIn(6.0, safeMaxSpeed).roundToTenth()
         
-        // Базовый наклон для программы с учетом уровня и интенсивности
         val baseIncline = (levelIncline * inclineLevelMult * userMult).coerceIn(0.0, safeMaxIncline)
 
         when (goal) {
@@ -73,25 +71,24 @@ object ProgramGenerator {
                 val cooldownMin = (durationMin * 0.15).toInt().coerceIn(3, 8)
                 val mainMin = durationMin - warmupMin - cooldownMin
 
-                segments.add(ProgramSegment(warmupMin * 60, walkSpeed, 0.0, "Разминка (Ходьба)"))
+                segments.add(ProgramSegment(warmupMin * 60, walkSpeed, 0.0, context.getString(R.string.gen_seg_warmup_walk)))
                 
-                // Ходьба в горку - 80% от baseIncline
                 val hillIncline = (baseIncline * 0.8).coerceIn(1.0, safeMaxIncline)
                 
                 var remainingSec = mainMin * 60
                 var block = 1
                 while (remainingSec > 0) {
                     val fastSec = minOf(3 * 60, remainingSec)
-                    segments.add(ProgramSegment(fastSec, jogSpeed, hillIncline, "Ходьба в горку $block"))
+                    segments.add(ProgramSegment(fastSec, jogSpeed, hillIncline, context.getString(R.string.gen_seg_hill_walk, block)))
                     remainingSec -= fastSec
                     if (remainingSec <= 0) break
                     
                     val slowSec = minOf(2 * 60, remainingSec)
-                    segments.add(ProgramSegment(slowSec, walkSpeed, 0.0, "Восстановление $block"))
+                    segments.add(ProgramSegment(slowSec, walkSpeed, 0.0, context.getString(R.string.gen_seg_recovery, block)))
                     remainingSec -= slowSec
                     block++
                 }
-                segments.add(ProgramSegment(cooldownMin * 60, walkSpeed, 0.0, "Заминка"))
+                segments.add(ProgramSegment(cooldownMin * 60, walkSpeed, 0.0, context.getString(R.string.gen_seg_cooldown)))
             }
 
             WorkoutGoal.CARDIO -> {
@@ -99,19 +96,18 @@ object ProgramGenerator {
                 val cooldownMin = (durationMin * 0.15).toInt().coerceIn(3, 8)
                 val mainMin = durationMin - warmupMin - cooldownMin
 
-                segments.add(ProgramSegment(warmupMin * 60, walkSpeed, 0.0, "Разминка (Ходьба)"))
+                segments.add(ProgramSegment(warmupMin * 60, walkSpeed, 0.0, context.getString(R.string.gen_seg_warmup_walk)))
                 
-                // Основной бег разбиваем на 3 части с разным наклоном (волны)
                 if (mainMin > 0) {
                     val mainSec = mainMin * 60
                     val partSec = mainSec / 3
                     val partIncline = (baseIncline * 0.4).coerceIn(0.0, safeMaxIncline)
                     
-                    segments.add(ProgramSegment(partSec, jogSpeed, 0.0, "Бег (ровно)"))
-                    segments.add(ProgramSegment(partSec, jogSpeed, partIncline, "Бег (подъем)"))
-                    segments.add(ProgramSegment(mainSec - partSec * 2, jogSpeed, 0.0, "Бег (ровно)"))
+                    segments.add(ProgramSegment(partSec, jogSpeed, 0.0, context.getString(R.string.gen_seg_run)))
+                    segments.add(ProgramSegment(partSec, jogSpeed, partIncline, context.getString(R.string.gen_seg_active, 1)))
+                    segments.add(ProgramSegment(mainSec - partSec * 2, jogSpeed, 0.0, context.getString(R.string.gen_seg_run)))
                 }
-                segments.add(ProgramSegment(cooldownMin * 60, walkSpeed, 0.0, "Заминка"))
+                segments.add(ProgramSegment(cooldownMin * 60, walkSpeed, 0.0, context.getString(R.string.gen_seg_cooldown)))
             }
 
             WorkoutGoal.SPEED -> {
@@ -119,7 +115,7 @@ object ProgramGenerator {
                 val cooldownMin = (durationMin * 0.15).toInt().coerceIn(3, 10)
                 val mainMin = durationMin - warmupMin - cooldownMin
 
-                segments.add(ProgramSegment(warmupMin * 60, jogSpeed, 0.0, "Разминка (Бег)"))
+                segments.add(ProgramSegment(warmupMin * 60, jogSpeed, 0.0, context.getString(R.string.gen_seg_warmup)))
                 
                 val fastSec = when (profile.level) {
                     ExperienceLevel.BEGINNER -> 30
@@ -132,40 +128,42 @@ object ProgramGenerator {
                     ExperienceLevel.ADVANCED -> 60
                 }
                 
-                // Интервалы в горку - 60% от baseIncline
                 val speedIncline = (baseIncline * 0.6).coerceIn(0.0, safeMaxIncline)
 
                 var remainingSec = mainMin * 60
                 var intNum = 1
                 while (remainingSec > 0) {
                     val fast = minOf(fastSec, remainingSec)
-                    segments.add(ProgramSegment(fast, runSpeed, speedIncline, "Интервал $intNum (горка)"))
+                    segments.add(ProgramSegment(fast, runSpeed, speedIncline, context.getString(R.string.gen_seg_fast, intNum)))
                     remainingSec -= fast
                     if (remainingSec <= 0) break
                     
                     val slow = minOf(slowSec, remainingSec)
-                    segments.add(ProgramSegment(slow, (jogSpeed * 0.85).roundToTenth(), 0.0, "Отдых $intNum"))
+                    segments.add(ProgramSegment(slow, (jogSpeed * 0.85).roundToTenth(), 0.0, context.getString(R.string.gen_seg_slow, intNum)))
                     remainingSec -= slow
                     intNum++
                 }
-                segments.add(ProgramSegment(cooldownMin * 60, walkSpeed, 0.0, "Заминка"))
+                segments.add(ProgramSegment(cooldownMin * 60, walkSpeed, 0.0, context.getString(R.string.gen_seg_cooldown)))
             }
         }
 
-        val levelStr = when (profile.level) {
-            ExperienceLevel.BEGINNER -> "новичок"
-            ExperienceLevel.INTERMEDIATE -> "средний"
-            ExperienceLevel.ADVANCED -> "профи"
-        }
-        val title = when (goal) {
-            WorkoutGoal.WEIGHT_LOSS -> "Жиросжигание ${durationMin}м"
-            WorkoutGoal.CARDIO -> "Кардио ${durationMin}м"
-            WorkoutGoal.SPEED -> "Интервалы ${durationMin}м"
+        val levelStr = context.getString(
+            when (profile.level) {
+                ExperienceLevel.BEGINNER -> R.string.gen_level_beginner
+                ExperienceLevel.INTERMEDIATE -> R.string.gen_level_intermediate
+                ExperienceLevel.ADVANCED -> R.string.gen_level_advanced
+            }
+        )
+
+        val (nameRes, descRes) = when (goal) {
+            WorkoutGoal.WEIGHT_LOSS -> R.string.gen_name_weight_loss to R.string.gen_desc_weight_loss
+            WorkoutGoal.CARDIO -> R.string.gen_name_cardio to R.string.gen_desc_cardio
+            WorkoutGoal.SPEED -> R.string.gen_name_speed to R.string.gen_desc_speed
         }
 
         return ProgramData(
-            name = title,
-            description = "${goal.title} · Уровень: $levelStr · Интенсивность: $intensityPercent%",
+            name = context.getString(nameRes, durationMin),
+            description = context.getString(descRes, levelStr, intensityPercent),
             segments = segments
         )
     }
