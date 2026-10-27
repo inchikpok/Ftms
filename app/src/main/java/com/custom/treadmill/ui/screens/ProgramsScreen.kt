@@ -1,6 +1,5 @@
 package com.custom.treadmill.ui.screens
 
-import android.content.Context
 import android.widget.NumberPicker
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -240,12 +239,14 @@ fun ProgramsScreen(
                         Icon(Icons.Default.FitnessCenter, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.surfaceVariant)
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            if (programs.isEmpty()) stringResource(R.string.programs_empty_title) else stringResource(R.string.programs_no_results_title),
+                            if (programs.isEmpty()) stringResource(R.string.programs_empty_title)
+                            else stringResource(R.string.programs_no_results_title),
                             fontWeight = FontWeight.SemiBold, fontSize = 16.sp
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            if (programs.isEmpty()) stringResource(R.string.programs_empty_subtitle) else stringResource(R.string.programs_no_results_subtitle),
+                            if (programs.isEmpty()) stringResource(R.string.programs_empty_subtitle)
+                            else stringResource(R.string.programs_no_results_subtitle),
                             fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
                         )
                     }
@@ -308,7 +309,10 @@ fun ProgramsScreen(
                     name = ctx.getString(R.string.editor_new_title),
                     description = "",
                     segments = listOf(
-                        ProgramSegment(300, 5.0, 0.0, ctx.getString(R.string.editor_segment_short) + " 1")
+                        ProgramSegment(
+                            300, 5.0, 0.0,
+                            ctx.getString(R.string.editor_segment_short) + " 1"
+                        )
                     )
                 )
             },
@@ -453,6 +457,7 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
     val maxIncline = 15.0
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val context = LocalContext.current // <-- Получаем контекст для getString внутри Canvas
 
     Canvas(modifier = modifier) {
         val w = size.width
@@ -499,7 +504,12 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
             val x = (m / totalMin) * w
             val textX = when { i == 0 -> x + 4.dp.toPx(); m >= totalMin -> x - 4.dp.toPx(); else -> x }
             drawLine(axisColor, start = Offset(x, chartH), end = Offset(x, chartH - 3.dp.toPx()), strokeWidth = 1.dp.toPx())
-            val label = when { m < 60 -> "${m.toInt()}"; else -> stringResource(R.string.chart_hours, (m / 60).toInt()) }
+            
+            // [ФИКС] Используем context.getString вместо stringResource
+            val label = when { 
+                m < 60 -> "${m.toInt()}" 
+                else -> context.getString(R.string.chart_hours, (m / 60).toInt()) 
+            }
             drawContext.canvas.nativeCanvas.drawText(label, textX, size.height - 2.dp.toPx(), textPaint)
         }
     }
@@ -637,7 +647,7 @@ private fun TemplatesDialog(onPick: (ProgramData?) -> Unit, onDismiss: () -> Uni
     )
 }
 
-private fun buildTemplates(ctx: Context): List<Pair<String, ProgramData>> {
+private fun buildTemplates(ctx: android.content.Context): List<Pair<String, ProgramData>> {
     val intervals = ProgramData(
         name = ctx.getString(R.string.template_intervals_title),
         description = ctx.getString(R.string.template_intervals_desc),
@@ -754,7 +764,8 @@ private fun ProgramEditorScreen(
                         title = {
                             Column {
                                 Text(
-                                    if (isNew) stringResource(R.string.editor_new_title) else stringResource(R.string.editor_edit_title),
+                                    if (isNew) stringResource(R.string.editor_new_title)
+                                    else stringResource(R.string.editor_edit_title),
                                     fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
