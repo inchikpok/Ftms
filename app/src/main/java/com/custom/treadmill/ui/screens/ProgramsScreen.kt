@@ -458,7 +458,10 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
     val maxIncline = 15.0
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val context = LocalContext.current
+    
+    // [ФИКС] Забираем строку из ресурсов ДО входа в Canvas. 
+    // Внутри Canvas нельзя вызывать @Composable функции.
+    val hourSuffix = stringResource(R.string.unit_hour)
 
     Canvas(modifier = modifier) {
         val w = size.width
@@ -508,7 +511,7 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
             
             val label = when { 
                 m < 60 -> "${m.toInt()}" 
-                else -> context.getString(R.string.chart_hours, (m / 60).toInt()) 
+                else -> "${(m / 60).toInt()}$hourSuffix" 
             }
             drawContext.canvas.nativeCanvas.drawText(label, textX, size.height - 2.dp.toPx(), textPaint)
         }
@@ -585,7 +588,19 @@ private fun ProgramCardModern(
                                     stringResource(R.string.programs_duration_format, m, s)
                                 else
                                     stringResource(R.string.programs_seconds_short, s)
-                                Text("$timeStr · %.1f ${stringResource(R.string.unit_kmh)} · %.0f${stringResource(R.string.unit_percent)}".format(seg.speedKmh, seg.inclinePercent), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                                
+                                // [ФИКС] Безопасное форматирование: числа отдельно, строки отдельно
+                                val unitKmh = stringResource(R.string.unit_kmh)
+                                val unitPercent = stringResource(R.string.unit_percent)
+                                val speedStr = "%.1f".format(seg.speedKmh)
+                                val inclineStr = "%.0f".format(seg.inclinePercent)
+
+                                Text(
+                                    "$timeStr · $speedStr $unitKmh · $inclineStr$unitPercent",
+                                    fontSize = 12.sp, 
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, 
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                )
                             }
                         }
                         if (i < data.segments.size - 1) HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
