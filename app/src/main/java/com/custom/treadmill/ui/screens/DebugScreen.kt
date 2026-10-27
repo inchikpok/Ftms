@@ -126,15 +126,8 @@ fun DebugScreen(vm: MainViewModel, onBack: () -> Unit) {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            treadmillName ?: stringResource(R.string.debug_no_connection),
-                            fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            treadmillState.name,
-                            fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                            color = if (treadmillReady) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                        )
+                        Text(treadmillName ?: stringResource(R.string.debug_no_connection), fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text(treadmillState.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (treadmillReady) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(
@@ -264,19 +257,12 @@ private fun buildCommandReference(ctx: Context): List<Pair<String, List<CmdEntry
     val speedsKmh = listOf(0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0, 12.0, 15.0, 20.0)
     val speedChange = speedsKmh.map { kmh ->
         val raw = (kmh * 100).roundToInt()
-        CmdEntry(
-            ctx.getString(R.string.debug_cmd_speed_label, kmh),
-            "02 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF),
-            ctx.getString(R.string.debug_cmd_speed_note)
-        )
+        CmdEntry(ctx.getString(R.string.debug_cmd_speed_label, kmh), "02 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF), ctx.getString(R.string.debug_cmd_speed_note))
     }
     val inclines = listOf(0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15)
     val inclineCmds = inclines.map { p ->
         val raw = p * 10
-        CmdEntry(
-            ctx.getString(R.string.debug_cmd_incline_label, p),
-            "03 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF)
-        )
+        CmdEntry(ctx.getString(R.string.debug_cmd_incline_label, p), "03 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF))
     }
     return listOf(
         ctx.getString(R.string.debug_cmd_group_control) to listOf(
@@ -294,7 +280,7 @@ private fun buildCommandReference(ctx: Context): List<Pair<String, List<CmdEntry
 @Composable
 private fun CommandReference(treadmillReady: Boolean, currentSpeedKmh: Double, onSend: (String) -> Unit, onStartBelt: () -> Unit, onAdjustSpeed: (Double) -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
-    val groups = remember(ctx) { buildCommandReference(ctx) }
+    val groups = remember { buildCommandReference(ctx) }
     var lastSent by remember { mutableStateOf<String?>(null) }
     LazyColumn(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
         if (!treadmillReady) {
@@ -321,7 +307,7 @@ private fun CommandReference(treadmillReady: Boolean, currentSpeedKmh: Double, o
                     Button(onClick = onStartBelt, enabled = treadmillReady, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.debug_cmd_start_belt))
+                        Text(stringResource(R.string.debug_start_treadmill))
                     }
                 }
             }
@@ -369,7 +355,7 @@ private fun CommandConstructor(treadmillReady: Boolean, onSend: (String) -> Unit
                 val changeHex = "02 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Button(onClick = { onSend(changeHex); lastSent = "speed=$speed ($changeHex)" }, enabled = treadmillReady && speed > 0, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.debug_apply), fontSize = 12.sp) }
-                    OutlinedButton(onClick = { onSend("02 00 00"); lastSent = "stop (02 00 00)" }, enabled = treadmillReady, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.debug_stop), fontSize = 12.sp) }
+                    OutlinedButton(onClick = { onSend("02 00 00"); lastSent = "стоп (02 00 00)" }, enabled = treadmillReady, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.debug_stop), fontSize = 12.sp) }
                 }
                 Text(changeHex, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
             }
