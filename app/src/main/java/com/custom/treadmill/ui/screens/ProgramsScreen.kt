@@ -499,7 +499,7 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
             val x = (m / totalMin) * w
             val textX = when { i == 0 -> x + 4.dp.toPx(); m >= totalMin -> x - 4.dp.toPx(); else -> x }
             drawLine(axisColor, start = Offset(x, chartH), end = Offset(x, chartH - 3.dp.toPx()), strokeWidth = 1.dp.toPx())
-            val label = when { m < 60 -> "${m.toInt()}"; else -> "${(m / 60).toInt()}ч" }
+            val label = when { m < 60 -> "${m.toInt()}"; else -> stringResource(R.string.chart_hours, (m / 60).toInt()) }
             drawContext.canvas.nativeCanvas.drawText(label, textX, size.height - 2.dp.toPx(), textPaint)
         }
     }
