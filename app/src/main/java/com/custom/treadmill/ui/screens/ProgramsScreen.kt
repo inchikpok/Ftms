@@ -285,6 +285,7 @@ fun ProgramsScreen(
             capsSupportsIncline = caps.supportsIncline,
             onGenerate = { goal, duration, intensity ->
                 val program = ProgramGenerator.generate(
+                    context = ctx
                     profile = settings.activeProfile,
                     goal = goal,
                     durationMin = duration,
