@@ -429,4 +429,7 @@
     <string name="history_duration_hms">%1$dч %2$dм %3$dс</string>
     <string name="history_duration_ms">%1$dм %2$dс</string>
     <string name="history_duration_s">%1$dс</string>
+
+    <string name="hr_waiting_for_data">Ожидание данных пульса…</string>
+    <string name="hr_no_data">Нет данных пульса</string>
 </resources>
