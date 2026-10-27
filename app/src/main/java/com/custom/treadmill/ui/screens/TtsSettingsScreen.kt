@@ -10,9 +10,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.treadmill.R
 import com.custom.treadmill.ui.viewmodels.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,12 +28,19 @@ fun TtsSettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
     var pauseText by remember { mutableStateOf(settings.ttsPauseText) }
     var resumeText by remember { mutableStateOf(settings.ttsResumeText) }
 
+    // Значения по умолчанию из ресурсов — для кнопки "Сбросить"
+    val defaultStart = stringResource(R.string.tts_default_start)
+    val defaultSegment = stringResource(R.string.tts_default_segment)
+    val defaultFinish = stringResource(R.string.tts_default_finish)
+    val defaultPause = stringResource(R.string.tts_default_pause)
+    val defaultResume = stringResource(R.string.tts_default_resume)
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Голосовые фразы", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.tts_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                 },
                 actions = {
                     TextButton(onClick = {
@@ -45,7 +54,7 @@ fun TtsSettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                             )
                         }
                         onBack()
-                    }) { Text("Сохранить", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.save), fontWeight = FontWeight.Bold) }
                 }
             )
         }
@@ -60,123 +69,93 @@ fun TtsSettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
         ) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(12.dp)) {
-                    Text("Доступные переменные (теги):", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(stringResource(R.string.tts_variables_title), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Spacer(Modifier.height(4.dp))
-                    Text("Старт: {name}, {segName}, {speed}, {speed_text}", fontSize = 12.sp)
-                    Text("Сегмент: {i}, {n}, {segName}, {speed}, {speed_text}, {angle}, {angle_text}", fontSize = 12.sp)
-                    Text("Финиш: {dist}, {hr}", fontSize = 12.sp)
+                    Text(stringResource(R.string.tts_variables_start), fontSize = 12.sp)
+                    Text(stringResource(R.string.tts_variables_segment), fontSize = 12.sp)
+                    Text(stringResource(R.string.tts_variables_finish), fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
-                    Text("Примечание: {speed} даст цифру (8.5), а {speed_text} — словами (8.5 километров в час).", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.tts_variables_note), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            // СТАРТ
-            Column {
-                OutlinedTextField(
-                    value = startTemplate,
-                    onValueChange = { startTemplate = it },
-                    label = { Text("Старт тренировки") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
-                )
-                TextButton(
-                    onClick = { vm.testSpeak(startTemplate) },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Прослушать", fontSize = 12.sp)
-                }
-            }
+            TtsField(
+                value = startTemplate,
+                onValueChange = { startTemplate = it },
+                label = stringResource(R.string.tts_start_label),
+                onListen = { vm.testSpeak(startTemplate) }
+            )
 
-            // СМЕНА СЕГМЕНТА
-            Column {
-                OutlinedTextField(
-                    value = segmentTemplate,
-                    onValueChange = { segmentTemplate = it },
-                    label = { Text("Смена сегмента") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
-                )
-                TextButton(
-                    onClick = { vm.testSpeak(segmentTemplate) },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Прослушать", fontSize = 12.sp)
-                }
-            }
+            TtsField(
+                value = segmentTemplate,
+                onValueChange = { segmentTemplate = it },
+                label = stringResource(R.string.tts_segment_label),
+                onListen = { vm.testSpeak(segmentTemplate) }
+            )
 
-            // ФИНИШ
-            Column {
-                OutlinedTextField(
-                    value = finishTemplate,
-                    onValueChange = { finishTemplate = it },
-                    label = { Text("Финиш тренировки") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
-                )
-                TextButton(
-                    onClick = { vm.testSpeak(finishTemplate) },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Прослушать", fontSize = 12.sp)
-                }
-            }
+            TtsField(
+                value = finishTemplate,
+                onValueChange = { finishTemplate = it },
+                label = stringResource(R.string.tts_finish_label),
+                onListen = { vm.testSpeak(finishTemplate) }
+            )
 
-            // ПАУЗА
-            Column {
-                OutlinedTextField(
-                    value = pauseText,
-                    onValueChange = { pauseText = it },
-                    label = { Text("Пауза") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                TextButton(
-                    onClick = { vm.testSpeak(pauseText) },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Прослушать", fontSize = 12.sp)
-                }
-            }
+            TtsField(
+                value = pauseText,
+                onValueChange = { pauseText = it },
+                label = stringResource(R.string.tts_pause_label),
+                onListen = { vm.testSpeak(pauseText) },
+                singleLine = true
+            )
 
-            // ПРОДОЛЖЕНИЕ
-            Column {
-                OutlinedTextField(
-                    value = resumeText,
-                    onValueChange = { resumeText = it },
-                    label = { Text("Продолжение") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                TextButton(
-                    onClick = { vm.testSpeak(resumeText) },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Прослушать", fontSize = 12.sp)
-                }
-            }
-            
+            TtsField(
+                value = resumeText,
+                onValueChange = { resumeText = it },
+                label = stringResource(R.string.tts_resume_label),
+                onListen = { vm.testSpeak(resumeText) },
+                singleLine = true
+            )
+
             TextButton(
                 onClick = {
-                    startTemplate = "Тренировка «{name}» началась. Сегмент 1: {segName}, скорость {speed_text}"
-                    segmentTemplate = "Сегмент {i} из {n}: {segName}, скорость {speed_text}, угол {angle_text}"
-                    finishTemplate = "Тренировка завершена. Дистанция {dist} км, средний пульс {hr}"
-                    pauseText = "Пауза"
-                    resumeText = "Продолжаем"
+                    startTemplate = defaultStart
+                    segmentTemplate = defaultSegment
+                    finishTemplate = defaultFinish
+                    pauseText = defaultPause
+                    resumeText = defaultResume
                 },
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                Text("Сбросить настройки по умолчанию")
+                Text(stringResource(R.string.tts_reset_defaults))
             }
+        }
+    }
+}
+
+@Composable
+private fun TtsField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    onListen: () -> Unit,
+    singleLine: Boolean = false
+) {
+    Column {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = if (singleLine) 1 else 2,
+            singleLine = singleLine
+        )
+        TextButton(
+            onClick = onListen,
+            modifier = Modifier.align(Alignment.End)
+        ) {
+            Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(stringResource(R.string.listen), fontSize = 12.sp)
         }
     }
 }
