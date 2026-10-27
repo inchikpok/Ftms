@@ -1,6 +1,7 @@
 package com.custom.treadmill.data.repository
 
 import android.content.Context
+import com.custom.treadmill.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +17,7 @@ enum class ExperienceLevel { BEGINNER, INTERMEDIATE, ADVANCED }
 @Serializable
 data class UserProfile(
     val id: String = UUID.randomUUID().toString(),
-    val name: String = "Мой профиль",
+    val name: String = "",
     val weightKg: Double = 75.0,
     val heightCm: Int = 175,
     val age: Int = 30,
@@ -29,18 +30,15 @@ data class UserProfile(
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val keepScreenOn: Boolean = true,
-    
-    // Профили
+
     val profiles: List<UserProfile> = listOf(UserProfile()),
     val activeProfileId: String = profiles.first().id,
 
-    // Скорость и наклон
     val minSpeedKmh: Double = 1.0,
     val maxSpeedKmh: Double = 20.0,
     val maxInclinePercent: Double = 15.0,
     val speedStepKmh: Double = 0.5,
 
-    // Пульс
     val hrEnabled: Boolean = false,
     val hrMode: HrMode = HrMode.TARGET,
     val targetHr: Int = 130,
@@ -53,29 +51,44 @@ data class AppSettings(
     val autoMaxHr: Boolean = true,
     val maxHr: Int = 190,
 
-    // TTS (Голосовые подсказки)
+    // TTS — пустые по умолчанию, SettingsStore.load() заполнит из ресурсов
     val ttsEnabled: Boolean = true,
-    val ttsStartTemplate: String = "Тренировка «{name}» началась. Сегмент 1: {segName}, скорость {speed_text}",
-    val ttsSegmentTemplate: String = "Сегмент {i} из {n}: {segName}, скорость {speed_text}, угол {angle_text}",
-    val ttsFinishTemplate: String = "Тренировка завершена. Дистанция {dist} км, средний пульс {hr}",
-    val ttsPauseText: String = "Пауза",
-    val ttsResumeText: String = "Продолжаем"
+    val ttsStartTemplate: String = "",
+    val ttsSegmentTemplate: String = "",
+    val ttsFinishTemplate: String = "",
+    val ttsPauseText: String = "",
+    val ttsResumeText: String = ""
 ) {
     val activeProfile: UserProfile
         get() = profiles.find { it.id == activeProfileId } ?: profiles.firstOrNull() ?: UserProfile()
 }
 
-class SettingsStore(context: Context) {
+class SettingsStore(private val context: Context) {
     private val prefs = context.getSharedPreferences("treadmill_settings", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     private val _settings = MutableStateFlow(load())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
-    private fun load(): AppSettings = try {
-        prefs.getString(KEY, null)?.let { json.decodeFromString(it) } ?: AppSettings()
-    } catch (_: Exception) {
-        AppSettings()
+    private fun load(): AppSettings {
+        val loaded = try {
+            prefs.getString(KEY, null)?.let { json.decodeFromString<AppSettings>(it) } ?: AppSettings()
+        } catch (_: Exception) {
+            AppSettings()
+        }
+        // Заполняем TTS-шаблоны из ресурсов, если пусты
+        val withDefaults = loaded.copy(
+            ttsStartTemplate = loaded.ttsStartTemplate.ifBlank { context.getString(R.string.tts_default_start) },
+            ttsSegmentTemplate = loaded.ttsSegmentTemplate.ifBlank { context.getString(R.string.tts_default_segment) },
+            ttsFinishTemplate = loaded.ttsFinishTemplate.ifBlank { context.getString(R.string.tts_default_finish) },
+            ttsPauseText = loaded.ttsPauseText.ifBlank { context.getString(R.string.tts_default_pause) },
+            ttsResumeText = loaded.ttsResumeText.ifBlank { context.getString(R.string.tts_default_resume) }
+        )
+        // Миграция профиля с пустым именем
+        val fixedProfiles = withDefaults.profiles.map {
+            if (it.name.isBlank()) it.copy(name = context.getString(R.string.profiles_name)) else it
+        }
+        return withDefaults.copy(profiles = fixedProfiles)
     }
 
     fun update(transform: (AppSettings) -> AppSettings) {
@@ -86,8 +99,7 @@ class SettingsStore(context: Context) {
 
     fun updateProfile(profile: UserProfile) {
         update { s ->
-            val newList = s.profiles.map { if (it.id == profile.id) profile else it }
-            s.copy(profiles = newList)
+            s.copy(profiles = s.profiles.map { if (it.id == profile.id) profile else it })
         }
     }
 
