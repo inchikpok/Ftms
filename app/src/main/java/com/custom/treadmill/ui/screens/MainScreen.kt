@@ -5,6 +5,8 @@ import android.bluetooth.le.ScanResult
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -15,8 +17,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -54,6 +63,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val scanMode by vm.scanMode.collectAsState()
     val settings by vm.settings.collectAsState()
     val paused by vm.isPaused.collectAsState()
+    val workoutState by vm.workoutState.collectAsState()
 
     val elapsedSec by vm.uiElapsedSec.collectAsState()
     val distanceKm by vm.uiDistanceKm.collectAsState()
@@ -171,6 +181,16 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     )
                 }
 
+                // [ФИКС] Строка текущего сегмента программы (фиксированной высоты,
+                // чтобы раскладка не «прыгала» при старте/остановке тренировки).
+                SegmentLine(
+                    visible = workoutState.running || workoutState.paused,
+                    segmentNumber = workoutState.currentSegmentIndex + 1,
+                    totalSegments = workoutState.totalSegments,
+                    segmentName = workoutState.currentSegmentName,
+                    paused = workoutState.paused
+                )
+
                 Spacer(Modifier.height(6.dp))
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -269,14 +289,14 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                 elevation = CardDefaults.cardElevation(4.dp)
             ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(8.dp),
+                    Modifier.fillMaxWidth().padding(8.dp).height(48.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Button(
                         onClick = { vm.startTreadmill() },
                         enabled = treadmillReady && !paused,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(vertical = 14.dp)
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                         Text("Старт", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
@@ -284,8 +304,8 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     Button(
                         onClick = { vm.togglePauseTreadmill() },
                         enabled = treadmillReady,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(vertical = 14.dp),
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        contentPadding = PaddingValues(0.dp),
                         colors = if (paused)
                             ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
                         else
@@ -301,18 +321,13 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         )
                     }
 
-                    Button(
-                        onClick = { vm.stopTreadmill() },
+                    // [ФИКС] «Стоп» теперь требует удержания 0.8 сек с визуальным прогрессом.
+                    // Случайное нажатие в кармане больше не остановит дорожку.
+                    HoldToConfirmButton(
                         enabled = treadmillReady,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(vertical = 14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Text("Стоп", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                        onConfirmed = { vm.stopTreadmill() },
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    )
                 }
             }
         }
@@ -343,6 +358,147 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
             },
             onDismiss = { vm.stopScan() }
         )
+    }
+}
+
+/**
+ * [ФИКС] Строка текущего сегмента программы.
+ * Всегда занимает 22dp по высоте — даже когда программа не запущена, чтобы нижние
+ * карточки (скорость, метрики, кнопки) не «прыгали» при старте/остановке тренировки.
+ */
+@Composable
+private fun SegmentLine(
+    visible: Boolean,
+    segmentNumber: Int,
+    totalSegments: Int,
+    segmentName: String,
+    paused: Boolean
+) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(22.dp)
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        if (visible) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Сегмент $segmentNumber/$totalSegments",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (segmentName.isNotBlank()) {
+                    Text(" · ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        segmentName,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (paused) {
+                    Text(
+                        " · ПАУЗА",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF9A825)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * [ФИКС] Кнопка с подтверждением удержанием. Отображает круговой прогресс
+ * вокруг контента. При отпускании до завершения — сбрасывается.
+ */
+@Composable
+private fun HoldToConfirmButton(
+    enabled: Boolean,
+    onConfirmed: () -> Unit,
+    modifier: Modifier = Modifier,
+    holdDurationMs: Long = 800L
+) {
+    var isPressing by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf(0f) }
+    val haptic = LocalHapticFeedback.current
+
+    LaunchedEffect(isPressing) {
+        if (isPressing && enabled) {
+            val stepMs = 20L
+            val steps = (holdDurationMs / stepMs).toInt().coerceAtLeast(1)
+            progress = 0f
+            for (i in 1..steps) {
+                delay(stepMs)
+                if (!isPressing) return@LaunchedEffect
+                progress = i.toFloat() / steps
+            }
+            if (progress >= 1f) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                progress = 0f
+                isPressing = false
+                onConfirmed()
+            }
+        } else {
+            progress = 0f
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                detectTapGestures(
+                    onPress = {
+                        isPressing = true
+                        tryAwaitRelease()
+                        isPressing = false
+                    }
+                )
+            }
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            shape = ButtonDefaults.shape,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "Стоп",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                )
+            }
+        }
+        if (progress > 0f) {
+            Canvas(Modifier.fillMaxSize()) {
+                val strokeWidth = 3.dp.toPx()
+                val inset = strokeWidth / 2
+                // Затемнённый фон при удержании — визуальная «заливка»
+                drawRoundRect(
+                    color = Color(0xFFE53935).copy(alpha = 0.15f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                        x = size.height / 2, y = size.height / 2
+                    )
+                )
+                drawArc(
+                    color = Color(0xFFE53935),
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress,
+                    useCenter = false,
+                    topLeft = Offset(inset, inset),
+                    size = Size(size.width - strokeWidth, size.height - strokeWidth),
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                )
+            }
+        }
     }
 }
 
@@ -379,8 +535,7 @@ private fun CompactStatus(
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            // [ФИКС] Всегда резервируем строку под имя устройства, чтобы блок не менял
-            // высоту при подключении/отключении — иначе нижние кнопки "плывут".
+            // Всегда резервируем строку под имя устройства, чтобы блок не менял высоту.
             Text(
                 deviceName ?: "\u00A0",
                 fontSize = 10.sp,
