@@ -1,5 +1,6 @@
 package com.custom.treadmill.ui.screens
 
+import android.content.Context
 import android.widget.NumberPicker
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -239,14 +240,12 @@ fun ProgramsScreen(
                         Icon(Icons.Default.FitnessCenter, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.surfaceVariant)
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            if (programs.isEmpty()) stringResource(R.string.programs_empty_title)
-                            else stringResource(R.string.programs_no_results_title),
+                            if (programs.isEmpty()) stringResource(R.string.programs_empty_title) else stringResource(R.string.programs_no_results_title),
                             fontWeight = FontWeight.SemiBold, fontSize = 16.sp
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            if (programs.isEmpty()) stringResource(R.string.programs_empty_subtitle)
-                            else stringResource(R.string.programs_no_results_subtitle),
+                            if (programs.isEmpty()) stringResource(R.string.programs_empty_subtitle) else stringResource(R.string.programs_no_results_subtitle),
                             fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
                         )
                     }
@@ -309,10 +308,7 @@ fun ProgramsScreen(
                     name = ctx.getString(R.string.editor_new_title),
                     description = "",
                     segments = listOf(
-                        ProgramSegment(
-                            300, 5.0, 0.0,
-                            ctx.getString(R.string.editor_segment_short) + " 1"
-                        )
+                        ProgramSegment(300, 5.0, 0.0, ctx.getString(R.string.editor_segment_short) + " 1")
                     )
                 )
             },
@@ -599,7 +595,8 @@ private fun StatChip(text: String) {
 
 @Composable
 private fun TemplatesDialog(onPick: (ProgramData?) -> Unit, onDismiss: () -> Unit) {
-    val templates = remember { buildTemplates() }
+    val ctx = LocalContext.current
+    val templates = remember { buildTemplates(ctx) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.templates_title)) },
@@ -640,62 +637,85 @@ private fun TemplatesDialog(onPick: (ProgramData?) -> Unit, onDismiss: () -> Uni
     )
 }
 
-// ВНИМАНИЕ: Шаблоны тренировок (title + ProgramData.name + названия сегментов) пока
-// остаются на русском. Это предзаготовки, при выборе они сохраняются в БД как
-// пользовательские данные. Локализация всех названий сегментов — отдельная задача
-// (потребуется 30+ строк в strings.xml только для сегментов).
-private fun buildTemplates(): List<Pair<String, ProgramData>> {
+private fun buildTemplates(ctx: Context): List<Pair<String, ProgramData>> {
     val intervals = ProgramData(
-        name = "Интервалы 4×3 мин", description = "VO₂max: 4 быстрых отрезка по 3 минуты",
+        name = ctx.getString(R.string.template_intervals_title),
+        description = ctx.getString(R.string.template_intervals_desc),
         segments = listOf(
-            ProgramSegment(390, 9.5, 1.0, "Разминка: лёгкий бег"), ProgramSegment(30, 16.0, 1.0, "Разминка: ускорение"),
-            ProgramSegment(60, 8.0, 1.0, "Разминка: трусца"), ProgramSegment(120, 9.0, 1.0, "Разминка: спокойный бег"),
-            ProgramSegment(195, 15.0, 1.0, "Интервал 1/4"), ProgramSegment(160, 8.5, 1.0, "Отдых: трусца"),
-            ProgramSegment(195, 15.0, 1.0, "Интервал 2/4"), ProgramSegment(160, 8.5, 1.0, "Отдых: трусца"),
-            ProgramSegment(195, 15.0, 1.0, "Интервал 3/4"), ProgramSegment(160, 8.5, 1.0, "Отдых: трусца"),
-            ProgramSegment(195, 15.0, 1.0, "Интервал 4/4"), ProgramSegment(360, 9.0, 1.0, "Заминка: лёгкий бег"),
-            ProgramSegment(240, 5.0, 0.0, "Заминка: ходьба")
+            ProgramSegment(390, 9.5, 1.0, ctx.getString(R.string.seg_warmup_easy)),
+            ProgramSegment(30, 16.0, 1.0, ctx.getString(R.string.seg_warmup_accel)),
+            ProgramSegment(60, 8.0, 1.0, ctx.getString(R.string.seg_warmup_jog)),
+            ProgramSegment(120, 9.0, 1.0, ctx.getString(R.string.seg_warmup_calm)),
+            ProgramSegment(195, 15.0, 1.0, ctx.getString(R.string.seg_interval, 1)),
+            ProgramSegment(160, 8.5, 1.0, ctx.getString(R.string.seg_rest_jog)),
+            ProgramSegment(195, 15.0, 1.0, ctx.getString(R.string.seg_interval, 2)),
+            ProgramSegment(160, 8.5, 1.0, ctx.getString(R.string.seg_rest_jog)),
+            ProgramSegment(195, 15.0, 1.0, ctx.getString(R.string.seg_interval, 3)),
+            ProgramSegment(160, 8.5, 1.0, ctx.getString(R.string.seg_rest_jog)),
+            ProgramSegment(195, 15.0, 1.0, ctx.getString(R.string.seg_interval, 4)),
+            ProgramSegment(360, 9.0, 1.0, ctx.getString(R.string.seg_cooldown_jog)),
+            ProgramSegment(240, 5.0, 0.0, ctx.getString(R.string.seg_cooldown_walk))
         )
     )
     val pyramid = ProgramData(
-        name = "Пирамида", description = "1-2-3-2-1 мин с отдыхом",
+        name = ctx.getString(R.string.template_pyramid_title),
+        description = ctx.getString(R.string.template_pyramid_desc),
         segments = listOf(
-            ProgramSegment(300, 9.5, 1.0, "Разминка"), ProgramSegment(60, 12.0, 1.0, "Пирамида 1 мин"),
-            ProgramSegment(90, 8.5, 1.0, "Отдых"), ProgramSegment(120, 12.5, 1.0, "Пирамида 2 мин"),
-            ProgramSegment(90, 8.5, 1.0, "Отдых"), ProgramSegment(180, 13.0, 1.0, "Пирамида 3 мин"),
-            ProgramSegment(90, 8.5, 1.0, "Отдых"), ProgramSegment(120, 12.5, 1.0, "Пирамида 2 мин"),
-            ProgramSegment(90, 8.5, 1.0, "Отдых"), ProgramSegment(60, 12.0, 1.0, "Пирамида 1 мин"),
-            ProgramSegment(300, 9.0, 1.0, "Заминка")
+            ProgramSegment(300, 9.5, 1.0, ctx.getString(R.string.seg_warmup)),
+            ProgramSegment(60, 12.0, 1.0, ctx.getString(R.string.seg_pyramid, 1)),
+            ProgramSegment(90, 8.5, 1.0, ctx.getString(R.string.seg_rest)),
+            ProgramSegment(120, 12.5, 1.0, ctx.getString(R.string.seg_pyramid, 2)),
+            ProgramSegment(90, 8.5, 1.0, ctx.getString(R.string.seg_rest)),
+            ProgramSegment(180, 13.0, 1.0, ctx.getString(R.string.seg_pyramid, 3)),
+            ProgramSegment(90, 8.5, 1.0, ctx.getString(R.string.seg_rest)),
+            ProgramSegment(120, 12.5, 1.0, ctx.getString(R.string.seg_pyramid, 2)),
+            ProgramSegment(90, 8.5, 1.0, ctx.getString(R.string.seg_rest)),
+            ProgramSegment(60, 12.0, 1.0, ctx.getString(R.string.seg_pyramid, 1)),
+            ProgramSegment(300, 9.0, 1.0, ctx.getString(R.string.seg_cooldown))
         )
     )
     val hills = ProgramData(
-        name = "Горки 6×1 мин", description = "6 минут работы в гору с отдыхом",
+        name = ctx.getString(R.string.template_hills_title),
+        description = ctx.getString(R.string.template_hills_desc),
         segments = listOf(
-            ProgramSegment(300, 9.5, 1.0, "Разминка"), ProgramSegment(60, 8.0, 1.0, "Разминка: трусца"),
-            ProgramSegment(60, 12.0, 6.0, "Горка 1/6"), ProgramSegment(100, 6.0, 6.0, "Отдых в горку"),
-            ProgramSegment(60, 12.0, 6.0, "Горка 2/6"), ProgramSegment(100, 6.0, 6.0, "Отдых в горку"),
-            ProgramSegment(60, 12.0, 6.0, "Горка 3/6"), ProgramSegment(100, 6.0, 6.0, "Отдых в горку"),
-            ProgramSegment(60, 12.0, 6.0, "Горка 4/6"), ProgramSegment(100, 6.0, 6.0, "Отдых в горку"),
-            ProgramSegment(60, 12.0, 6.0, "Горка 5/6"), ProgramSegment(100, 6.0, 6.0, "Отдых в горку"),
-            ProgramSegment(60, 12.0, 6.0, "Горка 6/6"), ProgramSegment(300, 9.0, 1.0, "Заминка")
+            ProgramSegment(300, 9.5, 1.0, ctx.getString(R.string.seg_warmup)),
+            ProgramSegment(60, 8.0, 1.0, ctx.getString(R.string.seg_warmup_jog)),
+            ProgramSegment(60, 12.0, 6.0, ctx.getString(R.string.seg_hill, 1)),
+            ProgramSegment(100, 6.0, 6.0, ctx.getString(R.string.seg_rest_hill)),
+            ProgramSegment(60, 12.0, 6.0, ctx.getString(R.string.seg_hill, 2)),
+            ProgramSegment(100, 6.0, 6.0, ctx.getString(R.string.seg_rest_hill)),
+            ProgramSegment(60, 12.0, 6.0, ctx.getString(R.string.seg_hill, 3)),
+            ProgramSegment(100, 6.0, 6.0, ctx.getString(R.string.seg_rest_hill)),
+            ProgramSegment(60, 12.0, 6.0, ctx.getString(R.string.seg_hill, 4)),
+            ProgramSegment(100, 6.0, 6.0, ctx.getString(R.string.seg_rest_hill)),
+            ProgramSegment(60, 12.0, 6.0, ctx.getString(R.string.seg_hill, 5)),
+            ProgramSegment(100, 6.0, 6.0, ctx.getString(R.string.seg_rest_hill)),
+            ProgramSegment(60, 12.0, 6.0, ctx.getString(R.string.seg_hill, 6)),
+            ProgramSegment(300, 9.0, 1.0, ctx.getString(R.string.seg_cooldown))
         )
     )
     val fartlek = ProgramData(
-        name = "Fartlek 20 мин", description = "Свободная игра скоростей",
+        name = ctx.getString(R.string.template_fartlek_title),
+        description = ctx.getString(R.string.template_fartlek_desc),
         segments = listOf(
-            ProgramSegment(300, 9.5, 1.0, "Разминка"), ProgramSegment(60, 14.0, 1.0, "Спринт"),
-            ProgramSegment(120, 9.0, 1.0, "Трусца"), ProgramSegment(90, 13.0, 1.0, "Темповый"),
-            ProgramSegment(120, 9.0, 1.0, "Трусца"), ProgramSegment(60, 15.0, 1.0, "Спринт"),
-            ProgramSegment(120, 9.0, 1.0, "Трусца"), ProgramSegment(90, 13.0, 1.0, "Темповый"),
-            ProgramSegment(120, 9.0, 1.0, "Трусца"), ProgramSegment(60, 15.0, 1.0, "Спринт"),
-            ProgramSegment(300, 9.0, 1.0, "Заминка")
+            ProgramSegment(300, 9.5, 1.0, ctx.getString(R.string.seg_warmup)),
+            ProgramSegment(60, 14.0, 1.0, ctx.getString(R.string.seg_sprint)),
+            ProgramSegment(120, 9.0, 1.0, ctx.getString(R.string.seg_trot)),
+            ProgramSegment(90, 13.0, 1.0, ctx.getString(R.string.seg_tempo)),
+            ProgramSegment(120, 9.0, 1.0, ctx.getString(R.string.seg_trot)),
+            ProgramSegment(60, 15.0, 1.0, ctx.getString(R.string.seg_sprint)),
+            ProgramSegment(120, 9.0, 1.0, ctx.getString(R.string.seg_trot)),
+            ProgramSegment(90, 13.0, 1.0, ctx.getString(R.string.seg_tempo)),
+            ProgramSegment(120, 9.0, 1.0, ctx.getString(R.string.seg_trot)),
+            ProgramSegment(60, 15.0, 1.0, ctx.getString(R.string.seg_sprint)),
+            ProgramSegment(300, 9.0, 1.0, ctx.getString(R.string.seg_cooldown))
         )
     )
     return listOf(
-        "Интервалы 4×3 мин" to intervals,
-        "Пирамида (1-2-3-2-1)" to pyramid,
-        "Горки 6×1 мин @ 6%" to hills,
-        "Fartlek 20 мин" to fartlek
+        ctx.getString(R.string.template_intervals_title) to intervals,
+        ctx.getString(R.string.template_pyramid_title) to pyramid,
+        ctx.getString(R.string.template_hills_title) to hills,
+        ctx.getString(R.string.template_fartlek_title) to fartlek
     )
 }
 
@@ -734,8 +754,7 @@ private fun ProgramEditorScreen(
                         title = {
                             Column {
                                 Text(
-                                    if (isNew) stringResource(R.string.editor_new_title)
-                                    else stringResource(R.string.editor_edit_title),
+                                    if (isNew) stringResource(R.string.editor_new_title) else stringResource(R.string.editor_edit_title),
                                     fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
