@@ -16,9 +16,11 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.treadmill.R
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -35,15 +37,18 @@ fun HeartRateChart(
 ) {
     if (points.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text("Ожидание данных пульса…", color = Color.Gray, fontSize = 13.sp)
+            Text(
+                stringResource(R.string.hr_waiting_for_data),
+                color = Color.Gray,
+                fontSize = 13.sp
+            )
         }
         return
     }
 
-    // 1. Умный расчет Y-оси
     val dataMin = points.minOf { it.bpm }
     val dataMax = points.maxOf { it.bpm }
-    
+
     var yMin = (dataMin - 10).coerceAtLeast(40)
     var yMax = (dataMax + 10).coerceAtMost(220)
 
@@ -51,13 +56,13 @@ fun HeartRateChart(
         yMin = minOf(yMin, targetHr - 5)
         yMax = maxOf(yMax, targetHr + 5)
     }
-    
+
     if (yMax - yMin < 30) {
         val mid = (yMax + yMin) / 2
         yMin = mid - 15
         yMax = mid + 15
     }
-    
+
     val yRange = (yMax - yMin).coerceAtLeast(1)
     val yMid = (yMax + yMin) / 2
 
@@ -66,7 +71,7 @@ fun HeartRateChart(
     val midT = minT + (maxT - minT) / 2
     val fmt = SimpleDateFormat("dd.MM", Locale.getDefault())
 
-    val lineColor = Color(0xFFE53935) // Насыщенный красный
+    val lineColor = Color(0xFFE53935)
     val targetColor = Color(0xFF1976D2)
     val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -74,11 +79,10 @@ fun HeartRateChart(
     val zoneColors = listOf(
         Color(0xFF64B5F6), Color(0xFF81C784), Color(0xFFFFD54F), Color(0xFFFFB74D), Color(0xFFE57373)
     )
-    val zoneAlpha = 0.10f // Сделали зоны едва заметными (для экрана тренировки)
+    val zoneAlpha = 0.10f
 
     Column(modifier) {
         Row(Modifier.fillMaxWidth().weight(1f)) {
-            // Ось Y
             Column(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -91,12 +95,10 @@ fun HeartRateChart(
                 Text("$yMin", fontSize = 10.sp, color = textColor, fontWeight = FontWeight.Medium)
             }
 
-            // Сам график
             Canvas(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 val w = size.width
                 val h = size.height
 
-                // Отрисовка зон (если переданы)
                 fun drawZone(startVal: Float, endVal: Float, color: Color) {
                     if (startVal >= endVal) return
                     val topY = h * (1f - (endVal - yMin) / yRange)
@@ -116,28 +118,25 @@ fun HeartRateChart(
                     drawZone(zoneBounds[3].toFloat(), yMax.toFloat(), zoneColors[4].copy(alpha = zoneAlpha))
                 }
 
-                // Сетка
                 val ySteps = 2
                 for (i in 0..ySteps) {
                     val y = h * (i / ySteps.toFloat())
                     drawLine(color = gridColor, start = Offset(0f, y), end = Offset(w, y), strokeWidth = 1f)
                 }
 
-                // Линия цели
                 if (showTargetLine && targetHr in yMin..yMax) {
                     val ty = h * (1f - (targetHr - yMin).toFloat() / yRange)
                     drawLine(
-                        color = targetColor, 
-                        start = Offset(0f, ty), 
-                        end = Offset(w, ty), 
+                        color = targetColor,
+                        start = Offset(0f, ty),
+                        end = Offset(w, ty),
                         strokeWidth = 1.5f,
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
                     )
                 }
 
-                // Построение графика
                 val tRange = (maxT - minT).coerceAtLeast(1000L)
-                
+
                 val offsets = points.map { p ->
                     val x = w * (p.timestamp - minT).toFloat() / tRange
                     val y = h * (1f - (p.bpm - yMin).toFloat() / yRange)
@@ -148,7 +147,6 @@ fun HeartRateChart(
                 val fillPath = Path()
 
                 if (offsets.size == 1) {
-                    // Если всего одна точка (одна тренировка) — рисуем точку и горизонтальную линию
                     val p = offsets[0]
                     linePath.moveTo(0f, p.y)
                     linePath.lineTo(w, p.y)
@@ -159,7 +157,6 @@ fun HeartRateChart(
                     fillPath.close()
                     drawCircle(color = lineColor, radius = 4.dp.toPx(), center = p)
                 } else {
-                    // Сглаженная кривая Безье (Catmull-Rom)
                     linePath.moveTo(offsets[0].x, offsets[0].y)
                     fillPath.moveTo(offsets[0].x, h)
                     fillPath.lineTo(offsets[0].x, offsets[0].y)
@@ -167,10 +164,9 @@ fun HeartRateChart(
                     for (i in 0 until offsets.size - 1) {
                         val p0 = offsets[i]
                         val p1 = offsets[i + 1]
-                        // Делаем касательные горизонтальными, чтобы избежать "выбросов" кривой за пределы точек
                         val cp1 = Offset(p0.x + (p1.x - p0.x) / 2f, p0.y)
                         val cp2 = Offset(p0.x + (p1.x - p0.x) / 2f, p1.y)
-                        
+
                         linePath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, p1.x, p1.y)
                         fillPath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, p1.x, p1.y)
                     }
@@ -188,14 +184,13 @@ fun HeartRateChart(
                 )
 
                 drawPath(
-                    path = linePath, 
-                    color = lineColor, 
+                    path = linePath,
+                    color = lineColor,
                     style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
-                
-                // Точки поверх графика (если их не слишком много)
+
                 if (offsets.size in 2..20) {
-                    offsets.forEach { 
+                    offsets.forEach {
                         drawCircle(color = lineColor, radius = 3.5.dp.toPx(), center = it)
                         drawCircle(color = Color.White, radius = 1.5.dp.toPx(), center = it)
                     }
@@ -203,7 +198,6 @@ fun HeartRateChart(
             }
         }
 
-        // Ось X (даты)
         Row(
             Modifier.fillMaxWidth().padding(start = 32.dp, top = 4.dp, end = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween
