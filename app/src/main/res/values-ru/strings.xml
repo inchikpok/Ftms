@@ -387,10 +387,7 @@
     <string name="history_zone_z4">Z4 Порог</string>
     <string name="history_zone_z5">Z5 Максимум</string>
     <string name="manual_workout">Ручная тренировка</string>
-    <string name="hr_waiting_for_data">Ожидание данных пульса…</string>
-    <string name="debug_cmd_start_belt">Запустить дорожку (00→07)</string>
-    <string name="debug_cmd_reset_short">Сброс</string>
-    <!-- Session messages -->
+
     <string name="session_lost_connection">Связь потеряна. Переподключение…</string>
     <string name="session_reconnected">Связь успешно восстановлена!</string>
     <string name="session_reconnected_paused">Связь восстановлена. Тренировка на паузе — нажмите «Продолжить».</string>
@@ -400,7 +397,6 @@
     <string name="session_treadmill_no_response">Дорожка не отвечает. Нажмите кнопку на дорожке.</string>
     <string name="session_hr_disconnected">Пульсометр отключён</string>
 
-    <!-- Program templates -->
     <string name="template_intervals_title">Интервалы 4×3 мин</string>
     <string name="template_intervals_desc">VO₂max: 4 быстрых отрезка по 3 минуты</string>
     <string name="template_pyramid_title">Пирамида (1-2-3-2-1)</string>
@@ -410,7 +406,6 @@
     <string name="template_fartlek_title">Fartlek 20 мин</string>
     <string name="template_fartlek_desc">Свободная игра скоростей</string>
 
-    <!-- Template segments -->
     <string name="seg_warmup_easy">Разминка: лёгкий бег</string>
     <string name="seg_warmup_accel">Разминка: ускорение</string>
     <string name="seg_warmup_jog">Разминка: трусца</string>
@@ -429,11 +424,9 @@
     <string name="seg_trot">Трусца</string>
     <string name="seg_tempo">Темповый</string>
 
-    <!-- History time formats -->
     <string name="history_duration_hm">%1$dч %2$dм</string>
     <string name="history_duration_m">%1$dм</string>
     <string name="history_duration_hms">%1$dч %2$dм %3$dс</string>
     <string name="history_duration_ms">%1$dм %2$dс</string>
     <string name="history_duration_s">%1$dс</string>
-    
 </resources>
