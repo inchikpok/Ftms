@@ -449,4 +449,9 @@
     <string name="history_duration_hms">%1$dh %2$dm %3$ds</string>
     <string name="history_duration_ms">%1$dm %2$ds</string>
     <string name="history_duration_s">%1$ds</string>
+    
+    <!-- Heart rate chart / sparkline -->
+    <string name="hr_waiting_for_data">Waiting for heart rate data…</string>
+    <string name="hr_no_data">No heart rate data</string>
+    
 </resources>
