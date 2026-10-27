@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.custom.treadmill.DebugLog
 import com.custom.treadmill.TreadmillApp
+import com.custom.treadmill.data.database.HrSamplesCodec
 import com.custom.treadmill.data.database.ProgramData
 import com.custom.treadmill.data.database.WorkoutLogEntity
 import com.custom.treadmill.logic.HeartRateController
@@ -112,6 +113,12 @@ class TreadmillSession(private val appContext: Context) {
     private var isAutoReconnecting = false
     private var isManualDisconnect = false
 
+    // [ИТ.2] Фиксированный момент старта текущей тренировки — для сериализации кривой
+    private var trainingStartMillis: Long = 0L
+
+    // [ИТ.4] Если до разрыва тренировка была активна — после реконнекта напомним пользователю
+    private var wasRunningBeforeDisconnect: Boolean = false
+
     private var hrSum = 0L; private var hrCount = 0L; private var hrMax = 0
     private var speedSum = 0.0; private var speedCount = 0L
     private var workoutLogSaved = false
@@ -128,14 +135,18 @@ class TreadmillSession(private val appContext: Context) {
         scope.launch {
             _heartRate.collect { hr ->
                 if (hr > 0) {
-                    hrSum += hr; hrCount++
-                    if (hr > hrMax) hrMax = hr
-                    val now = System.currentTimeMillis()
-                    val list = _hrHistory.value
-                    val last = list.lastOrNull()
-                    if (last == null || now - last.timestamp >= 900L) {
-                        val cutoff = now - 30 * 60 * 1000L
-                        _hrHistory.value = (list + HrPoint(now, hr)).filter { it.timestamp >= cutoff }
+                    // [ИТ.2] Статистику и кривую копим только во время активной тренировки.
+                    // Это гарантирует, что avgHeartRate — именно «за тренировку», а не за весь день.
+                    if (_uiElapsedSec.value > 0) {
+                        hrSum += hr; hrCount++
+                        if (hr > hrMax) hrMax = hr
+                        val now = System.currentTimeMillis()
+                        val list = _hrHistory.value
+                        val last = list.lastOrNull()
+                        if (last == null || now - last.timestamp >= 900L) {
+                            val cutoff = now - 30 * 60 * 1000L
+                            _hrHistory.value = (list + HrPoint(now, hr)).filter { it.timestamp >= cutoff }
+                        }
                     }
                 }
             }
@@ -332,6 +343,7 @@ class TreadmillSession(private val appContext: Context) {
     fun connectTreadmill(device: BluetoothDevice) {
         lastConnectedMac = device.address
         isManualDisconnect = false
+        wasRunningBeforeDisconnect = false
 
         autoReconnectJob?.cancel()
         autoReconnectJob = null
@@ -349,9 +361,6 @@ class TreadmillSession(private val appContext: Context) {
 
         treadmillLogJob = scope.launch { conn.log.collect { addLog(it) } }
 
-        // [ФИКС] hasBeenReady предотвращает ложный triggerAutoReconnect на самой первой
-        // эмиссии StateFlow (DISCONNECTED) — иначе создавался "сирота" BleConnection
-        // с открытым GATT, который держал дорожку в CONNECTED после ручного отключения.
         treadmillStateJob = scope.launch {
             var hasBeenReady = false
             conn.state.collect { state ->
@@ -377,6 +386,23 @@ class TreadmillSession(private val appContext: Context) {
         if (isAutoReconnecting) return
         val mac = lastConnectedMac ?: return
         val adapter = ble.adapter ?: return
+
+        // [ИТ.4] Если тренировка (или ручной режим) была активна — ставим на паузу.
+        // Иначе время и дистанция продолжат «накручиваться», пока дорожка стоит.
+        val ws = workoutManager.state.value
+        val workoutWasRunning = ws.running && !ws.paused
+        val manualWasRunning = !workoutWasRunning && !_isPaused.value && _treadmillData.value.speedKmh > 0.5
+
+        if (workoutWasRunning) {
+            addLog("Потеря связи — программа на паузе")
+            workoutManager.pause()
+        }
+        if (manualWasRunning) {
+            addLog("Потеря связи — ручной режим на паузе")
+            speedBeforePause = _targetSpeed.value.coerceAtLeast(1.0)
+            _isPaused.value = true
+        }
+        wasRunningBeforeDisconnect = workoutWasRunning || manualWasRunning
 
         isAutoReconnecting = true
         addLog("Связь потеряна. Запуск автопереподключения к $mac...")
@@ -423,10 +449,16 @@ class TreadmillSession(private val appContext: Context) {
             if (_treadmillState.value != BleConnectionState.READY) {
                 addLog("Автопереподключение не удалось после 10 попыток.")
                 _statusMessage.value = "Не удалось переподключиться. Нажмите кнопку на дорожке."
+                wasRunningBeforeDisconnect = false
                 stopService()
             } else {
                 addLog("Связь успешно восстановлена!")
-                _statusMessage.value = "Связь восстановлена!"
+                _statusMessage.value = if (wasRunningBeforeDisconnect) {
+                    "Связь восстановлена. Тренировка на паузе — нажмите «Продолжить»."
+                } else {
+                    "Связь восстановлена!"
+                }
+                wasRunningBeforeDisconnect = false
             }
         }
     }
@@ -455,6 +487,7 @@ class TreadmillSession(private val appContext: Context) {
     fun disconnectTreadmill() {
         isManualDisconnect = true
         lastConnectedMac = null
+        wasRunningBeforeDisconnect = false
         addLog("Ручное отключение дорожки")
 
         ble.setScanCooldown(5_000L)
@@ -468,11 +501,6 @@ class TreadmillSession(private val appContext: Context) {
         stopService()
     }
 
-    // [ФИКС] Порядок операций:
-    // 1. Отменяем state/notify — они не должны реагировать на disconnect.
-    // 2. Вызываем disconnect() ПОКА log collector ЖИВ — иначе его логи теряются.
-    // 3. Откладываем отмену log collector на 500мс, чтобы DISCONNECTED callback успел
-    //    отработать и записать свой лог в DebugLog.
     private fun disconnectTreadmillInternal() {
         treadmillStateJob?.cancel()
         treadmillStateJob = null
@@ -655,6 +683,17 @@ class TreadmillSession(private val appContext: Context) {
         if (_isPaused.value) startTreadmill() else pauseTreadmill()
     }
 
+    // [ИТ.3] Единая точка переключения паузы — используется из уведомления.
+    // Автоматически решает: программа идёт или ручной режим.
+    fun togglePause() {
+        val ws = workoutManager.state.value
+        if (ws.running || ws.paused) {
+            togglePauseWorkout()
+        } else {
+            togglePauseTreadmill()
+        }
+    }
+
     fun stopTreadmill() {
         startJob?.cancel()
         startJob = null
@@ -795,7 +834,12 @@ class TreadmillSession(private val appContext: Context) {
     }
 
     private fun resetMetrics() {
-        _uiElapsedSec.value = 0; _uiDistanceKm.value = 0.0; _uiCalories.value = 0; totalCaloriesDouble = 0.0
+        _uiElapsedSec.value = 0
+        _uiDistanceKm.value = 0.0
+        _uiCalories.value = 0
+        totalCaloriesDouble = 0.0
+        // [ИТ.2] Фиксируем старт — от этой метки будем считать offset для кривой пульса
+        trainingStartMillis = System.currentTimeMillis()
     }
 
     private fun resetStats() {
@@ -814,6 +858,21 @@ class TreadmillSession(private val appContext: Context) {
         val avgHr = if (hrCount > 0) (hrSum / hrCount).toInt() else 0
         val avgSpd = if (speedCount > 0) speedSum / speedCount else 0.0
 
+        // [ИТ.2] Сериализуем кривую пульса: только точки после старта тренировки,
+        // прореживаем до 1 сэмпла в 5 секунд (distinctBy по 5-секундным окнам).
+        val hrSamplesEncoded = run {
+            if (trainingStartMillis <= 0L) return@run ""
+            val raw = _hrHistory.value.filter {
+                it.timestamp >= trainingStartMillis && it.bpm > 0
+            }
+            if (raw.isEmpty()) return@run ""
+            val stepMs = 5000L
+            val sampled = raw
+                .distinctBy { ((it.timestamp - trainingStartMillis) / stepMs) }
+                .map { ((it.timestamp - trainingStartMillis) / 1000).toInt() to it.bpm }
+            HrSamplesCodec.encode(sampled)
+        }
+
         scope.launch {
             repository.addLog(WorkoutLogEntity(
                 dateMillis = System.currentTimeMillis(),
@@ -823,9 +882,12 @@ class TreadmillSession(private val appContext: Context) {
                 calories = _uiCalories.value,
                 avgHeartRate = avgHr,
                 maxHeartRate = hrMax,
-                avgSpeedKmh = avgSpd
+                avgSpeedKmh = avgSpd,
+                hrSamples = hrSamplesEncoded
             ))
-            addLog("Тренировка сохранена в журнал")
+            addLog("Тренировка сохранена в журнал (точек пульса: ${
+                if (hrSamplesEncoded.isEmpty()) 0 else HrSamplesCodec.decode(hrSamplesEncoded).size
+            })")
         }
         resetStats()
     }
