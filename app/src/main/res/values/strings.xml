@@ -478,5 +478,6 @@
     <string name="gen_seg_run">Run</string>
     <string name="gen_seg_fast">Fast %1$d</string>
     <string name="gen_seg_slow">Slow %1$d</string>
+    <string name="unit_hour">h</string>
     
 </resources>
