@@ -432,4 +432,30 @@
 
     <string name="hr_waiting_for_data">Ожидание данных пульса…</string>
     <string name="hr_no_data">Нет данных пульса</string>
+
+        <!-- Chart -->
+    <string name="chart_hours">%1$dч</string>
+
+    <!-- Generator (ProgramGenerator.kt) -->
+    <string name="gen_name_weight_loss">Жиросжигание %1$dм</string>
+    <string name="gen_name_cardio">Кардио %1$dм</string>
+    <string name="gen_name_speed">Скорость %1$dм</string>
+    <string name="gen_desc_weight_loss">Похудение · Уровень: %1$s · Интенсивность: %2$d%%</string>
+    <string name="gen_desc_cardio">Кардио · Уровень: %1$s · Интенсивность: %2$d%%</string>
+    <string name="gen_desc_speed">Скорость · Уровень: %1$s · Интенсивность: %2$d%%</string>
+    <string name="gen_level_beginner">новичок</string>
+    <string name="gen_level_intermediate">средний</string>
+    <string name="gen_level_advanced">профи</string>
+    
+    <!-- Generator Segments -->
+    <string name="gen_seg_warmup_walk">Разминка (Ходьба)</string>
+    <string name="gen_seg_hill_walk">Ходьба в горку %1$d</string>
+    <string name="gen_seg_recovery">Восстановление %1$d</string>
+    <string name="gen_seg_active">Активная фаза %1$d</string>
+    <string name="gen_seg_warmup">Разминка</string>
+    <string name="gen_seg_cooldown">Заминка</string>
+    <string name="gen_seg_run">Бег</string>
+    <string name="gen_seg_fast">Быстро %1$d</string>
+    <string name="gen_seg_slow">Медленно %1$d</string>
+    
 </resources>
