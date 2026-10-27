@@ -17,13 +17,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * Минималистичный график пульса за одну тренировку: линия + градиент, без осей и меток.
- * Используется в раскрывающейся карточке журнала.
- *
- * @param samples Список (offsetSec, bpm)
- * @param durationSec Общая длительность тренировки — для нормализации оси X
- */
 @Composable
 fun HrSparkline(
     samples: List<Pair<Int, Int>>,
@@ -55,9 +48,9 @@ fun HrSparkline(
         val w = size.width
         val h = size.height
 
-        val offsets = samples.map { (t, bpm) ->
-            val x = w * t.toFloat() / tRange
-            val y = h * (1f - (bpm - yMin).toFloat() / yRange)
+        val offsets = samples.map { sample ->
+            val x = w * sample.first.toFloat() / tRange
+            val y = h * (1f - (sample.second - yMin).toFloat() / yRange)
             Offset(x.coerceIn(0f, w), y.coerceIn(0f, h))
         }
 
