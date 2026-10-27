@@ -342,7 +342,7 @@ class TreadmillSession(private val appContext: Context) {
 
         isAutoReconnecting = true
         addLog("Связь потеряна. Запуск автопереподключения к $mac...")
-        _statusMessage.value = "Связь потеряна. Переподключение..."
+        _statusMessage.value = appContext.getString(R.string.session_lost_connection)
 
         autoReconnectJob = scope.launch {
             for (i in 1..10) {
@@ -374,14 +374,14 @@ class TreadmillSession(private val appContext: Context) {
             autoReconnectJob = null
             if (_treadmillState.value != BleConnectionState.READY) {
                 addLog("Автопереподключение не удалось после 10 попыток.")
-                _statusMessage.value = "Не удалось переподключиться. Нажмите кнопку на дорожке."
+                _statusMessage.value = appContext.getString(R.string.session_reconnect_failed)
                 wasRunningBeforeDisconnect = false
                 stopService()
             } else {
                 addLog("Связь успешно восстановлена!")
                 _statusMessage.value = if (wasRunningBeforeDisconnect)
-                    "Связь восстановлена. Тренировка на паузе — нажмите «Продолжить»."
-                else "Связь восстановлена!"
+                    appContext.getString(R.string.session_reconnected_paused)
+                else appContext.getString(R.string.session_reconnected)
                 wasRunningBeforeDisconnect = false
             }
         }
@@ -400,7 +400,7 @@ class TreadmillSession(private val appContext: Context) {
             scope.launch { p.capabilities.collect { _capabilities.value = it } }
             val ok = p.initialize(conn)
             addLog(if (ok) "Протокол инициализирован" else "Ошибка инициализации")
-            _statusMessage.value = if (ok) "Дорожка готова" else "Не найдены характеристики"
+            _statusMessage.value = if (ok) appContext.getString(R.string.session_treadmill_ready) else appContext.getString(R.string.session_chars_not_found)
             _targetSpeed.value = _treadmillData.value.speedKmh
             _targetIncline.value = _treadmillData.value.inclinePercent
             restartAutoHrLoop()
@@ -464,7 +464,7 @@ class TreadmillSession(private val appContext: Context) {
                 }
                 if (state == BleConnectionState.DISCONNECTED) {
                     _heartRate.value = 0
-                    _statusMessage.value = "Пульсометр отключён"
+                    _statusMessage.value = appContext.getString(R.string.session_hr_disconnected)
                 }
             }
         }
@@ -545,7 +545,7 @@ class TreadmillSession(private val appContext: Context) {
                         protocol?.setIncline(targetInclineLocal)
                     }
                 } else {
-                    _statusMessage.value = "Дорожка не отвечает. Нажмите кнопку на дорожке."
+                    _statusMessage.value = appContext.getString(R.string.session_treadmill_no_response)
                 }
             } finally { isStartingBelt = false }
         }
@@ -642,7 +642,7 @@ class TreadmillSession(private val appContext: Context) {
                         speak(text)
                     }
                 } else {
-                    _statusMessage.value = "Дорожка не отвечает. Нажмите кнопку на дорожке."
+                    _statusMessage.value = appContext.getString(R.string.session_treadmill_no_response)
                 }
             } finally { isStartingBelt = false }
         }
@@ -722,7 +722,6 @@ class TreadmillSession(private val appContext: Context) {
         scope.launch {
             repository.addLog(WorkoutLogEntity(
                 dateMillis = System.currentTimeMillis(),
-                // [ФИКС] пустая строка = "ручная". При отображении подставится stringResource.
                 programName = if (isProgram) ws.programName else "",
                 durationSec = durationSec,
                 distanceKm = _uiDistanceKm.value,
