@@ -51,9 +51,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.treadmill.R
 import com.custom.treadmill.data.repository.HrMode
 import com.custom.treadmill.data.repository.ThemeMode
 import com.custom.treadmill.logic.HeartRateZoneCalculator
@@ -84,19 +86,23 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (onBack != null) {
-                        TextButton(onClick = onBack) { Text("← Назад") }
+                        TextButton(onClick = onBack) { Text("← " + stringResource(R.string.back)) }
                     }
-                    Text("Настройки", fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Text(stringResource(R.string.settings_title), fontWeight = FontWeight.Bold, fontSize = 24.sp)
                 }
             }
 
             // ================= ПРОФИЛИ =================
             item {
-                SettingsGroup(title = "Спортсмены", icon = Icons.Outlined.Person) {
+                SettingsGroup(title = stringResource(R.string.settings_group_profiles), icon = Icons.Outlined.Person) {
                     CompactActionRow(
                         icon = Icons.Outlined.Person,
-                        title = "Профили тренировок",
-                        subtitle = "Текущий: ${settings.activeProfile.name} (${settings.activeProfile.weightKg} кг)",
+                        title = stringResource(R.string.settings_profiles_title),
+                        subtitle = stringResource(
+                            R.string.settings_profiles_subtitle,
+                            settings.activeProfile.name,
+                            settings.activeProfile.weightKg
+                        ),
                         onClick = { onOpenProfiles?.invoke() }
                     )
                 }
@@ -104,31 +110,31 @@ fun SettingsScreen(
 
             // ================= Внешний вид =================
             item {
-                SettingsGroup(title = "Внешний вид и звук", icon = Icons.Outlined.Palette) {
+                SettingsGroup(title = stringResource(R.string.settings_group_appearance), icon = Icons.Outlined.Palette) {
                     CompactEnumDropdown(
-                        label = "Тема оформления",
+                        label = stringResource(R.string.settings_theme_label),
                         current = settings.themeMode,
                         options = ThemeMode.values().toList(),
                         optionLabel = {
                             when (it) {
-                                ThemeMode.SYSTEM -> "Как в системе"
-                                ThemeMode.LIGHT -> "Светлая"
-                                ThemeMode.DARK -> "Тёмная"
+                                ThemeMode.SYSTEM -> stringResource(R.string.settings_theme_system)
+                                ThemeMode.LIGHT -> stringResource(R.string.settings_theme_light)
+                                ThemeMode.DARK -> stringResource(R.string.settings_theme_dark)
                             }
                         },
                         onSelect = { v -> vm.updateSettings { it.copy(themeMode = v) } }
                     )
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     CompactSwitchRow(
-                        title = "Не гасить экран",
-                        subtitle = "Экран тренировки всегда. Главный — при движении belt.",
+                        title = stringResource(R.string.settings_keep_screen_title),
+                        subtitle = stringResource(R.string.settings_keep_screen_subtitle),
                         checked = settings.keepScreenOn,
                         onChange = { v -> vm.updateSettings { it.copy(keepScreenOn = v) } }
                     )
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     CompactSwitchRow(
-                        title = "Голосовые подсказки",
-                        subtitle = "Смена сегментов, старт и финиш",
+                        title = stringResource(R.string.settings_tts_title),
+                        subtitle = stringResource(R.string.settings_tts_subtitle),
                         checked = settings.ttsEnabled,
                         onChange = { v -> vm.updateSettings { it.copy(ttsEnabled = v) } }
                     )
@@ -137,8 +143,8 @@ fun SettingsScreen(
                         HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                         CompactActionRow(
                             icon = Icons.Outlined.RecordVoiceOver,
-                            title = "Настроить фразы",
-                            subtitle = "Изменить текст голосовых подсказок",
+                            title = stringResource(R.string.settings_tts_customize),
+                            subtitle = stringResource(R.string.settings_tts_customize_subtitle),
                             onClick = onOpenTts
                         )
                     }
@@ -147,38 +153,38 @@ fun SettingsScreen(
 
             // ================= Скорость и Наклон =================
             item {
-                SettingsGroup(title = "Скорость и наклон", icon = Icons.Outlined.Speed) {
+                SettingsGroup(title = stringResource(R.string.settings_group_speed), icon = Icons.Outlined.Speed) {
                     CompactSliderSetting(
-                        label = "Минимальная скорость",
+                        label = stringResource(R.string.settings_min_speed),
                         value = settings.minSpeedKmh.toFloat(),
                         valueRange = 0.5f..5.0f,
                         steps = 8,
-                        display = { "%.1f км/ч".format(it) },
+                        display = { "%.1f %s".format(it, stringResource(R.string.unit_kmh)) },
                         onValueChange = { v -> vm.updateSettings { it.copy(minSpeedKmh = (v * 10).roundToInt() / 10.0) } }
                     )
                     CompactSliderSetting(
-                        label = "Максимальная скорость",
+                        label = stringResource(R.string.settings_max_speed),
                         value = settings.maxSpeedKmh.toFloat(),
                         valueRange = 5.0f..20.0f,
                         steps = 29,
-                        display = { "%.1f км/ч".format(it) },
+                        display = { "%.1f %s".format(it, stringResource(R.string.unit_kmh)) },
                         onValueChange = { v -> vm.updateSettings { it.copy(maxSpeedKmh = (v * 10).roundToInt() / 10.0) } }
                     )
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     CompactEnumDropdown(
-                        label = "Шаг кнопок +/−",
+                        label = stringResource(R.string.settings_step_label),
                         current = settings.speedStepKmh,
                         options = listOf(0.1, 0.25, 0.5, 1.0),
-                        optionLabel = { "%.2f км/ч".format(it).replace(",00", "") },
+                        optionLabel = { "%.2f %s".format(it, stringResource(R.string.unit_kmh)).replace(",00", "") },
                         onSelect = { v -> vm.updateSettings { it.copy(speedStepKmh = v) } }
                     )
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     CompactSliderSetting(
-                        label = "Максимальный наклон",
+                        label = stringResource(R.string.settings_max_incline),
                         value = settings.maxInclinePercent.toFloat(),
                         valueRange = 5.0f..20.0f,
                         steps = 14,
-                        display = { "${it.roundToInt()} %" },
+                        display = { "${it.roundToInt()} ${stringResource(R.string.unit_percent)}" },
                         onValueChange = { v -> vm.updateSettings { it.copy(maxInclinePercent = v.roundToInt().toDouble()) } }
                     )
                 }
@@ -186,10 +192,10 @@ fun SettingsScreen(
 
             // ================= Автопульс =================
             item {
-                SettingsGroup(title = "Автопульс", icon = Icons.Outlined.FavoriteBorder) {
+                SettingsGroup(title = stringResource(R.string.settings_group_hr), icon = Icons.Outlined.FavoriteBorder) {
                     CompactSwitchRow(
-                        title = "Авторегулировка",
-                        subtitle = "Изменение скорости по пульсу",
+                        title = stringResource(R.string.settings_hr_enabled_title),
+                        subtitle = stringResource(R.string.settings_hr_enabled_subtitle),
                         checked = settings.hrEnabled,
                         onChange = { vm.setAutoHrEnabled(it) }
                     )
@@ -198,13 +204,13 @@ fun SettingsScreen(
                         Column {
                             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                             CompactEnumDropdown(
-                                label = "Режим",
+                                label = stringResource(R.string.settings_hr_mode_label),
                                 current = settings.hrMode,
                                 options = HrMode.values().toList(),
                                 optionLabel = {
                                     when (it) {
-                                        HrMode.TARGET -> "Целевой пульс"
-                                        HrMode.ZONE -> "Зона (мин-макс)"
+                                        HrMode.TARGET -> stringResource(R.string.settings_hr_mode_target)
+                                        HrMode.ZONE -> stringResource(R.string.settings_hr_mode_zone)
                                     }
                                 },
                                 onSelect = { v -> vm.setHrMode(v) }
@@ -212,7 +218,7 @@ fun SettingsScreen(
 
                             if (settings.hrMode == HrMode.TARGET) {
                                 CompactSliderSetting(
-                                    label = "Целевой пульс",
+                                    label = stringResource(R.string.settings_hr_target),
                                     value = settings.targetHr.toFloat(),
                                     valueRange = 90f..190f,
                                     steps = 99,
@@ -220,7 +226,7 @@ fun SettingsScreen(
                                     onValueChange = { v -> vm.updateSettings { it.copy(targetHr = v.roundToInt()) } }
                                 )
                                 CompactSliderSetting(
-                                    label = "Допуск X (выше)",
+                                    label = stringResource(R.string.settings_hr_threshold_high),
                                     value = settings.thresholdHigh.toFloat(),
                                     valueRange = 1f..20f,
                                     steps = 18,
@@ -228,7 +234,7 @@ fun SettingsScreen(
                                     onValueChange = { v -> vm.updateSettings { it.copy(thresholdHigh = v.roundToInt()) } }
                                 )
                                 CompactSliderSetting(
-                                    label = "Допуск Y (ниже)",
+                                    label = stringResource(R.string.settings_hr_threshold_low),
                                     value = settings.thresholdLow.toFloat(),
                                     valueRange = 1f..20f,
                                     steps = 18,
@@ -237,7 +243,7 @@ fun SettingsScreen(
                                 )
                             } else {
                                 CompactSliderSetting(
-                                    label = "Мин пульс",
+                                    label = stringResource(R.string.settings_hr_min),
                                     value = settings.zoneMin.toFloat(),
                                     valueRange = 90f..180f,
                                     steps = 89,
@@ -245,7 +251,7 @@ fun SettingsScreen(
                                     onValueChange = { v -> vm.updateSettings { it.copy(zoneMin = v.roundToInt()) } }
                                 )
                                 CompactSliderSetting(
-                                    label = "Макс пульс",
+                                    label = stringResource(R.string.settings_hr_max),
                                     value = settings.zoneMax.toFloat(),
                                     valueRange = 100f..190f,
                                     steps = 89,
@@ -256,15 +262,15 @@ fun SettingsScreen(
 
                             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                             CompactSliderSetting(
-                                label = "Интервал проверки",
+                                label = stringResource(R.string.settings_hr_interval),
                                 value = settings.intervalSec.toFloat(),
                                 valueRange = 5f..120f,
                                 steps = 22,
-                                display = { "${it.roundToInt()} с" },
+                                display = { "${it.roundToInt()} ${stringResource(R.string.unit_sec)}" },
                                 onValueChange = { v -> vm.updateSettings { it.copy(intervalSec = v.roundToInt()) } }
                             )
                             CompactSliderSetting(
-                                label = "Шаг скорости",
+                                label = stringResource(R.string.settings_hr_step),
                                 value = settings.stepKmh.toFloat(),
                                 valueRange = 0.1f..2.0f,
                                 steps = 18,
@@ -274,21 +280,27 @@ fun SettingsScreen(
                             
                             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                             CompactSwitchRow(
-                                title = "Авто-расчет Max пульса",
-                                subtitle = "По формуле (Tanaka/Gulati)",
+                                title = stringResource(R.string.settings_hr_auto_max_title),
+                                subtitle = stringResource(R.string.settings_hr_auto_max_subtitle),
                                 checked = settings.autoMaxHr,
                                 onChange = { v -> vm.updateSettings { it.copy(autoMaxHr = v) } }
                             )
                             
                             if (settings.autoMaxHr) {
                                 ListItem(
-                                    headlineContent = { Text("Рассчитанный максимум", fontSize = 15.sp) },
-                                    trailingContent = { Text("$calculatedMaxHr уд/мин", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
+                                    headlineContent = { Text(stringResource(R.string.settings_hr_calc_max), fontSize = 15.sp) },
+                                    trailingContent = { 
+                                        Text(
+                                            "$calculatedMaxHr ${stringResource(R.string.unit_bpm)}", 
+                                            fontWeight = FontWeight.Bold, 
+                                            color = MaterialTheme.colorScheme.primary
+                                        ) 
+                                    },
                                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                                 )
                             } else {
                                 CompactSliderSetting(
-                                    label = "Ручной Max пульс",
+                                    label = stringResource(R.string.settings_hr_manual_max),
                                     value = settings.maxHr.toFloat(),
                                     valueRange = 150f..220f,
                                     steps = 69,
@@ -304,12 +316,12 @@ fun SettingsScreen(
             // ================= О приложении =================
             if (onOpenDebug != null || onOpenAbout != null) {
                 item {
-                    SettingsGroup(title = "О приложении", icon = Icons.Outlined.Info) {
+                    SettingsGroup(title = stringResource(R.string.settings_group_about), icon = Icons.Outlined.Info) {
                         onOpenDebug?.let {
                             CompactActionRow(
                                 icon = Icons.Outlined.BugReport,
-                                title = "Debug (BLE)",
-                                subtitle = "Логи, hex-команды, справочник",
+                                title = stringResource(R.string.settings_debug_title),
+                                subtitle = stringResource(R.string.settings_debug_subtitle),
                                 onClick = it
                             )
                         }
@@ -319,8 +331,8 @@ fun SettingsScreen(
                         onOpenAbout?.let {
                             CompactActionRow(
                                 icon = Icons.Outlined.DirectionsRun,
-                                title = "О программе",
-                                subtitle = "Инструкция и справочник",
+                                title = stringResource(R.string.settings_about_title),
+                                subtitle = stringResource(R.string.settings_about_subtitle),
                                 onClick = it
                             )
                         }
@@ -357,7 +369,7 @@ private fun CompactSwitchRow(title: String, subtitle: String, checked: Boolean, 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun <T> CompactEnumDropdown(label: String, current: T, options: List<T>, optionLabel: (T) -> String, onSelect: (T) -> Unit) {
+private fun <T> CompactEnumDropdown(label: String, current: T, options: List<T>, optionLabel: @Composable (T) -> String, onSelect: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
         OutlinedTextField(
@@ -375,7 +387,7 @@ private fun <T> CompactEnumDropdown(label: String, current: T, options: List<T>,
 }
 
 @Composable
-private fun CompactSliderSetting(label: String, value: Float, valueRange: ClosedFloatingPointRange<Float>, steps: Int, display: (Float) -> String, onValueChange: (Float) -> Unit) {
+private fun CompactSliderSetting(label: String, value: Float, valueRange: ClosedFloatingPointRange<Float>, steps: Int, display: @Composable (Float) -> String, onValueChange: (Float) -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(label, fontSize = 14.sp, modifier = Modifier.weight(1f))
