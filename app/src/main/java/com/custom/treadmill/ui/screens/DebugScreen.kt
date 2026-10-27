@@ -1,5 +1,6 @@
 package com.custom.treadmill.ui.screens
 
+import android.content.Context
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,11 +25,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.treadmill.DebugLog
+import com.custom.treadmill.R
 import com.custom.treadmill.ble.BleConnectionState
 import com.custom.treadmill.ui.viewmodels.MainViewModel
 import java.text.SimpleDateFormat
@@ -74,41 +77,41 @@ fun DebugScreen(vm: MainViewModel, onBack: () -> Unit) {
             ctx.contentResolver.openOutputStream(uri)?.use { os ->
                 os.write(content.toByteArray(Charsets.UTF_8))
             }
-            savedMessage = "Сохранено"
+            savedMessage = ctx.getString(R.string.debug_saved)
         } catch (e: Exception) {
-            savedMessage = "Ошибка: ${e.message}"
+            savedMessage = ctx.getString(R.string.debug_save_error, e.message ?: "")
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Debug", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.debug), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { vm.clearLogs() }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Очистить")
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.debug_clear))
                     }
                     IconButton(onClick = {
                         val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
                         saveLauncher.launch("treadmill_log_$ts.txt")
                     }) {
-                        Icon(Icons.Default.Save, contentDescription = "Сохранить")
+                        Icon(Icons.Default.Save, contentDescription = stringResource(R.string.debug_save))
                     }
                     IconButton(onClick = {
                         val content = DebugLog.exportText()
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "Treadmill debug log")
+                            putExtra(Intent.EXTRA_SUBJECT, ctx.getString(R.string.debug_share_subject))
                             putExtra(Intent.EXTRA_TEXT, content)
                         }
-                        ctx.startActivity(Intent.createChooser(intent, "Поделиться логом"))
+                        ctx.startActivity(Intent.createChooser(intent, ctx.getString(R.string.debug_share_chooser)))
                     }) {
-                        Icon(Icons.Default.Share, contentDescription = "Поделиться")
+                        Icon(Icons.Default.Share, contentDescription = stringResource(R.string.debug_share))
                     }
                 }
             )
@@ -120,16 +123,22 @@ fun DebugScreen(vm: MainViewModel, onBack: () -> Unit) {
                 Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
             }
 
-            // 🚀 КОМПАКТНАЯ КАРТОЧКА СТАТУСА
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(treadmillName ?: "Нет подключения", fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        Text(treadmillState.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (treadmillReady) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                        Text(
+                            treadmillName ?: stringResource(R.string.debug_no_connection),
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            treadmillState.name,
+                            fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = if (treadmillReady) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "Скорость: %.1f · Наклон: %.0f%% · Логов: ${logs.size}".format(data.speedKmh, data.inclinePercent),
+                        stringResource(R.string.debug_status_format, data.speedKmh, data.inclinePercent, logs.size),
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -137,7 +146,6 @@ fun DebugScreen(vm: MainViewModel, onBack: () -> Unit) {
 
             Spacer(Modifier.height(8.dp))
 
-            // 🚀 КОМПАКТНЫЙ ВВОД HEX
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -156,16 +164,15 @@ fun DebugScreen(vm: MainViewModel, onBack: () -> Unit) {
                     enabled = treadmillReady,
                     modifier = Modifier.height(54.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp)
-                ) { Text("Отпр.") }
+                ) { Text(stringResource(R.string.debug_send)) }
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // Табы
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TabButton("Лог", tab == 0, Modifier.weight(1f)) { tab = 0 }
-                TabButton("Справочник", tab == 1, Modifier.weight(1f)) { tab = 1 }
-                TabButton("Конструктор", tab == 2, Modifier.weight(1f)) { tab = 2 }
+                TabButton(stringResource(R.string.debug_tab_log), tab == 0, Modifier.weight(1f)) { tab = 0 }
+                TabButton(stringResource(R.string.debug_tab_reference), tab == 1, Modifier.weight(1f)) { tab = 1 }
+                TabButton(stringResource(R.string.debug_tab_constructor), tab == 2, Modifier.weight(1f)) { tab = 2 }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -211,9 +218,9 @@ private fun LogView(logs: List<String>, listState: LazyListState, hideTreadmillF
     Card(modifier) {
         Column(Modifier.fillMaxSize().padding(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Лог событий", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.debug_log_title), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Кадры 2ACD", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.debug_frames_ftms), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(4.dp))
                     Switch(
                         checked = !hideTreadmillFrames,
@@ -253,48 +260,56 @@ private fun lineColor(line: String): Color = when {
 
 private data class CmdEntry(val label: String, val hex: String, val note: String = "")
 
-private fun buildCommandReference(): List<Pair<String, List<CmdEntry>>> {
+private fun buildCommandReference(ctx: Context): List<Pair<String, List<CmdEntry>>> {
     val speedsKmh = listOf(0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0, 12.0, 15.0, 20.0)
     val speedChange = speedsKmh.map { kmh ->
         val raw = (kmh * 100).roundToInt()
-        CmdEntry("%.1f км/ч".format(kmh), "02 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF), "Только на ходу")
+        CmdEntry(
+            ctx.getString(R.string.debug_cmd_speed_label, kmh),
+            "02 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF),
+            ctx.getString(R.string.debug_cmd_speed_note)
+        )
     }
     val inclines = listOf(0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15)
     val inclineCmds = inclines.map { p ->
         val raw = p * 10
-        CmdEntry("$p %", "03 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF))
+        CmdEntry(
+            ctx.getString(R.string.debug_cmd_incline_label, p),
+            "03 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF)
+        )
     }
     return listOf(
-        "Управление" to listOf(
-            CmdEntry("Request Control", "00", "Запросить контроль"),
-            CmdEntry("Reset", "01", "Стандартный FTMS Reset"),
-            CmdEntry("Start / Resume", "07", "Только ПОСЛЕ 00 + паузы"),
-            CmdEntry("Stop (наш способ)", "02 00 00", "Скорость → 0"),
-            CmdEntry("Pause (стандарт FTMS)", "08 01", "Сбрасывает таймер на дорожке")
+        ctx.getString(R.string.debug_cmd_group_control) to listOf(
+            CmdEntry("Request Control", "00", ctx.getString(R.string.debug_cmd_request_control_note)),
+            CmdEntry("Reset", "01", ctx.getString(R.string.debug_cmd_reset_note)),
+            CmdEntry("Start / Resume", "07", ctx.getString(R.string.debug_cmd_start_note)),
+            CmdEntry(ctx.getString(R.string.debug_cmd_stop), "02 00 00", ctx.getString(R.string.debug_cmd_stop_note)),
+            CmdEntry(ctx.getString(R.string.debug_cmd_pause), "08 01", ctx.getString(R.string.debug_cmd_pause_note))
         ),
-        "Скорость — смена на ходу" to speedChange,
-        "Наклон (целые %)" to inclineCmds
+        ctx.getString(R.string.debug_cmd_group_speed) to speedChange,
+        ctx.getString(R.string.debug_cmd_group_incline) to inclineCmds
     )
 }
 
 @Composable
 private fun CommandReference(treadmillReady: Boolean, currentSpeedKmh: Double, onSend: (String) -> Unit, onStartBelt: () -> Unit, onAdjustSpeed: (Double) -> Unit, modifier: Modifier = Modifier) {
-    val groups = remember { buildCommandReference() }
+    val ctx = LocalContext.current
+    val groups = remember(ctx) { buildCommandReference(ctx) }
     var lastSent by remember { mutableStateOf<String?>(null) }
     LazyColumn(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
         if (!treadmillReady) {
             item {
                 Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                    Text("Дорожка не подключена", Modifier.padding(10.dp), fontSize = 12.sp)
+                    Text(stringResource(R.string.debug_not_connected), Modifier.padding(10.dp), fontSize = 12.sp)
                 }
             }
         }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
-                    Text("Быстрая регулировка", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(stringResource(R.string.debug_quick_adjust), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Spacer(Modifier.height(4.dp))
-                    Text("Текущая: %.1f км/ч".format(currentSpeedKmh), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.debug_current_speed, currentSpeedKmh), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(6.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         OutlinedButton(onClick = { onAdjustSpeed(-1.0) }, enabled = treadmillReady && currentSpeedKmh > 1.0, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("−1", fontSize = 12.sp) }
@@ -306,7 +321,7 @@ private fun CommandReference(treadmillReady: Boolean, currentSpeedKmh: Double, o
                     Button(onClick = onStartBelt, enabled = treadmillReady, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Запустить belt (00→07)")
+                        Text(stringResource(R.string.debug_cmd_start_belt))
                     }
                 }
             }
@@ -328,7 +343,7 @@ private fun CommandReference(treadmillReady: Boolean, currentSpeedKmh: Double, o
         item {
             lastSent?.let {
                 Card(Modifier.fillMaxWidth().padding(top = 6.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                    Text("Отправлено: $it", Modifier.padding(10.dp), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    Text(stringResource(R.string.debug_last_sent, it), Modifier.padding(10.dp), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
             }
         }
@@ -346,34 +361,34 @@ private fun CommandConstructor(treadmillReady: Boolean, onSend: (String) -> Unit
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
-                Text("Скорость", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.debug_speed), fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(6.dp))
-                OutlinedTextField(value = speedStr, onValueChange = { speedStr = it }, label = { Text("км/ч") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = speedStr, onValueChange = { speedStr = it }, label = { Text(stringResource(R.string.unit_kmh)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
                 val raw = (speed * 100).roundToInt().coerceIn(0, 65535)
                 val changeHex = "02 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Button(onClick = { onSend(changeHex); lastSent = "speed=$speed ($changeHex)" }, enabled = treadmillReady && speed > 0, modifier = Modifier.weight(1f)) { Text("Применить", fontSize = 12.sp) }
-                    OutlinedButton(onClick = { onSend("02 00 00"); lastSent = "стоп (02 00 00)" }, enabled = treadmillReady, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Стоп", fontSize = 12.sp) }
+                    Button(onClick = { onSend(changeHex); lastSent = "speed=$speed ($changeHex)" }, enabled = treadmillReady && speed > 0, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.debug_apply), fontSize = 12.sp) }
+                    OutlinedButton(onClick = { onSend("02 00 00"); lastSent = "stop (02 00 00)" }, enabled = treadmillReady, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.debug_stop), fontSize = 12.sp) }
                 }
                 Text(changeHex, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
             }
         }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
-                Text("Наклон", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.debug_incline), fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(6.dp))
-                OutlinedTextField(value = inclineStr, onValueChange = { inclineStr = it }, label = { Text("%") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = inclineStr, onValueChange = { inclineStr = it }, label = { Text(stringResource(R.string.unit_percent)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
                 val raw = (incline * 10).roundToInt().coerceIn(0, 32767)
                 val hex = "03 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF)
-                Button(onClick = { onSend(hex); lastSent = "incline=$incline ($hex)" }, enabled = treadmillReady, modifier = Modifier.fillMaxWidth()) { Text("Отправить наклон", fontSize = 13.sp) }
+                Button(onClick = { onSend(hex); lastSent = "incline=$incline ($hex)" }, enabled = treadmillReady, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.debug_send_incline), fontSize = 13.sp) }
                 Text(hex, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
             }
         }
         lastSent?.let {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                Text("Отправлено: $it", Modifier.padding(10.dp), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.debug_last_sent, it), Modifier.padding(10.dp), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             }
         }
     }
