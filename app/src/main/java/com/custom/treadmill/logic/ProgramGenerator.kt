@@ -55,7 +55,6 @@ object ProgramGenerator {
         }
 
         val userMult = intensityPercent / 100.0
-
         val safeMaxSpeed = maxSpeedLimit.coerceAtLeast(5.0)
         val safeMaxIncline = maxInclineLimit.coerceAtLeast(1.0)
 
