@@ -39,5 +39,20 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_1_2)
                 .build().also { INSTANCE = it }
             }
+
+        /**
+         * Закрывает текущее соединение и обнуляет singleton.
+         * Нужно ТОЛЬКО в BackupManager перед восстановлением из ZIP.
+         * После вызова любой следующий AppDatabase.get() откроет БД заново.
+         */
+        fun closeAndReset() {
+            synchronized(this) {
+                try {
+                    INSTANCE?.close()
+                } catch (_: Exception) {
+                }
+                INSTANCE = null
+            }
+        }
     }
 }
