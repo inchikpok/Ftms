@@ -4,8 +4,18 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -13,7 +23,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -67,9 +85,17 @@ fun AboutScreen(onBack: () -> Unit) {
                 }
             }
 
-            InfoSection(R.string.about_compat_title, R.string.about_compat_items)
-            InfoSection(R.string.about_features_title, R.string.about_features_items)
-            InfoSection(R.string.about_stack_title, R.string.about_stack_items)
+            InfoSection(stringResource(R.string.about_compat_title), listOf(
+                stringResource(R.string.about_compat_items)
+            ))
+
+            InfoSection(stringResource(R.string.about_features_title), listOf(
+                stringResource(R.string.about_features_items)
+            ))
+
+            InfoSection(stringResource(R.string.about_stack_title), listOf(
+                stringResource(R.string.about_stack_items)
+            ))
 
             Card(
                 Modifier.fillMaxWidth(),
@@ -147,12 +173,17 @@ fun AboutScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun InfoSection(@StringRes titleRes: Int, @StringRes contentRes: Int) {
+private fun InfoSection(title: String, items: List<String>) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text(stringResource(titleRes), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text(stringResource(contentRes), style = MaterialTheme.typography.bodyMedium)
+            items.forEach { line ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Text("•  ", style = MaterialTheme.typography.bodyMedium)
+                    Text(line, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
     }
 }
@@ -164,11 +195,11 @@ private fun copyToClipboard(ctx: Context, label: String, text: String) {
 
 private fun buildTemplate(): String = """
 {
-  "name": "My workout",
+  "name": "Workout",
   "description": "",
   "segments": [
     {
-      "name": "Warm-up",
+      "name": "Warmup",
       "durationSec": 300,
       "speedKmh": 4.0,
       "inclinePercent": 0.0
@@ -180,7 +211,7 @@ private fun buildTemplate(): String = """
       "inclinePercent": 1.0
     },
     {
-      "name": "Cool-down",
+      "name": "Cooldown",
       "durationSec": 300,
       "speedKmh": 4.0,
       "inclinePercent": 0.0
