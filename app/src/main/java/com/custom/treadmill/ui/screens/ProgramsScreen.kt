@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.custom.treadmill.R
 import com.custom.treadmill.ble.BleConnectionState
 import com.custom.treadmill.data.database.ProgramData
 import com.custom.treadmill.data.database.ProgramEntity
@@ -80,7 +82,6 @@ fun ProgramsScreen(
     val settings by mainVm.settings.collectAsState()
     val caps by mainVm.capabilities.collectAsState()
 
-    // Реальные лимиты — минимум из настроек и возможностей дорожки
     val effectiveMaxSpeed = remember(settings.maxSpeedKmh, caps) {
         if (caps.isLoaded) minOf(settings.maxSpeedKmh, caps.maxSpeedKmh) else settings.maxSpeedKmh
     }
@@ -105,14 +106,18 @@ fun ProgramsScreen(
 
     fun tryImportText(text: String, source: String) {
         try {
-            if (text.isBlank()) { mainVm.showMessage("Текст пуст"); return }
+            if (text.isBlank()) { mainVm.showMessage(ctx.getString(R.string.programs_import_error_empty)); return }
             val data = programVm.importJson(text)
-            if (data.name.isBlank() || data.segments.isEmpty()) { mainVm.showMessage("Ошибка: файл не содержит программы"); return }
-            if (data.segments.any { it.durationSec <= 0 || it.speedKmh <= 0 }) { mainVm.showMessage("Ошибка: найдены сегменты с нулевым временем или скоростью"); return }
+            if (data.name.isBlank() || data.segments.isEmpty()) {
+                mainVm.showMessage(ctx.getString(R.string.programs_import_error_no_program)); return
+            }
+            if (data.segments.any { it.durationSec <= 0 || it.speedKmh <= 0 }) {
+                mainVm.showMessage(ctx.getString(R.string.programs_import_error_invalid_segments)); return
+            }
             programVm.save(data)
-            mainVm.showMessage("Программа «${data.name}» импортирована ($source)")
+            mainVm.showMessage(ctx.getString(R.string.programs_import_success, data.name, source))
         } catch (e: Exception) {
-            mainVm.showMessage("Ошибка: ${e.message}")
+            mainVm.showMessage(ctx.getString(R.string.programs_import_error_generic, e.message ?: ""))
         }
     }
 
@@ -126,7 +131,7 @@ fun ProgramsScreen(
                 os.write(programVm.exportJson(data).toByteArray(Charsets.UTF_8))
             }
         } catch (e: Exception) {
-            mainVm.showMessage("Ошибка сохранения: ${e.message}")
+            mainVm.showMessage(ctx.getString(R.string.programs_import_error_save, e.message ?: ""))
         }
     }
 
@@ -138,9 +143,9 @@ fun ProgramsScreen(
             val text = ctx.contentResolver.openInputStream(uri)
                 ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
                 ?: return@rememberLauncherForActivityResult
-            tryImportText(text, "файл")
+            tryImportText(text, ctx.getString(R.string.programs_import_source_file))
         } catch (e: Exception) {
-            mainVm.showMessage("Ошибка чтения: ${e.message}")
+            mainVm.showMessage(ctx.getString(R.string.programs_import_error_read, e.message ?: ""))
         }
     }
 
@@ -160,7 +165,7 @@ fun ProgramsScreen(
             ExtendedFloatingActionButton(
                 onClick = { showTemplates = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Создать") }
+                text = { Text(stringResource(R.string.programs_create)) }
             )
         }
     ) { padding ->
@@ -170,18 +175,23 @@ fun ProgramsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (onBack != null) {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back)) }
                 } else {
                     Spacer(Modifier.width(16.dp))
                 }
-                Text("Программы", fontWeight = FontWeight.Bold, fontSize = 22.sp, modifier = Modifier.weight(1f))
+                Text(
+                    stringResource(R.string.programs_title),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
+                    modifier = Modifier.weight(1f)
+                )
 
                 IconButton(onClick = { showGenerator = true }) {
-                    Icon(Icons.Default.AutoFixHigh, contentDescription = "Генератор", tint = MaterialTheme.colorScheme.tertiary)
+                    Icon(Icons.Default.AutoFixHigh, contentDescription = stringResource(R.string.programs_generator_tooltip), tint = MaterialTheme.colorScheme.tertiary)
                 }
 
                 IconButton(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
-                    Icon(Icons.Outlined.FileUpload, contentDescription = "Импорт из файла")
+                    Icon(Icons.Outlined.FileUpload, contentDescription = stringResource(R.string.programs_import))
                 }
             }
 
@@ -193,11 +203,11 @@ fun ProgramsScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Поиск...", fontSize = 14.sp) },
+                    placeholder = { Text(stringResource(R.string.programs_search), fontSize = 14.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, contentDescription = "Очистить", modifier = Modifier.size(20.dp)) }
+                            IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear), modifier = Modifier.size(20.dp)) }
                         }
                     },
                     singleLine = true,
@@ -211,12 +221,12 @@ fun ProgramsScreen(
                         onClick = { showSortMenu = true },
                         modifier = Modifier.size(50.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                     ) {
-                        Icon(Icons.Default.Sort, contentDescription = "Сортировка", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.Sort, contentDescription = stringResource(R.string.programs_sort), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                        DropdownMenuItem(text = { Text("А-Я") }, onClick = { sortMode = SortMode.NAME_ASC; showSortMenu = false })
-                        DropdownMenuItem(text = { Text("Я-А") }, onClick = { sortMode = SortMode.NAME_DESC; showSortMenu = false })
-                        DropdownMenuItem(text = { Text("Сначала новые") }, onClick = { sortMode = SortMode.NEWEST; showSortMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.programs_sort_name_asc)) }, onClick = { sortMode = SortMode.NAME_ASC; showSortMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.programs_sort_name_desc)) }, onClick = { sortMode = SortMode.NAME_DESC; showSortMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.programs_sort_newest)) }, onClick = { sortMode = SortMode.NEWEST; showSortMenu = false })
                     }
                 }
             }
@@ -228,10 +238,15 @@ fun ProgramsScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.FitnessCenter, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.surfaceVariant)
                         Spacer(Modifier.height(12.dp))
-                        Text(if (programs.isEmpty()) "Нет программ" else "Ничего не найдено", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        Text(
+                            if (programs.isEmpty()) stringResource(R.string.programs_empty_title)
+                            else stringResource(R.string.programs_no_results_title),
+                            fontWeight = FontWeight.SemiBold, fontSize = 16.sp
+                        )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            if (programs.isEmpty()) "Нажмите «Создать» или «Волшебную палочку»" else "Попробуйте изменить запрос",
+                            if (programs.isEmpty()) stringResource(R.string.programs_empty_subtitle)
+                            else stringResource(R.string.programs_no_results_subtitle),
                             fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
                         )
                     }
@@ -247,9 +262,9 @@ fun ProgramsScreen(
                         ProgramCardModern(
                             entity = p, data = data, canStart = treadmillReady,
                             onEdit = { editingId = p.id; editingData = data },
-                            onDuplicate = { programVm.save(data.copy(name = "${data.name} (копия)"), 0L) },
+                            onDuplicate = { programVm.save(data.copy(name = ctx.getString(R.string.programs_copy_suffix, data.name)), 0L) },
                             onDelete = {
-                                if (workoutState.running && workoutState.programName == p.name) mainVm.showMessage("Нельзя удалить запущенную программу")
+                                if (workoutState.running && workoutState.programName == p.name) mainVm.showMessage(ctx.getString(R.string.programs_cannot_delete_running))
                                 else deleteTarget = p
                             },
                             onExport = { exportTarget = data; exportLauncher.launch("${p.name}.json") },
@@ -278,7 +293,7 @@ fun ProgramsScreen(
                     maxInclineLimit = if (showIncline) effectiveMaxIncline else 0.0
                 )
                 programVm.save(program)
-                mainVm.showMessage("Программа сгенерирована и сохранена!")
+                mainVm.showMessage(ctx.getString(R.string.programs_generated_toast))
                 showGenerator = false
             },
             onDismiss = { showGenerator = false }
@@ -290,7 +305,16 @@ fun ProgramsScreen(
             onPick = { template ->
                 showTemplates = false
                 editingId = 0L
-                editingData = template ?: ProgramData(name = "Новая программа", description = "", segments = listOf(ProgramSegment(300, 5.0, 0.0, "Разминка")))
+                editingData = template ?: ProgramData(
+                    name = ctx.getString(R.string.editor_new_title),
+                    description = "",
+                    segments = listOf(
+                        ProgramSegment(
+                            300, 5.0, 0.0,
+                            ctx.getString(R.string.editor_segment_short) + " 1"
+                        )
+                    )
+                )
             },
             onDismiss = { showTemplates = false }
         )
@@ -299,21 +323,23 @@ fun ProgramsScreen(
     if (showNotConnectedDialog) {
         AlertDialog(
             onDismissRequest = { showNotConnectedDialog = false },
-            title = { Text("Дорожка не подключена") },
-            text = { Text("Подключите дорожку на главном экране, затем вернитесь и запустите программу.") },
-            confirmButton = { TextButton(onClick = { showNotConnectedDialog = false }) { Text("OK") } }
+            title = { Text(stringResource(R.string.not_connected_title)) },
+            text = { Text(stringResource(R.string.not_connected_text)) },
+            confirmButton = { TextButton(onClick = { showNotConnectedDialog = false }) { Text(stringResource(R.string.ok)) } }
         )
     }
 
     deleteTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("Удалить программу?") },
-            text = { Text("Программа «${target.name}» будет удалена.") },
+            title = { Text(stringResource(R.string.delete_program_title)) },
+            text = { Text(stringResource(R.string.delete_program_text, target.name)) },
             confirmButton = {
-                TextButton(onClick = { programVm.delete(target); deleteTarget = null }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Удалить") }
+                TextButton(onClick = { programVm.delete(target); deleteTarget = null }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                    Text(stringResource(R.string.delete))
+                }
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
@@ -348,54 +374,65 @@ private fun WorkoutGeneratorDialog(
     var duration by remember { mutableFloatStateOf(30f) }
     var intensity by remember { mutableFloatStateOf(100f) }
 
+    val profileName = profile.name.ifBlank { stringResource(R.string.profiles_name) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Генератор тренировок", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.generator_title), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Профиль: ${profile.name} (${profile.weightKg} кг, ${profile.age} лет)",
-                    fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    stringResource(R.string.generator_profile_label, profileName, profile.weightKg, profile.age),
+                    fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-                Text("Цель:", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.generator_goal), fontWeight = FontWeight.SemiBold)
                 WorkoutGoal.values().forEach { g ->
+                    val titleRes = when (g) {
+                        WorkoutGoal.WEIGHT_LOSS -> R.string.goal_weight_loss_title
+                        WorkoutGoal.CARDIO -> R.string.goal_cardio_title
+                        WorkoutGoal.SPEED -> R.string.goal_speed_title
+                    }
+                    val descRes = when (g) {
+                        WorkoutGoal.WEIGHT_LOSS -> R.string.goal_weight_loss_desc
+                        WorkoutGoal.CARDIO -> R.string.goal_cardio_desc
+                        WorkoutGoal.SPEED -> R.string.goal_speed_desc
+                    }
                     Row(
                         Modifier.fillMaxWidth().clickable { goal = g }.padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(selected = goal == g, onClick = { goal = g })
                         Column {
-                            Text(g.title, fontWeight = FontWeight.Medium)
-                            Text(g.description, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(titleRes), fontWeight = FontWeight.Medium)
+                            Text(stringResource(descRes), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
 
                 Spacer(Modifier.height(4.dp))
-                Text("Длительность: ${duration.toInt()} мин", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.generator_duration_label, duration.toInt()), fontWeight = FontWeight.SemiBold)
                 Slider(
                     value = duration, onValueChange = { duration = it },
                     valueRange = 20f..60f, steps = 7
                 )
 
                 Spacer(Modifier.height(4.dp))
-                Text("Интенсивность: ${intensity.toInt()}%", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.generator_intensity_label, intensity.toInt()), fontWeight = FontWeight.SemiBold)
                 Slider(
                     value = intensity, onValueChange = { intensity = it },
                     valueRange = 70f..130f, steps = 11
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Легко", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Максимум", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.generator_easy), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.generator_max), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 Text(
-                    buildString {
-                        append("Лимиты: до ${"%.1f".format(maxSpeed)} км/ч")
-                        if (capsSupportsIncline) {
-                            append(", наклон до ${maxIncline.toInt()}%")
-                        } else if (capsLoaded) {
-                            append(" (наклон недоступен)")
-                        }
+                    when {
+                        capsSupportsIncline -> stringResource(R.string.generator_limits_with_incline, maxSpeed, maxIncline.toInt())
+                        capsLoaded -> stringResource(R.string.generator_limits_no_incline, maxSpeed)
+                        else -> stringResource(R.string.generator_limits, maxSpeed)
                     },
                     fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)
                 )
@@ -405,10 +442,10 @@ private fun WorkoutGeneratorDialog(
             Button(onClick = { onGenerate(goal, duration.toInt(), intensity.toInt()) }) {
                 Icon(Icons.Default.AutoFixHigh, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Создать")
+                Text(stringResource(R.string.generator_create))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
 
@@ -481,7 +518,11 @@ private fun ProgramCardModern(
     var expanded by remember { mutableStateOf(false) }
     val totalSec = data.segments.sumOf { it.durationSec }
     val minutes = totalSec / 60
-    val durationText = if (minutes > 0) "$minutes мин" else "${totalSec % 60} с"
+
+    val durationText = if (minutes > 0)
+        stringResource(R.string.programs_minutes_short, minutes)
+    else
+        stringResource(R.string.programs_seconds_short, totalSec % 60)
 
     Card(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
@@ -498,16 +539,16 @@ private fun ProgramCardModern(
                 }
                 Spacer(Modifier.width(8.dp))
                 FilledIconButton(onClick = onStart, enabled = canStart, modifier = Modifier.size(36.dp), colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "Старт", modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.programs_start), modifier = Modifier.size(20.dp))
                 }
                 Box {
-                    IconButton(onClick = { showMenu = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.MoreVert, contentDescription = "Меню") }
+                    IconButton(onClick = { showMenu = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.menu)) }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(text = { Text("Изменить") }, onClick = { showMenu = false; onEdit() }, leadingIcon = { Icon(Icons.Default.Edit, null) })
-                        DropdownMenuItem(text = { Text("Дублировать") }, onClick = { showMenu = false; onDuplicate() }, leadingIcon = { Icon(Icons.Default.ContentCopy, null) })
-                        DropdownMenuItem(text = { Text("Экспорт в JSON") }, onClick = { showMenu = false; onExport() }, leadingIcon = { Icon(Icons.Default.Share, null) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.edit)) }, onClick = { showMenu = false; onEdit() }, leadingIcon = { Icon(Icons.Default.Edit, null) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.programs_duplicate)) }, onClick = { showMenu = false; onDuplicate() }, leadingIcon = { Icon(Icons.Default.ContentCopy, null) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.programs_export_json)) }, onClick = { showMenu = false; onExport() }, leadingIcon = { Icon(Icons.Default.Share, null) })
                         HorizontalDivider()
-                        DropdownMenuItem(text = { Text("Удалить", color = MaterialTheme.colorScheme.error) }, onClick = { showMenu = false; onDelete() }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }, onClick = { showMenu = false; onDelete() }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) })
                     }
                 }
             }
@@ -515,11 +556,11 @@ private fun ProgramCardModern(
             WorkoutMiniChart(segments = data.segments, modifier = Modifier.fillMaxWidth().height(80.dp))
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }, verticalAlignment = Alignment.CenterVertically) {
-                StatChip("${data.segments.size} сегм.")
+                StatChip(stringResource(R.string.programs_segments_count, data.segments.size))
                 Spacer(Modifier.width(6.dp))
                 StatChip(durationText)
                 Spacer(Modifier.weight(1f))
-                Icon(imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = "Развернуть", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = stringResource(R.string.programs_expand), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             AnimatedVisibility(visible = expanded) {
                 Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
@@ -528,14 +569,17 @@ private fun ProgramCardModern(
                         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                             Row(verticalAlignment = Alignment.Top) {
                                 Text("${i + 1}.", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.width(24.dp))
-                                Text(seg.name.ifBlank { "Сегмент ${i + 1}" }, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
+                                Text(seg.name.ifBlank { stringResource(R.string.programs_segment_default, i + 1) }, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
                             }
                             Spacer(Modifier.height(2.dp))
                             Row(Modifier.padding(start = 24.dp)) {
                                 val m = seg.durationSec / 60
                                 val s = seg.durationSec % 60
-                                val timeStr = if (m > 0) "${m}м ${s}с" else "${s}с"
-                                Text("$timeStr · %.1f км/ч · %.0f%%".format(seg.speedKmh, seg.inclinePercent), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                                val timeStr = if (m > 0)
+                                    stringResource(R.string.programs_duration_format, m, s)
+                                else
+                                    stringResource(R.string.programs_seconds_short, s)
+                                Text("$timeStr · %.1f ${stringResource(R.string.unit_kmh)} · %.0f${stringResource(R.string.unit_percent)}".format(seg.speedKmh, seg.inclinePercent), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                             }
                         }
                         if (i < data.segments.size - 1) HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
@@ -558,7 +602,7 @@ private fun TemplatesDialog(onPick: (ProgramData?) -> Unit, onDismiss: () -> Uni
     val templates = remember { buildTemplates() }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Создать тренировку") },
+        title = { Text(stringResource(R.string.templates_title)) },
         text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
@@ -569,7 +613,7 @@ private fun TemplatesDialog(onPick: (ProgramData?) -> Unit, onDismiss: () -> Uni
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(8.dp))
-                            Text("Пустая (с нуля)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(stringResource(R.string.templates_empty), fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }
                 }
@@ -582,16 +626,24 @@ private fun TemplatesDialog(onPick: (ProgramData?) -> Unit, onDismiss: () -> Uni
                         Column(Modifier.padding(12.dp)) {
                             Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(Modifier.height(2.dp))
-                            Text("${data.segments.size} сегм. · ${data.segments.sumOf { it.durationSec } / 60} мин", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            val totalSec = data.segments.sumOf { it.durationSec }
+                            Text(
+                                "${data.segments.size} · ${totalSec / 60} ${stringResource(R.string.unit_min)}",
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
 
+// ВНИМАНИЕ: Шаблоны тренировок (title + ProgramData.name + названия сегментов) пока
+// остаются на русском. Это предзаготовки, при выборе они сохраняются в БД как
+// пользовательские данные. Локализация всех названий сегментов — отдельная задача
+// (потребуется 30+ строк в strings.xml только для сегментов).
 private fun buildTemplates(): List<Pair<String, ProgramData>> {
     val intervals = ProgramData(
         name = "Интервалы 4×3 мин", description = "VO₂max: 4 быстрых отрезка по 3 минуты",
@@ -661,10 +713,11 @@ private fun ProgramEditorScreen(
     onSave: (ProgramData) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val ctx = LocalContext.current
     val segments = remember(initial) {
         mutableStateListOf<SegmentEdit>().apply {
             initial.segments.forEach { add(SegmentEdit(it.name, it.durationSec, it.speedKmh, it.inclinePercent)) }
-            if (isEmpty()) add(SegmentEdit("Разминка", 300, 5.0, 0.0))
+            if (isEmpty()) add(SegmentEdit(ctx.getString(R.string.editor_segment_short) + " 1", 300, 5.0, 0.0))
         }
     }
     var name by remember(initial) { mutableStateOf(initial.name) }
@@ -680,17 +733,33 @@ private fun ProgramEditorScreen(
                     TopAppBar(
                         title = {
                             Column {
-                                Text(if (isNew) "Новая программа" else "Редактор", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                                Text("Всего: ${segments.sumOf { it.durationSec } / 60} мин", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    if (isNew) stringResource(R.string.editor_new_title)
+                                    else stringResource(R.string.editor_edit_title),
+                                    fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    stringResource(R.string.editor_total, segments.sumOf { it.durationSec } / 60),
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         },
-                        navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Закрыть") } },
+                        navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close)) } },
                         actions = {
                             TextButton(onClick = {
-                                if (name.isBlank()) { onShowMessage("Введите название программы"); return@TextButton }
-                                if (segments.isEmpty() || segments.any { it.durationSec <= 0 || it.speedKmh <= 0 }) { onShowMessage("Проверьте сегменты: время и скорость должны быть больше нуля"); return@TextButton }
-                                onSave(ProgramData(name, description, segments.map { ProgramSegment(it.durationSec, it.speedKmh, it.inclinePercent, it.name.ifBlank { "Сегмент" }) }))
-                            }) { Text("Сохранить", fontWeight = FontWeight.Bold) }
+                                if (name.isBlank()) {
+                                    onShowMessage(ctx.getString(R.string.editor_validate_name)); return@TextButton
+                                }
+                                if (segments.isEmpty() || segments.any { it.durationSec <= 0 || it.speedKmh <= 0 }) {
+                                    onShowMessage(ctx.getString(R.string.editor_validate_segments)); return@TextButton
+                                }
+                                onSave(ProgramData(name, description, segments.map {
+                                    ProgramSegment(
+                                        it.durationSec, it.speedKmh, it.inclinePercent,
+                                        it.name.ifBlank { ctx.getString(R.string.editor_segment_short) }
+                                    )
+                                }))
+                            }) { Text(stringResource(R.string.save), fontWeight = FontWeight.Bold) }
                         }
                     )
                 },
@@ -700,26 +769,31 @@ private fun ProgramEditorScreen(
                             Button(
                                 onClick = {
                                     val last = segments.lastOrNull()
-                                    segments.add(SegmentEdit("Сегмент ${segments.size + 1}", 60, last?.speedKmh ?: 5.0, last?.inclinePercent ?: 0.0))
+                                    segments.add(SegmentEdit(
+                                        "${ctx.getString(R.string.editor_segment_short)} ${segments.size + 1}",
+                                        60,
+                                        last?.speedKmh ?: 5.0,
+                                        last?.inclinePercent ?: 0.0
+                                    ))
                                     scope.launch { listState.animateScrollToItem(segments.size - 1) }
                                 },
                                 modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(10.dp)
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Добавить сегмент", fontSize = 15.sp)
+                                Text(stringResource(R.string.editor_add_segment), fontSize = 15.sp)
                             }
                         }
                     }
                 }
             ) { padding ->
                 Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp)) {
-                    SlimTextField(value = name, onValueChange = { name = it }, label = "Название программы", modifier = Modifier.fillMaxWidth())
+                    SlimTextField(value = name, onValueChange = { name = it }, label = stringResource(R.string.editor_name_label), modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(4.dp))
-                    SlimTextField(value = description, onValueChange = { description = it }, label = "Описание (опционально)", modifier = Modifier.fillMaxWidth())
+                    SlimTextField(value = description, onValueChange = { description = it }, label = stringResource(R.string.editor_description_label), modifier = Modifier.fillMaxWidth())
 
                     Spacer(Modifier.height(10.dp))
-                    Text("Сегменты", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(stringResource(R.string.editor_segments_title), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(4.dp))
 
                     LazyColumn(
@@ -830,7 +904,7 @@ private fun TimePickerDialog(initialSeconds: Int, onConfirm: (Int) -> Unit, onDi
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Выберите время", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(stringResource(R.string.editor_pick_time), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.height(16.dp))
 
                 AndroidView(
@@ -859,8 +933,8 @@ private fun TimePickerDialog(initialSeconds: Int, onConfirm: (Int) -> Unit, onDi
 
                 Spacer(Modifier.height(16.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = onDismiss) { Text("Отмена") }
-                    Button(onClick = { onConfirm(values[selectedIndex]) }) { Text("Готово") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                    Button(onClick = { onConfirm(values[selectedIndex]) }) { Text(stringResource(R.string.done)) }
                 }
             }
         }
@@ -908,7 +982,7 @@ private fun SegmentEditor(
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.fillMaxSize()) {
                             if (nameState.isEmpty()) {
-                                Text("Название", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 13.sp)
+                                Text(stringResource(R.string.editor_segment_name_placeholder), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 13.sp)
                             }
                             innerTextField()
                         }
@@ -936,7 +1010,7 @@ private fun SegmentEditor(
             Spacer(Modifier.height(6.dp))
 
             Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Время", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.editor_time), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     HoldableStepButton(icon = Icons.Default.Remove, onClick = { onChange(seg.copy(durationSec = (seg.durationSec - 5).coerceAtLeast(5))) }, enabled = seg.durationSec > 5, isPlus = false)
                     Text(
@@ -954,7 +1028,7 @@ private fun SegmentEditor(
             Spacer(Modifier.height(2.dp))
 
             Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Скорость", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.editor_speed), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     HoldableStepButton(
                         icon = Icons.Default.Remove,
@@ -976,7 +1050,7 @@ private fun SegmentEditor(
                 Spacer(Modifier.height(2.dp))
 
                 Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Наклон", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.editor_incline), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         HoldableStepButton(
                             icon = Icons.Default.Remove,
