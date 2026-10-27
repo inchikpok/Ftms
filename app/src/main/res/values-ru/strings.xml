@@ -457,5 +457,6 @@
     <string name="gen_seg_run">Бег</string>
     <string name="gen_seg_fast">Быстро %1$d</string>
     <string name="gen_seg_slow">Медленно %1$d</string>
+    <string name="unit_hour">ч</string>
     
 </resources>
