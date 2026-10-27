@@ -1,7 +1,6 @@
 package com.custom.treadmill.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,11 +15,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.treadmill.R
 import com.custom.treadmill.data.repository.ExperienceLevel
 import com.custom.treadmill.data.repository.UserProfile
 import com.custom.treadmill.logic.HeartRateZoneCalculator
@@ -40,9 +41,9 @@ fun ProfilesScreen(vm: MainViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Профили", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.profiles_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                 }
             )
         },
@@ -50,7 +51,7 @@ fun ProfilesScreen(vm: MainViewModel, onBack: () -> Unit) {
             ExtendedFloatingActionButton(
                 onClick = { showAddDialog = true },
                 icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("Добавить") }
+                text = { Text(stringResource(R.string.profiles_add)) }
             )
         }
     ) { padding ->
@@ -110,25 +111,29 @@ private fun ProfileCard(
         )
     ) {
         Column(Modifier.padding(12.dp)) {
-            // Верхняя часть: имя и кнопки
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(
                     selected = isActive,
                     onClick = onSelect
                 )
                 Column(Modifier.weight(1f)) {
-                    Text(profile.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Text(
-                        "${profile.weightKg} кг · ${profile.heightCm} см · ${profile.age} лет · ${if (profile.isMale) "М" else "Ж"}",
+                        profile.name.ifBlank { stringResource(R.string.profiles_name) },
+                        fontWeight = FontWeight.Bold, fontSize = 16.sp
+                    )
+                    val gender = if (profile.isMale) stringResource(R.string.profiles_male_short)
+                                 else stringResource(R.string.profiles_female_short)
+                    Text(
+                        stringResource(R.string.profiles_stats_format, profile.weightKg, profile.heightCm, profile.age, gender),
                         fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, "Редактировать", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Edit, stringResource(R.string.edit), tint = MaterialTheme.colorScheme.primary)
                 }
                 if (canDelete) {
                     IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, "Удалить", tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -137,19 +142,18 @@ private fun ProfileCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
             Spacer(Modifier.height(8.dp))
 
-            // Нижняя часть: Пульсовые зоны
             val maxHr = HeartRateZoneCalculator.calculateMaxHr(profile.age, profile.isMale)
             val zones = HeartRateZoneCalculator.getZoneBounds(maxHr, profile.restingHr)
-            
+
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Зоны пульса (макс. $maxHr)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.profiles_zones_header, maxHr), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.height(4.dp))
-            
+
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -166,7 +170,6 @@ private fun ProfileCard(
 
 @Composable
 private fun ZoneBlock(name: String, range: String, color: Color, modifier: Modifier = Modifier) {
-    // Превращаем цвет в полупрозрачный для фона, оставляя ярким для текста/индикатора
     val bgColor = color.copy(alpha = 0.15f)
     val textColor = color.copy(alpha = 1f)
 
@@ -213,58 +216,58 @@ private fun ProfileEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isNew) "Новый профиль" else "Редактировать профиль") },
+        title = { Text(if (isNew) stringResource(R.string.profiles_new_title) else stringResource(R.string.profiles_edit_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
-                    value = name, onValueChange = { name = it }, 
-                    label = { Text("Имя") }, singleLine = true, 
+                    value = name, onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.profiles_name)) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = weight, onValueChange = { weight = it },
-                        label = { Text("Вес (кг)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        label = { Text(stringResource(R.string.profiles_weight)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true, modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
                         value = height, onValueChange = { height = it },
-                        label = { Text("Рост (см)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        label = { Text(stringResource(R.string.profiles_height)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true, modifier = Modifier.weight(1f)
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = age, onValueChange = { age = it },
-                        label = { Text("Возраст") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        label = { Text(stringResource(R.string.profiles_age)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true, modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
                         value = restingHr, onValueChange = { restingHr = it },
-                        label = { Text("Пульс покоя") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        label = { Text(stringResource(R.string.profiles_resting_hr)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true, modifier = Modifier.weight(1f)
                     )
                 }
-                
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Пол:", modifier = Modifier.weight(1f))
-                    Text("Ж", fontSize = 14.sp)
+                    Text(stringResource(R.string.profiles_gender), modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.profiles_female_short), fontSize = 14.sp)
                     Switch(checked = isMale, onCheckedChange = { isMale = it }, modifier = Modifier.padding(horizontal = 4.dp))
-                    Text("М", fontSize = 14.sp)
+                    Text(stringResource(R.string.profiles_male_short), fontSize = 14.sp)
                 }
 
-                Text("Уровень подготовки:", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.profiles_level), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     ExperienceLevel.values().forEach { lvl ->
-                        val label = when(lvl) {
-                            ExperienceLevel.BEGINNER -> "Новичок"
-                            ExperienceLevel.INTERMEDIATE -> "Средний"
-                            ExperienceLevel.ADVANCED -> "Профи"
+                        val labelRes = when (lvl) {
+                            ExperienceLevel.BEGINNER -> R.string.profiles_level_beginner
+                            ExperienceLevel.INTERMEDIATE -> R.string.profiles_level_intermediate
+                            ExperienceLevel.ADVANCED -> R.string.profiles_level_advanced
                         }
                         FilterChip(
                             selected = level == lvl,
                             onClick = { level = lvl },
-                            label = { Text(label, fontSize = 11.sp) }
+                            label = { Text(stringResource(labelRes), fontSize = 11.sp) }
                         )
                     }
                 }
@@ -277,8 +280,8 @@ private fun ProfileEditDialog(
                 val a = age.toIntOrNull() ?: 30
                 val r = restingHr.toIntOrNull() ?: 60
                 onSave(initial.copy(name = name, weightKg = w, heightCm = h, age = a, restingHr = r, isMale = isMale, level = level))
-            }) { Text("Сохранить") }
+            }) { Text(stringResource(R.string.save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
