@@ -479,5 +479,25 @@
     <string name="gen_seg_fast">Fast %1$d</string>
     <string name="gen_seg_slow">Slow %1$d</string>
     <string name="unit_hour">h</string>
+       <!-- Data / Backup -->
+    <string name="settings_group_data">Data</string>
+    <string name="settings_backup_export_title">Export backup</string>
+    <string name="settings_backup_export_subtitle">Save all programs, workouts and settings as a ZIP file</string>
+    <string name="settings_backup_restore_title">Restore from backup</string>
+    <string name="settings_backup_restore_subtitle">Load programs, workouts and settings from a ZIP file</string>
+    <string name="backup_export_success">Backup saved</string>
+    <string name="backup_export_error">Export error: %1$s</string>
+    <string name="backup_import_invalid">Invalid backup file</string>
+    <string name="backup_import_read_error">Cannot read backup: %1$s</string>
+    <string name="backup_import_error">Restore error: %1$s</string>
+    <string name="backup_restore_blocked_title">Cannot restore right now</string>
+    <string name="backup_restore_blocked_text">A workout is in progress. Stop it and disconnect the treadmill before restoring a backup.</string>
+    <string name="backup_restore_dialog_title">Restore from backup?</string>
+    <string name="backup_restore_dialog_text">All current data will be replaced by the contents of the backup. The app will restart automatically.</string>
+    <string name="backup_restore_dialog_info">Backup details:\nDate: %1$s\nPrograms: %2$d\nWorkouts: %3$d\nProfiles: %4$d</string>
+    <string name="backup_restore_confirm">Restore and restart</string>
+    <string name="backup_restore_in_progress">Restoring…</string>
+    <string name="backup_restore_success_restart">Backup restored. Restarting…</string>
+
     
 </resources>
