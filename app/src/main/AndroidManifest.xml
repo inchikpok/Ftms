@@ -9,21 +9,22 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
 
-    <!-- [НОВОЕ] Разрешения для работы в фоне и уведомлений -->
+    <!-- Разрешения для работы в фоне и уведомлений -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
     </queries>
-        <application
+
+    <application
         android:name=".TreadmillApp"
-        android:allowBackup="false" 
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Treadmill Control"
@@ -41,7 +42,6 @@
             </intent-filter>
         </activity>
 
-        <!-- [НОВОЕ] Фоновый сервис -->
         <service
             android:name=".service.TreadmillService"
             android:foregroundServiceType="connectedDevice"
