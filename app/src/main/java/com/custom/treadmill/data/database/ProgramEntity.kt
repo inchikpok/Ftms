@@ -38,5 +38,7 @@ data class WorkoutLogEntity(
     val calories: Int,
     val avgHeartRate: Int,
     val maxHeartRate: Int,
-    val avgSpeedKmh: Double
+    val avgSpeedKmh: Double,
+    // [ИТ.2] Компактная кривая пульса "0:120,5:125,...". Пустая строка = нет данных.
+    val hrSamples: String = ""
 )
