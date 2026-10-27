@@ -458,5 +458,25 @@
     <string name="gen_seg_fast">Быстро %1$d</string>
     <string name="gen_seg_slow">Медленно %1$d</string>
     <string name="unit_hour">ч</string>
+
+        <!-- Data / Backup -->
+    <string name="settings_group_data">Данные</string>
+    <string name="settings_backup_export_title">Экспорт резервной копии</string>
+    <string name="settings_backup_export_subtitle">Сохранить все программы, тренировки и настройки в ZIP-файл</string>
+    <string name="settings_backup_restore_title">Восстановление из копии</string>
+    <string name="settings_backup_restore_subtitle">Загрузить программы, тренировки и настройки из ZIP-файла</string>
+    <string name="backup_export_success">Копия сохранена</string>
+    <string name="backup_export_error">Ошибка экспорта: %1$s</string>
+    <string name="backup_import_invalid">Некорректный файл резервной копии</string>
+    <string name="backup_import_read_error">Не удаётся прочитать копию: %1$s</string>
+    <string name="backup_import_error">Ошибка восстановления: %1$s</string>
+    <string name="backup_restore_blocked_title">Сейчас нельзя восстановить</string>
+    <string name="backup_restore_blocked_text">Идёт тренировка. Остановите её и отключите дорожку перед восстановлением копии.</string>
+    <string name="backup_restore_dialog_title">Восстановить из копии?</string>
+    <string name="backup_restore_dialog_text">Все текущие данные будут заменены содержимым копии. Приложение перезапустится автоматически.</string>
+    <string name="backup_restore_dialog_info">Детали копии:\nДата: %1$s\nПрограмм: %2$d\nТренировок: %3$d\nПрофилей: %4$d</string>
+    <string name="backup_restore_confirm">Восстановить и перезапустить</string>
+    <string name="backup_restore_in_progress">Восстановление…</string>
+    <string name="backup_restore_success_restart">Копия восстановлена. Перезапуск…</string>
     
 </resources>
