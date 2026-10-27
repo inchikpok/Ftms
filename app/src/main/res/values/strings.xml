@@ -453,5 +453,30 @@
     <!-- Heart rate chart / sparkline -->
     <string name="hr_waiting_for_data">Waiting for heart rate data…</string>
     <string name="hr_no_data">No heart rate data</string>
+
+        <!-- Chart -->
+    <string name="chart_hours">%1$dh</string>
+
+    <!-- Generator (ProgramGenerator.kt) -->
+    <string name="gen_name_weight_loss">Fat burn %1$dm</string>
+    <string name="gen_name_cardio">Cardio %1$dm</string>
+    <string name="gen_name_speed">Speed %1$dm</string>
+    <string name="gen_desc_weight_loss">Weight loss · Level: %1$s · Intensity: %2$d%%</string>
+    <string name="gen_desc_cardio">Cardio · Level: %1$s · Intensity: %2$d%%</string>
+    <string name="gen_desc_speed">Speed · Level: %1$s · Intensity: %2$d%%</string>
+    <string name="gen_level_beginner">beginner</string>
+    <string name="gen_level_intermediate">intermediate</string>
+    <string name="gen_level_advanced">advanced</string>
+    
+    <!-- Generator Segments -->
+    <string name="gen_seg_warmup_walk">Warmup (Walk)</string>
+    <string name="gen_seg_hill_walk">Hill walk %1$d</string>
+    <string name="gen_seg_recovery">Recovery %1$d</string>
+    <string name="gen_seg_active">Active %1$d</string>
+    <string name="gen_seg_warmup">Warmup</string>
+    <string name="gen_seg_cooldown">Cooldown</string>
+    <string name="gen_seg_run">Run</string>
+    <string name="gen_seg_fast">Fast %1$d</string>
+    <string name="gen_seg_slow">Slow %1$d</string>
     
 </resources>
