@@ -406,4 +406,50 @@
     <string name="hr_waiting_for_data">Waiting for heart rate data…</string>
     <string name="debug_cmd_start_belt">Start treadmill (00→07)</string>
     <string name="debug_cmd_reset_short">Reset</string>
+
+        <!-- Session messages -->
+    <string name="session_lost_connection">Connection lost. Reconnecting…</string>
+    <string name="session_reconnected">Connection restored!</string>
+    <string name="session_reconnected_paused">Connection restored. Workout is paused — press "Resume".</string>
+    <string name="session_reconnect_failed">Reconnect failed. Press the button on the treadmill.</string>
+    <string name="session_treadmill_ready">Treadmill ready</string>
+    <string name="session_chars_not_found">Characteristics not found</string>
+    <string name="session_treadmill_no_response">Treadmill not responding. Press the button on the treadmill.</string>
+    <string name="session_hr_disconnected">HR monitor disconnected</string>
+
+    <!-- Program templates -->
+    <string name="template_intervals_title">Intervals 4×3 min</string>
+    <string name="template_intervals_desc">VO₂max: 4 fast intervals of 3 minutes</string>
+    <string name="template_pyramid_title">Pyramid (1-2-3-2-1)</string>
+    <string name="template_pyramid_desc">1-2-3-2-1 min with recovery</string>
+    <string name="template_hills_title">Hills 6×1 min @ 6%</string>
+    <string name="template_hills_desc">6 minutes of hill work with recovery</string>
+    <string name="template_fartlek_title">Fartlek 20 min</string>
+    <string name="template_fartlek_desc">Free speed play</string>
+
+    <!-- Template segments -->
+    <string name="seg_warmup_easy">Warmup: easy jog</string>
+    <string name="seg_warmup_accel">Warmup: acceleration</string>
+    <string name="seg_warmup_jog">Warmup: jog</string>
+    <string name="seg_warmup_calm">Warmup: calm jog</string>
+    <string name="seg_interval">Interval %1$d/4</string>
+    <string name="seg_rest_jog">Rest: jog</string>
+    <string name="seg_cooldown_jog">Cooldown: easy jog</string>
+    <string name="seg_cooldown_walk">Cooldown: walk</string>
+    <string name="seg_warmup">Warmup</string>
+    <string name="seg_pyramid">Pyramid %1$d min</string>
+    <string name="seg_rest">Rest</string>
+    <string name="seg_cooldown">Cooldown</string>
+    <string name="seg_hill">Hill %1$d/6</string>
+    <string name="seg_rest_hill">Rest on incline</string>
+    <string name="seg_sprint">Sprint</string>
+    <string name="seg_trot">Trot</string>
+    <string name="seg_tempo">Tempo</string>
+
+    <!-- History time formats -->
+    <string name="history_duration_hm">%1$dh %2$dm</string>
+    <string name="history_duration_m">%1$dm</string>
+    <string name="history_duration_hms">%1$dh %2$dm %3$ds</string>
+    <string name="history_duration_ms">%1$dm %2$ds</string>
+    <string name="history_duration_s">%1$ds</string>
 </resources>
