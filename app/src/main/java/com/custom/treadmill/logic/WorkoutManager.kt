@@ -135,6 +135,25 @@ class WorkoutManager {
         _state.value = WorkoutState()
     }
 
+    // [ФИКС] Безопасная отправка команд — чтобы исключение не убило корутину
+    private suspend fun safeSetSpeed(speed: Double, block: suspend (Double) -> Unit): Boolean {
+        return try {
+            block(speed)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private suspend fun safeSetIncline(incline: Double, block: suspend (Double) -> Unit): Boolean {
+        return try {
+            block(incline)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun launchLoop() {
         val scope = scopeRef ?: return
         val program = currentProgram ?: return
@@ -152,8 +171,12 @@ class WorkoutManager {
             if (index < segments.size) {
                 val firstSeg = segments[index]
                 if (_state.value.segmentElapsedSec == 0) {
-                    onSetSpeed(firstSeg.speedKmh)
-                    onSetIncline(firstSeg.inclinePercent)
+                    val spdOk = safeSetSpeed(firstSeg.speedKmh, onSetSpeed)
+                    val incOk = safeSetIncline(firstSeg.inclinePercent, onSetIncline)
+                    if (!spdOk || !incOk) {
+                        _state.value = _state.value.copy(running = false, paused = true)
+                        return@launch
+                    }
                     val newProgress = ((index.toFloat() / segments.size) * 100).toInt()
                     _state.value = _state.value.copy(
                         currentSegmentIndex = index,
@@ -164,8 +187,12 @@ class WorkoutManager {
                     )
                 } else {
                     // Resume после паузы — переотправляем команды текущего сегмента
-                    onSetSpeed(firstSeg.speedKmh)
-                    onSetIncline(firstSeg.inclinePercent)
+                    val spdOk = safeSetSpeed(firstSeg.speedKmh, onSetSpeed)
+                    val incOk = safeSetIncline(firstSeg.inclinePercent, onSetIncline)
+                    if (!spdOk || !incOk) {
+                        _state.value = _state.value.copy(running = false, paused = true)
+                        return@launch
+                    }
                 }
             }
 
@@ -192,8 +219,12 @@ class WorkoutManager {
                     index++
                     if (index < segments.size) {
                         val nextSeg = segments[index]
-                        onSetSpeed(nextSeg.speedKmh)
-                        onSetIncline(nextSeg.inclinePercent)
+                        val spdOk = safeSetSpeed(nextSeg.speedKmh, onSetSpeed)
+                        val incOk = safeSetIncline(nextSeg.inclinePercent, onSetIncline)
+                        if (!spdOk || !incOk) {
+                            _state.value = _state.value.copy(running = false, paused = true)
+                            return@launch
+                        }
                         val newProgress = ((index.toFloat() / segments.size) * 100).toInt()
                         _state.value = _state.value.copy(
                             currentSegmentIndex = index,
