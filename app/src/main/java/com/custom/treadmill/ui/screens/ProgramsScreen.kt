@@ -301,6 +301,28 @@ fun ProgramsScreen(
         )
     }
 
+    if (showTemplates) {
+        TemplatesDialog(
+            maxSpeed = effectiveMaxSpeed,
+            maxIncline = if (showIncline) effectiveMaxIncline else 0.0,
+            onPick = { template ->
+                showTemplates = false
+                editingId = 0L
+                editingData = template ?: ProgramData(
+                    name = ctx.getString(R.string.editor_new_title),
+                    description = "",
+                    segments = listOf(
+                        ProgramSegment(
+                            300,
+                            5.0.coerceAtMost(effectiveMaxSpeed),
+                            0.0,
+                            ctx.getString(R.string.editor_segment_short) + " 1"
+                        )
+                    )
+                )
+            },
+            onDismiss = { showTemplates = false }
+        )
     }
 
     if (showNotConnectedDialog) {
@@ -440,8 +462,8 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
     val maxIncline = 15.0
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    
-    // [ФИКС] Забираем строку из ресурсов ДО входа в Canvas. 
+
+    // [ФИКС] Забираем строку из ресурсов ДО входа в Canvas.
     // Внутри Canvas нельзя вызывать @Composable функции.
     val hourSuffix = stringResource(R.string.unit_hour)
 
@@ -490,10 +512,10 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
             val x = (m / totalMin) * w
             val textX = when { i == 0 -> x + 4.dp.toPx(); m >= totalMin -> x - 4.dp.toPx(); else -> x }
             drawLine(axisColor, start = Offset(x, chartH), end = Offset(x, chartH - 3.dp.toPx()), strokeWidth = 1.dp.toPx())
-            
-            val label = when { 
-                m < 60 -> "${m.toInt()}" 
-                else -> "${(m / 60).toInt()}$hourSuffix" 
+
+            val label = when {
+                m < 60 -> "${m.toInt()}"
+                else -> "${(m / 60).toInt()}$hourSuffix"
             }
             drawContext.canvas.nativeCanvas.drawText(label, textX, size.height - 2.dp.toPx(), textPaint)
         }
@@ -570,7 +592,7 @@ private fun ProgramCardModern(
                                     stringResource(R.string.programs_duration_format, m, s)
                                 else
                                     stringResource(R.string.programs_seconds_short, s)
-                                
+
                                 // [ФИКС] Безопасное форматирование: числа отдельно, строки отдельно
                                 val unitKmh = stringResource(R.string.unit_kmh)
                                 val unitPercent = stringResource(R.string.unit_percent)
@@ -579,8 +601,8 @@ private fun ProgramCardModern(
 
                                 Text(
                                     "$timeStr · $speedStr $unitKmh · $inclineStr$unitPercent",
-                                    fontSize = 12.sp, 
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant, 
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                 )
                             }
@@ -601,7 +623,6 @@ private fun StatChip(text: String) {
 }
 
 @Composable
-@Composable
 private fun TemplatesDialog(
     maxSpeed: Double,
     maxIncline: Double,
@@ -610,7 +631,7 @@ private fun TemplatesDialog(
 ) {
     val ctx = LocalContext.current
     val templates = remember(maxSpeed, maxIncline) {
-        (ctx, maxSpeed, maxIncline)
+        buildTemplates(ctx, maxSpeed, maxIncline)
     }
     AlertDialog(
         onDismissRequest = onDismiss,
