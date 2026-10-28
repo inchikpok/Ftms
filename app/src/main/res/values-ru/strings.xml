@@ -478,5 +478,11 @@
     <string name="backup_restore_confirm">Восстановить и перезапустить</string>
     <string name="backup_restore_in_progress">Восстановление…</string>
     <string name="backup_restore_success_restart">Копия восстановлена. Перезапуск…</string>
+
+        <!-- v2.3.3: warning на импорт с превышением лимитов -->
+    <string name="programs_import_overflow">Программа «%1$s» импортирована, но %2$d сегмент(ов) превышают %3$.1f км/ч — проверьте настройки</string>
+
+    <!-- v2.3.3: About без шаблона (короткая подсказка) -->
+    <string name="about_custom_workout_hint">Создать тренировку: Программы → Создать, или импортировать JSON-файл через 📤. Формат — в README.</string>
     
 </resources>
