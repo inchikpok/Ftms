@@ -115,7 +115,25 @@ fun ProgramsScreen(
                 mainVm.showMessage(ctx.getString(R.string.programs_import_error_invalid_segments)); return
             }
             programVm.save(data)
-            mainVm.showMessage(ctx.getString(R.string.programs_import_success, data.name, source))
+
+            // Warning при превышении лимитов скорости/наклона. Импорт НЕ блокируется —
+            // пользователь сам выбрал файл, но предупреждение показываем.
+            val overflow = data.segments.count {
+                it.speedKmh > effectiveMaxSpeed ||
+                (showIncline && it.inclinePercent > effectiveMaxIncline)
+            }
+            if (overflow > 0) {
+                mainVm.showMessage(
+                    ctx.getString(
+                        R.string.programs_import_overflow,
+                        data.name,
+                        overflow,
+                        effectiveMaxSpeed
+                    )
+                )
+            } else {
+                mainVm.showMessage(ctx.getString(R.string.programs_import_success, data.name, source))
+            }
         } catch (e: Exception) {
             mainVm.showMessage(ctx.getString(R.string.programs_import_error_generic, e.message ?: ""))
         }
