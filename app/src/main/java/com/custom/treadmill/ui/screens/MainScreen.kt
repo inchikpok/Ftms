@@ -104,11 +104,30 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     }
 
     var permsGranted by remember { mutableStateOf(hasBlePermissions(ctx)) }
+    var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permsGranted = hasBlePermissions(ctx) }
+    ) { 
+        val granted = hasBlePermissions(ctx)
+        permsGranted = granted
+        if (granted) {
+            pendingAction?.invoke()
+        } else {
+            vm.showMessage(ctx.getString(R.string.ble_permission_denied))
+        }
+        pendingAction = null
+    }
 
-    LaunchedEffect(Unit) { if (!permsGranted) permLauncher.launch(requiredBlePermissions()) }
+    fun requestBleAndRun(action: () -> Unit) {
+        if (hasBlePermissions(ctx)) {
+            action()
+        } else {
+            pendingAction = action
+            permLauncher.launch(requiredBlePermissions())
+        }
+    }
+
     LaunchedEffect(scanMode) {
         if (scanMode != ScanMode.NONE) { delay(15_000); vm.stopScan() }
     }
@@ -167,7 +186,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         label = stringResource(R.string.main_treadmill_label),
                         deviceName = treadmillName,
                         state = treadmillState,
-                        onConnect = { vm.startScanTreadmill() },
+                        onConnect = { requestBleAndRun { vm.startScanTreadmill() } },
                         onDisconnect = { vm.disconnectTreadmill() },
                         cooldownRemaining = cooldownRemaining,
                         modifier = Modifier.weight(1f)
@@ -176,7 +195,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         label = stringResource(R.string.main_hr_label),
                         deviceName = hrName,
                         state = hrState,
-                        onConnect = { vm.startScanHeartRate() },
+                        onConnect = { requestBleAndRun { vm.startScanHeartRate() } },
                         onDisconnect = { vm.disconnectHeartRate() },
                         cooldownRemaining = cooldownRemaining,
                         modifier = Modifier.weight(1f)
