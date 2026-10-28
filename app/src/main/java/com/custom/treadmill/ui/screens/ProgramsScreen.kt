@@ -301,24 +301,6 @@ fun ProgramsScreen(
         )
     }
 
-    if (showTemplates) {
-        TemplatesDialog(
-            onPick = { template ->
-                showTemplates = false
-                editingId = 0L
-                editingData = template ?: ProgramData(
-                    name = ctx.getString(R.string.editor_new_title),
-                    description = "",
-                    segments = listOf(
-                        ProgramSegment(
-                            300, 5.0, 0.0,
-                            ctx.getString(R.string.editor_segment_short) + " 1"
-                        )
-                    )
-                )
-            },
-            onDismiss = { showTemplates = false }
-        )
     }
 
     if (showNotConnectedDialog) {
