@@ -121,10 +121,11 @@ class FTMSProtocol : ITreadmillProtocol {
         }
         _capabilities.value = caps
 
+        // [ФИКС] Ждём реального ACK от дескрипторов
         if (conn.findCharacteristic(Uuids.FTMS_TREADMILL_DATA) != null) {
-            conn.setNotify(Uuids.FTMS_TREADMILL_DATA, true, indicate = false)
+            conn.setNotifySuspend(Uuids.FTMS_TREADMILL_DATA, true, indicate = false)
         }
-        controlPointUuid?.let { conn.setNotify(it, true, indicate = true) }
+        controlPointUuid?.let { conn.setNotifySuspend(it, true, indicate = true) }
 
         lastRequestedSpeed = 0.0
         lastSpeedSentAt = 0L
@@ -246,7 +247,7 @@ class FTMSProtocol : ITreadmillProtocol {
         val c = conn ?: return false
         lastRequestedSpeed = 0.0
 
-        // [ФИКС] Всегда отправляем 08 01, даже если кажется, что дорожка уже стоит.
+        // Всегда отправляем 08 01, даже если кажется, что дорожка уже стоит.
         // Это очищает буфер дорожки и гарантирует остановку.
         sendMutex.withLock {
             c.writeSuspend(uuid, byteArrayOf(0x08, 0x01), true)
@@ -302,46 +303,88 @@ class FTMSProtocol : ITreadmillProtocol {
     }
 
     private fun parseTreadmillData(b: ByteArray) {
-        if (b.size < 4) return
+        if (b.size < 2) return
         try {
-            var o = 2
             val flags = u16(b, 0)
+            var o = 2
             val prev = _data.value
 
             var speed = prev.speedKmh
-            var incline = 0.0
+            // [ФИКС] Если флаг наклона не пришел, оставляем предыдущее значение
+            var incline = prev.inclinePercent
             var distance = prev.distanceKm
             var calories = prev.calories
             var elapsed = prev.elapsedSec
             var hr = prev.heartRate
 
+            // Instantaneous Speed (sint16)
             if (o + 2 <= b.size) {
                 speed = u16(b, o) / 100.0
                 o += 2
-            }
-            if (flags and (1 shl 1) != 0) o += 2
-            if (flags and (1 shl 2) != 0) {
-                if (o + 3 <= b.size) distance = u24(b, o) / 1000.0
-                o += 3
-            }
-            if (flags and (1 shl 3) != 0) {
-                if (o + 2 <= b.size) incline = s16(b, o) / 10.0
+            } else return
+
+            // Average Speed (sint16)
+            if (flags and (1 shl 1) != 0) {
+                if (o + 2 > b.size) return
                 o += 2
             }
-            if (flags and (1 shl 4) != 0) o += 2
-            if (flags and (1 shl 5) != 0) o += 1
-            if (flags and (1 shl 6) != 0) o += 1
-            if (flags and (1 shl 7) != 0) {
-                if (o + 2 <= b.size) calories = u16(b, o)
-                o += 5
+
+            // Total Distance (uint24)
+            if (flags and (1 shl 2) != 0) {
+                if (o + 3 > b.size) return
+                distance = u24(b, o) / 1000.0
+                o += 3
             }
-            if (flags and (1 shl 8) != 0) {
-                if (o + 1 <= b.size) hr = b[o].toInt() and 0xFF
+
+            // Inclination (sint16) + Ramp Angle (sint16) = 4 байта
+            if (flags and (1 shl 3) != 0) {
+                if (o + 4 > b.size) return
+                incline = s16(b, o) / 10.0
+                o += 4
+            }
+
+            // Elevation Gain (uint16 pos + uint16 neg) = 4 байта
+            if (flags and (1 shl 4) != 0) {
+                if (o + 4 > b.size) return
+                o += 4
+            }
+
+            // Instantaneous Pace (uint8)
+            if (flags and (1 shl 5) != 0) {
+                if (o + 1 > b.size) return
                 o += 1
             }
-            if (flags and (1 shl 9) != 0) o += 1
+
+            // Average Pace (uint8)
+            if (flags and (1 shl 6) != 0) {
+                if (o + 1 > b.size) return
+                o += 1
+            }
+
+            // Total Energy (uint16) + Energy Per Hour (uint16) + Energy Per Minute (uint8) = 5 байт
+            if (flags and (1 shl 7) != 0) {
+                if (o + 5 > b.size) return
+                calories = u16(b, o)
+                o += 5
+            }
+
+            // Heart Rate (uint8)
+            if (flags and (1 shl 8) != 0) {
+                if (o + 1 > b.size) return
+                hr = b[o].toInt() and 0xFF
+                o += 1
+            }
+
+            // Metabolic Equivalent (uint8)
+            if (flags and (1 shl 9) != 0) {
+                if (o + 1 > b.size) return
+                o += 1
+            }
+
+            // Elapsed Time (uint16)
             if (flags and (1 shl 10) != 0) {
-                if (o + 2 <= b.size) elapsed = u16(b, o)
+                if (o + 2 > b.size) return
+                elapsed = u16(b, o)
                 o += 2
             }
 
