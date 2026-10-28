@@ -504,5 +504,7 @@
 
     <!-- v2.3.3: About без шаблона (короткая подсказка) -->
     <string name="about_custom_workout_hint">Create a workout: Programs → Create, or import a JSON file via 📤. See README for the format.</string>
+
+    <string name="ble_permission_denied">Bluetooth permissions are required to connect the treadmill</string>
     
 </resources>
