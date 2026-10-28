@@ -23,9 +23,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 enum class BleConnectionState {
     DISCONNECTED, CONNECTING, CONNECTED, DISCOVERING, READY, FAILED
@@ -60,8 +61,9 @@ class BleConnection(
     private val _characteristics = MutableStateFlow<List<GattCharInfo>>(emptyList())
     val characteristics: StateFlow<List<GattCharInfo>> = _characteristics.asStateFlow()
 
-    private val pendingReads = ConcurrentHashMap<UUID, CompletableDeferred<ByteArray?>>()
-    private val pendingWrites = ConcurrentHashMap<UUID, CompletableDeferred<Boolean>>()
+    // [ФИКС] Один Mutex и один Deferred для всех операций
+    private val gattMutex = Mutex()
+    @Volatile private var activeDeferred: CompletableDeferred<Any?>? = null
 
     @Volatile private var isDisconnecting = false
     private var disconnectTimeoutJob: Job? = null
@@ -118,7 +120,7 @@ class BleConnection(
         override fun onCharacteristicRead(g: BluetoothGatt, c: BluetoothGattCharacteristic, value: ByteArray, status: Int) {
             val result = if (status == BluetoothGatt.GATT_SUCCESS) value else null
             log("read ${c.uuid} status=$status value=${value.toHex()}")
-            pendingReads.remove(c.uuid)?.complete(result)
+            (activeDeferred as? CompletableDeferred<ByteArray?>)?.complete(result)
         }
 
         @Deprecated("Deprecated in Java")
@@ -126,7 +128,7 @@ class BleConnection(
         override fun onCharacteristicRead(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
             val result = if (status == BluetoothGatt.GATT_SUCCESS) c.value else null
             log("read ${c.uuid} status=$status value=${result?.toHex()}")
-            pendingReads.remove(c.uuid)?.complete(result)
+            (activeDeferred as? CompletableDeferred<ByteArray?>)?.complete(result)
         }
 
         override fun onCharacteristicChanged(g: BluetoothGatt, c: BluetoothGattCharacteristic, value: ByteArray) {
@@ -144,11 +146,12 @@ class BleConnection(
 
         override fun onCharacteristicWrite(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
             log("write ${c.uuid} status=$status")
-            pendingWrites.remove(c.uuid)?.complete(status == BluetoothGatt.GATT_SUCCESS)
+            (activeDeferred as? CompletableDeferred<Boolean>)?.complete(status == BluetoothGatt.GATT_SUCCESS)
         }
 
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
             log("descriptorWrite ${d.uuid} status=$status")
+            (activeDeferred as? CompletableDeferred<Boolean>)?.complete(status == BluetoothGatt.GATT_SUCCESS)
         }
 
         override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
@@ -180,13 +183,6 @@ class BleConnection(
         }
     }
 
-    /**
-     * Правильное отключение:
-     *  1. Отправляем disconnect() в стек.
-     *  2. Ждём onConnectionStateChange(DISCONNECTED) — L2CAP-разъединение уже на дорожке.
-     *  3. Затем refresh() + close() освобождают GATT-клиент.
-     * Фолбэк: 3 сек таймаут на случай, если callback не придёт.
-     */
     fun disconnect() {
         if (isDisconnecting) {
             log("disconnect: уже в процессе — игнор")
@@ -249,10 +245,8 @@ class BleConnection(
     }
 
     private fun completePending() {
-        pendingReads.values.forEach { it.complete(null) }
-        pendingReads.clear()
-        pendingWrites.values.forEach { it.complete(false) }
-        pendingWrites.clear()
+        activeDeferred?.complete(null)
+        activeDeferred = null
     }
 
     fun isReady(): Boolean = _state.value == BleConnectionState.READY && gatt != null
@@ -271,23 +265,28 @@ class BleConnection(
         return s.characteristics.firstOrNull { (it.properties and requiredPropertyMask) != 0 }
     }
 
-    fun setNotify(uuid: UUID, enable: Boolean, indicate: Boolean = false): Boolean {
-        val g = gatt ?: return false
+    suspend fun setNotifySuspend(uuid: UUID, enable: Boolean, indicate: Boolean = false): Boolean = gattMutex.withLock {
+        val g = gatt ?: return@withLock false
         val c = findCharacteristic(uuid) ?: run {
             log("setNotify: характеристика $uuid не найдена")
-            return false
+            return@withLock false
         }
         if (!g.setCharacteristicNotification(c, enable)) {
             log("setCharacteristicNotification($uuid) = false")
+            return@withLock false
         }
-        val cccd = c.getDescriptor(Uuids.CCCD) ?: return false
+        val cccd = c.getDescriptor(Uuids.CCCD) ?: return@withLock false
         val value = when {
             !enable -> BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
             indicate -> BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
             else -> BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         }
-        return try {
-            if (Build.VERSION.SDK_INT >= 33) {
+
+        val deferred = CompletableDeferred<Boolean>()
+        activeDeferred = deferred
+
+        try {
+            val queued = if (Build.VERSION.SDK_INT >= 33) {
                 g.writeDescriptor(cccd, value) == 0
             } else {
                 @Suppress("DEPRECATION")
@@ -295,20 +294,35 @@ class BleConnection(
                 @Suppress("DEPRECATION")
                 g.writeDescriptor(cccd)
             }
+            if (!queued) {
+                activeDeferred = null
+                return@withLock false
+            }
         } catch (e: Exception) {
             log("Ошибка setNotify: ${e.message}")
-            false
+            activeDeferred = null
+            return@withLock false
         }
+
+        val result = withTimeoutOrNull(2000L) { deferred.await() } ?: false
+        activeDeferred = null
+        if (!result) log("setNotify TIMEOUT/FAIL для $uuid")
+        result
     }
 
-    suspend fun read(uuid: UUID): ByteArray? {
-        val g = gatt ?: return null
+    // Оставляем старую сигнатуру для совместимости (HeartRateService и т.д.)
+    fun setNotify(uuid: UUID, enable: Boolean, indicate: Boolean = false) {
+        scope.launch { setNotifySuspend(uuid, enable, indicate) }
+    }
+
+    suspend fun read(uuid: UUID): ByteArray? = gattMutex.withLock {
+        val g = gatt ?: return@withLock null
         val c = findCharacteristic(uuid) ?: run {
             log("read: характеристика $uuid не найдена")
-            return null
+            return@withLock null
         }
         val deferred = CompletableDeferred<ByteArray?>()
-        pendingReads[uuid] = deferred
+        activeDeferred = deferred
         try {
             if (Build.VERSION.SDK_INT >= 33) {
                 g.readCharacteristic(c)
@@ -318,10 +332,12 @@ class BleConnection(
             }
         } catch (e: Exception) {
             log("Ошибка read: ${e.message}")
-            pendingReads.remove(uuid)
-            return null
+            activeDeferred = null
+            return@withLock null
         }
-        return withTimeoutOrNull(2000L) { deferred.await() }
+        val result = withTimeoutOrNull(2000L) { deferred.await() }
+        activeDeferred = null
+        result
     }
 
     suspend fun writeSuspend(uuid: UUID, data: ByteArray, withResponse: Boolean = true): Boolean {
@@ -332,12 +348,12 @@ class BleConnection(
         return writeSuspend(c, data, withResponse)
     }
 
-    suspend fun writeSuspend(c: BluetoothGattCharacteristic, data: ByteArray, withResponse: Boolean): Boolean {
-        val g = gatt ?: return false
+    suspend fun writeSuspend(c: BluetoothGattCharacteristic, data: ByteArray, withResponse: Boolean): Boolean = gattMutex.withLock {
+        val g = gatt ?: return@withLock false
         log("-> ${c.uuid} ${data.toHex()}")
 
         val deferred = CompletableDeferred<Boolean>()
-        pendingWrites[c.uuid] = deferred
+        activeDeferred = deferred
 
         val queued = try {
             if (Build.VERSION.SDK_INT >= 33) {
@@ -353,23 +369,23 @@ class BleConnection(
             }
         } catch (e: Exception) {
             log("Ошибка writeSuspend: ${e.message}")
-            pendingWrites.remove(c.uuid)
-            return false
+            activeDeferred = null
+            return@withLock false
         }
 
         if (!queued) {
             log("writeSuspend REJECTED for ${c.uuid} (write already in progress)")
-            pendingWrites.remove(c.uuid)
-            return false
+            activeDeferred = null
+            return@withLock false
         }
 
         val result = withTimeoutOrNull(2000L) { deferred.await() }
-        pendingWrites.remove(c.uuid)
+        activeDeferred = null
         if (result == null) {
             log("writeSuspend TIMEOUT for ${c.uuid}")
-            return false
+            return@withLock false
         }
-        return result
+        result
     }
 
     fun write(c: BluetoothGattCharacteristic, data: ByteArray, withResponse: Boolean): Boolean {
