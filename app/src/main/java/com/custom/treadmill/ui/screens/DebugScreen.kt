@@ -63,6 +63,7 @@ fun DebugScreen(vm: MainViewModel, onBack: () -> Unit) {
         logs.filter { line ->
             val ftmsOk = !hideTreadmillFrames || !line.contains("<- 00002acd")
             val uiOk = !hideUiEvents || !line.contains("[UI]")
+            val navOk = !line.contains("deepLinkIntent") // <--- ДОБАВИТЬ ЭТО
             ftmsOk && uiOk
         }
     }
