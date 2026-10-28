@@ -54,12 +54,16 @@ fun DebugScreen(vm: MainViewModel, onBack: () -> Unit) {
     var savedMessage by remember { mutableStateOf<String?>(null) }
     var tab by rememberSaveable { mutableStateOf(0) }
     var hideTreadmillFrames by rememberSaveable { mutableStateOf(true) }
+    var hideUiEvents by rememberSaveable { mutableStateOf(true) }
 
     val listState = rememberLazyListState()
 
-    val visibleLogs = remember(logs, hideTreadmillFrames) {
-        if (hideTreadmillFrames) logs.filter { !it.contains("<- 00002acd") }
-        else logs
+    val visibleLogs = remember(logs, hideTreadmillFrames, hideUiEvents) {
+        logs.filter { line ->
+            val ftmsOk = !hideTreadmillFrames || !line.contains("<- 00002acd")
+            val uiOk = !hideUiEvents || !line.contains("[UI]")
+            ftmsOk && uiOk
+        }
     }
 
     LaunchedEffect(visibleLogs.size) {
@@ -175,7 +179,9 @@ fun DebugScreen(vm: MainViewModel, onBack: () -> Unit) {
                     logs = visibleLogs,
                     listState = listState,
                     hideTreadmillFrames = hideTreadmillFrames,
+                    hideUiEvents = hideUiEvents,
                     onToggleHide = { hideTreadmillFrames = !hideTreadmillFrames },
+                    onToggleUi = { hideUiEvents = !hideUiEvents },
                     modifier = Modifier.weight(1f)
                 )
                 1 -> CommandReference(
@@ -207,18 +213,35 @@ private fun TabButton(text: String, selected: Boolean, modifier: Modifier = Modi
 }
 
 @Composable
-private fun LogView(logs: List<String>, listState: LazyListState, hideTreadmillFrames: Boolean, onToggleHide: () -> Unit, modifier: Modifier = Modifier) {
+private fun LogView(
+    logs: List<String>,
+    listState: LazyListState,
+    hideTreadmillFrames: Boolean,
+    hideUiEvents: Boolean,
+    onToggleHide: () -> Unit,
+    onToggleUi: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Card(modifier) {
         Column(Modifier.fillMaxSize().padding(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.debug_log_title), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.debug_frames_ftms), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(4.dp))
+                    // "FTMS" и "UI" — технические акронимы, не переводятся.
+                    Text("FTMS", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(3.dp))
                     Switch(
                         checked = !hideTreadmillFrames,
                         onCheckedChange = { onToggleHide() },
-                        modifier = Modifier.size(width = 36.dp, height = 20.dp)
+                        modifier = Modifier.size(width = 32.dp, height = 18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("UI", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(3.dp))
+                    Switch(
+                        checked = !hideUiEvents,
+                        onCheckedChange = { onToggleUi() },
+                        modifier = Modifier.size(width = 32.dp, height = 18.dp)
                     )
                 }
             }
