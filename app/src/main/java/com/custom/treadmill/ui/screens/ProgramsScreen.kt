@@ -610,7 +610,7 @@ private fun TemplatesDialog(
 ) {
     val ctx = LocalContext.current
     val templates = remember(maxSpeed, maxIncline) {
-        buildTemplates(ctx, maxSpeed, maxIncline)
+        (ctx, maxSpeed, maxIncline)
     }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -652,8 +652,21 @@ private fun TemplatesDialog(
     )
 }
 
-private fun buildTemplates(ctx: android.content.Context): List<Pair<String, ProgramData>> {
-    val intervals = ProgramData(
+private fun buildTemplates(
+    ctx: android.content.Context,
+    maxSpeed: Double,
+    maxIncline: Double
+): List<Pair<String, ProgramData>> {
+    fun clamp(data: ProgramData): ProgramData = data.copy(
+        segments = data.segments.map {
+            it.copy(
+                speedKmh = it.speedKmh.coerceAtMost(maxSpeed),
+                inclinePercent = it.inclinePercent.coerceAtMost(maxIncline)
+            )
+        }
+    )
+
+    val intervals = clamp(ProgramData(
         name = ctx.getString(R.string.template_intervals_title),
         description = ctx.getString(R.string.template_intervals_desc),
         segments = listOf(
@@ -671,8 +684,8 @@ private fun buildTemplates(ctx: android.content.Context): List<Pair<String, Prog
             ProgramSegment(360, 9.0, 1.0, ctx.getString(R.string.seg_cooldown_jog)),
             ProgramSegment(240, 5.0, 0.0, ctx.getString(R.string.seg_cooldown_walk))
         )
-    )
-    val pyramid = ProgramData(
+    ))
+    val pyramid = clamp(ProgramData(
         name = ctx.getString(R.string.template_pyramid_title),
         description = ctx.getString(R.string.template_pyramid_desc),
         segments = listOf(
@@ -688,8 +701,8 @@ private fun buildTemplates(ctx: android.content.Context): List<Pair<String, Prog
             ProgramSegment(60, 12.0, 1.0, ctx.getString(R.string.seg_pyramid, 1)),
             ProgramSegment(300, 9.0, 1.0, ctx.getString(R.string.seg_cooldown))
         )
-    )
-    val hills = ProgramData(
+    ))
+    val hills = clamp(ProgramData(
         name = ctx.getString(R.string.template_hills_title),
         description = ctx.getString(R.string.template_hills_desc),
         segments = listOf(
@@ -708,8 +721,8 @@ private fun buildTemplates(ctx: android.content.Context): List<Pair<String, Prog
             ProgramSegment(60, 12.0, 6.0, ctx.getString(R.string.seg_hill, 6)),
             ProgramSegment(300, 9.0, 1.0, ctx.getString(R.string.seg_cooldown))
         )
-    )
-    val fartlek = ProgramData(
+    ))
+    val fartlek = clamp(ProgramData(
         name = ctx.getString(R.string.template_fartlek_title),
         description = ctx.getString(R.string.template_fartlek_desc),
         segments = listOf(
@@ -725,7 +738,7 @@ private fun buildTemplates(ctx: android.content.Context): List<Pair<String, Prog
             ProgramSegment(60, 15.0, 1.0, ctx.getString(R.string.seg_sprint)),
             ProgramSegment(300, 9.0, 1.0, ctx.getString(R.string.seg_cooldown))
         )
-    )
+    ))
     return listOf(
         ctx.getString(R.string.template_intervals_title) to intervals,
         ctx.getString(R.string.template_pyramid_title) to pyramid,
