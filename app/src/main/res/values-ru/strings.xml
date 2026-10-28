@@ -485,4 +485,6 @@
     <!-- v2.3.3: About без шаблона (короткая подсказка) -->
     <string name="about_custom_workout_hint">Создать тренировку: Программы → Создать, или импортировать JSON-файл через 📤. Формат — в README.</string>
     
+    <string name="ble_permission_denied">Для подключения дорожки нужны разрешения Bluetooth</string>
+    
 </resources>
