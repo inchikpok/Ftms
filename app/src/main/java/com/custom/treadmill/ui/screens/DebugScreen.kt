@@ -226,23 +226,30 @@ private fun LogView(
         Column(Modifier.fillMaxSize().padding(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.debug_log_title), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // "FTMS" и "UI" — технические акронимы, не переводятся.
+                
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("FTMS", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(3.dp))
-                    Switch(
-                        checked = !hideTreadmillFrames,
-                        onCheckedChange = { onToggleHide() },
-                        modifier = Modifier.size(width = 32.dp, height = 18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
+                    
+                    // Компактный Switch для FTMS
+                    Box(Modifier.size(34.dp, 24.dp), contentAlignment = Alignment.Center) {
+                        Switch(
+                            checked = !hideTreadmillFrames,
+                            onCheckedChange = { onToggleHide() },
+                            modifier = Modifier.scale(0.7f)
+                        )
+                    }
+                    
+                    Spacer(Modifier.width(4.dp))
                     Text("UI", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(3.dp))
-                    Switch(
-                        checked = !hideUiEvents,
-                        onCheckedChange = { onToggleUi() },
-                        modifier = Modifier.size(width = 32.dp, height = 18.dp)
-                    )
+                    
+                    // Компактный Switch для UI
+                    Box(Modifier.size(34.dp, 24.dp), contentAlignment = Alignment.Center) {
+                        Switch(
+                            checked = !hideUiEvents,
+                            onCheckedChange = { onToggleUi() },
+                            modifier = Modifier.scale(0.7f)
+                        )
+                    }
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
