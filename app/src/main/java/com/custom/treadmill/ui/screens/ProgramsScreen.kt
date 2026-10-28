@@ -601,9 +601,17 @@ private fun StatChip(text: String) {
 }
 
 @Composable
-private fun TemplatesDialog(onPick: (ProgramData?) -> Unit, onDismiss: () -> Unit) {
+@Composable
+private fun TemplatesDialog(
+    maxSpeed: Double,
+    maxIncline: Double,
+    onPick: (ProgramData?) -> Unit,
+    onDismiss: () -> Unit
+) {
     val ctx = LocalContext.current
-    val templates = remember { buildTemplates(ctx) }
+    val templates = remember(maxSpeed, maxIncline) {
+        buildTemplates(ctx, maxSpeed, maxIncline)
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.templates_title)) },
