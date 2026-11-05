@@ -51,6 +51,7 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
     var tab by rememberSaveable { mutableStateOf(0) }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
+    var confirmDemo by remember { mutableStateOf(false) }
     var showHrInfo by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
@@ -78,7 +79,7 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.history_menu_load_demo)) },
-                        onClick = { menuOpen = false; programVm.seedDemoLogs() }
+                        onClick = { menuOpen = false; confirmDemo = true }
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.history_menu_clear), color = MaterialTheme.colorScheme.error) },
@@ -134,6 +135,18 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
                 ) { Text(stringResource(R.string.history_clear_confirm)) }
             },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+
+    if (confirmDemo) {
+        AlertDialog(
+            onDismissRequest = { confirmDemo = false },
+            title = { Text(stringResource(R.string.history_menu_load_demo)) },
+            text = { Text("Демонстрационные тренировки будут добавлены в журнал. Ваши реальные записи останутся на месте. (Демо будут помечены префиксом «demo».)") },
+            confirmButton = {
+                TextButton(onClick = { confirmDemo = false; programVm.addDemoLogs() }) { Text(stringResource(R.string.ok)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDemo = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
