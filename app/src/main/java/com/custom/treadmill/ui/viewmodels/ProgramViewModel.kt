@@ -36,8 +36,8 @@ class ProgramViewModel(app: Application) : AndroidViewModel(app) {
     fun exportJson(data: ProgramData): String = repository.exportJson(data)
     fun importJson(text: String): ProgramData = repository.importJson(text)
 
-    /** Заполняет журнал демо-тренировками. */
-    fun seedDemoLogs() {
+    /** Добавляет демо-тренировки в журнал (без стирания реальных). */
+    fun addDemoLogs() {
         viewModelScope.launch { repository.addDemoLogs() }
     }
 
