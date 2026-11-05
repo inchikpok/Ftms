@@ -70,12 +70,27 @@ class SettingsStore(private val context: Context) {
     private val _settings = MutableStateFlow(load())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
+    /**
+     * [ФИКС] Если JSON повреждён, сохраняем битый оригинал в отдельный ключ
+     * (settings_json_broken_<timestamp>), а не теряем его молча. Так можно
+     * вручную восстановить настройки или профили, заглянув в SharedPreferences.
+     */
     private fun load(): AppSettings {
+        val raw = prefs.getString(KEY, null)
         val loaded = try {
-            prefs.getString(KEY, null)?.let { json.decodeFromString<AppSettings>(it) } ?: AppSettings()
-        } catch (_: Exception) {
+            raw?.let { json.decodeFromString<AppSettings>(it) } ?: AppSettings()
+        } catch (e: Exception) {
+            if (raw != null) {
+                try {
+                    val brokenKey = "${KEY}_broken_${System.currentTimeMillis()}"
+                    prefs.edit().putString(brokenKey, raw).apply()
+                } catch (_: Exception) {
+                    // Если и это не удалось — молча идём дальше с дефолтами
+                }
+            }
             AppSettings()
         }
+
         // Заполняем TTS-шаблоны из ресурсов, если пусты
         val withDefaults = loaded.copy(
             ttsStartTemplate = loaded.ttsStartTemplate.ifBlank { context.getString(R.string.tts_default_start) },
