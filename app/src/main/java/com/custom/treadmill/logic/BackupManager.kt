@@ -29,11 +29,6 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
-/**
- * Манифест резервной копии. Хранится первым entry в ZIP-файле
- * с именем "manifest.json". Читается БЕЗ полной распаковки, чтобы
- * показать превью в диалоге.
- */
 @Serializable
 data class BackupManifest(
     val version: Int = 1,
@@ -50,18 +45,6 @@ sealed class BackupResult {
     data class Error(val message: String) : BackupResult()
 }
 
-/**
- * Экспорт / импорт резервной копии приложения.
- * Формат ZIP (все пути внутри архива фиксированы):
- *   manifest.json
- *   database/treadmill.db
- *   database/treadmill.db-wal  (опционально)
- *   database/treadmill.db-shm  (опционально)
- *   shared_prefs/treadmill_settings.xml
- *
- * Восстановление требует перезапуска приложения (Room + SettingsStore
- * держат кэши в Application-скоупе).
- */
 object BackupManager {
 
     private const val DB_NAME = "treadmill.db"
@@ -84,11 +67,6 @@ object BackupManager {
         return "treadmill-backup-${fmt.format(Date())}.zip"
     }
 
-    /**
-     * Проверка: запущен ли Foreground Service (= идёт сессия/тренировка).
-     * ActivityManager.getRunningServices() для собственных сервисов
-     * работает и на современных Android.
-     */
     fun isWorkoutServiceRunning(context: Context): Boolean {
         return try {
             val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
@@ -131,26 +109,17 @@ object BackupManager {
 
     // ============================ EXPORT ============================
 
-    /**
-     * Сохраняет резервную копию по URI (из SAF CreateDocument).
-     * Безопасно вызывать даже во время тренировки — просто скопирует
-     * текущий снимок. ВАЖНО: WAL checkpoint вызывается, чтобы
-     * последние записи попали в основной .db.
-     */
     suspend fun exportTo(uri: Uri, context: Context): BackupResult =
         withContext(Dispatchers.IO) {
             try {
                 val app = TreadmillApp.instance
 
-                // 1. Склеить WAL в основную БД
                 try {
                     val raw = app.database.openHelper.writableDatabase
                     raw.query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() }
                 } catch (_: Exception) {
-                    // Если БД занята — продолжаем, WAL скопируем как есть
                 }
 
-                // 2. Собрать манифест (кол-во строк через raw SQL, не зависим от DAO)
                 val manifest = try {
                     val raw = app.database.openHelper.writableDatabase
                     BackupManifest(
@@ -175,7 +144,6 @@ object BackupManager {
                 val shm = shmFile(context)
                 val prefs = prefsFile(context)
 
-                // 3. Записать ZIP
                 context.contentResolver.openOutputStream(uri)?.use { os ->
                     ZipOutputStream(os).use { zos ->
                         zos.putNextEntry(ZipEntry(ENTRY_MANIFEST))
@@ -217,10 +185,6 @@ object BackupManager {
 
     // ============================ READ MANIFEST ============================
 
-    /**
-     * Читает ТОЛЬКО manifest.json из ZIP, не распаковывая остальное.
-     * Возвращает null, если файл не наш / битый.
-     */
     suspend fun readManifest(uri: Uri, context: Context): BackupManifest? =
         withContext(Dispatchers.IO) {
             try {
@@ -250,14 +214,16 @@ object BackupManager {
     // ============================ RESTORE ============================
 
     /**
-     * Восстанавливает данные из ZIP. Требует перезапуска приложения.
+     * Восстановление данных из ZIP. Требует перезапуска приложения.
      *
-     * Порядок:
-     *  1. Распаковать ZIP во временную папку
-     *  2. Провалидировать (есть manifest + .db)
-     *  3. Закрыть Room (AppDatabase.closeAndReset)
-     *  4. Заменить .db / .db-wal / .db-shm / prefs.xml
-     *  5. Открыть Room заново (для sanity)
+     * [ФИКС] Атомарное восстановление:
+     *   1. Распаковать во временную папку
+     *   2. Провалидировать (есть manifest + .db)
+     *   3. Закрыть Room
+     *   4. Переименовать текущие файлы в .bak (а не удалять)
+     *   5. Скопировать новые файлы
+     *   6. При ошибке на любом этапе — откатить .bak обратно
+     *   7. При успехе — удалить .bak
      */
     suspend fun restoreFrom(uri: Uri, context: Context): BackupResult =
         withContext(Dispatchers.IO) {
@@ -319,29 +285,49 @@ object BackupManager {
                 // 3. Закрыть Room
                 AppDatabase.closeAndReset()
 
-                // 4. Заменить файлы на диске
                 val db = dbFile(context)
                 val wal = walFile(context)
                 val shm = shmFile(context)
                 val prefs = prefsFile(context)
 
-                db.parentFile?.mkdirs()
-                db.delete()
-                wal.delete()
-                shm.delete()
-                prefs.parentFile?.mkdirs()
-                prefs.delete()
+                val dbBak = File(db.path + ".bak")
+                val walBak = File(wal.path + ".bak")
+                val shmBak = File(shm.path + ".bak")
+                val prefsBak = File(prefs.path + ".bak")
 
-                tmpDb.copyTo(db, overwrite = true)
-                File(tmpDir, "$DB_NAME-wal").takeIf { it.exists() }?.copyTo(wal, overwrite = true)
-                File(tmpDir, "$DB_NAME-shm").takeIf { it.exists() }?.copyTo(shm, overwrite = true)
-                File(tmpDir, "$PREFS_NAME.xml").takeIf { it.exists() }?.copyTo(prefs, overwrite = true)
+                // Очистка старых бэкапов, если остались от предыдущих попыток
+                dbBak.delete(); walBak.delete(); shmBak.delete(); prefsBak.delete()
 
-                // 5. Переоткрыть Room (валидация + подготовка к перезапуску)
+                // 4. Бэкап текущих файлов через rename (быстро + атомарно в пределах FS)
+                if (db.exists()) db.renameTo(dbBak)
+                if (wal.exists()) wal.renameTo(walBak)
+                if (shm.exists()) shm.renameTo(shmBak)
+                if (prefs.exists()) prefs.renameTo(prefsBak)
+
                 try {
+                    // 5. Замена на новые
+                    db.parentFile?.mkdirs()
+                    tmpDb.copyTo(db, overwrite = true)
+                    File(tmpDir, "$DB_NAME-wal").takeIf { it.exists() }?.copyTo(wal, overwrite = true)
+                    File(tmpDir, "$DB_NAME-shm").takeIf { it.exists() }?.copyTo(shm, overwrite = true)
+                    File(tmpDir, "$PREFS_NAME.xml").takeIf { it.exists() }?.copyTo(prefs, overwrite = true)
+
+                    // 6. Переоткрытие (sanity check)
                     AppDatabase.get(context)
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    // ОТКАТ: восстанавливаем старые файлы из .bak
+                    if (dbBak.exists()) { db.delete(); dbBak.renameTo(db) }
+                    if (walBak.exists()) { wal.delete(); walBak.renameTo(wal) }
+                    if (shmBak.exists()) { shm.delete(); shmBak.renameTo(shm) }
+                    if (prefsBak.exists()) { prefs.delete(); prefsBak.renameTo(prefs) }
+
+                    // Пытаемся открыть старую БД обратно, чтобы приложение не осталось без данных
+                    try { AppDatabase.get(context) } catch (_: Exception) {}
+                    throw e
                 }
+
+                // 7. Успех — удаляем бэкапы
+                dbBak.delete(); walBak.delete(); shmBak.delete(); prefsBak.delete()
 
                 BackupResult.Success(manifest ?: BackupManifest())
             } catch (e: Exception) {
@@ -358,14 +344,6 @@ object BackupManager {
 
     // ============================ RESTART ============================
 
-    /**
-     * Полный перезапуск процесса приложения.
-     *
-     * Проблема: startActivity → Activity поднимется в СТАРОМ процессе,
-     * а Application.onCreate с новыми данными не вызовется.
-     * Поэтому: планируем запуск через AlarmManager на +150 мс и
-     * убиваем текущий процесс — система поднимет новый.
-     */
     fun restartApp(context: Context) {
         try {
             val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
@@ -383,7 +361,6 @@ object BackupManager {
                 android.os.Process.killProcess(android.os.Process.myPid())
             }, 100)
         } catch (_: Exception) {
-            // Fallback: хотя бы запустить Activity заново
             try {
                 val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
                 if (launch != null) {
