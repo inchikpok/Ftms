@@ -88,6 +88,10 @@ jobs:
         with:
           name: treadmill-debug-apk
           path: artifacts/TreadmillControl-${{ steps.version.outputs.name }}.apk
+          # [ФИКС] Артефакт живет 1 день вместо 90, чтобы не забивать квоту
+          retention-days: 1
+          # [ФИКС] APK уже сжат, не тратим время CI на повторное сжатие
+          compression-level: 0
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -100,3 +104,4 @@ jobs:
           files: artifacts/TreadmillControl-${{ steps.version.outputs.name }}.apk
           draft: false
           prerelease: false
+          generate_release_notes: true
