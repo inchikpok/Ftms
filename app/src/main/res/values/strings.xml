@@ -2,7 +2,6 @@
 <resources>
     <string name="app_name">Treadmill Control</string>
 
-    <!-- Common -->
     <string name="back">Back</string>
     <string name="cancel">Cancel</string>
     <string name="ok">OK</string>
@@ -19,7 +18,6 @@
     <string name="menu">Menu</string>
     <string name="start">Start</string>
 
-    <!-- Units -->
     <string name="unit_kmh">km/h</string>
     <string name="unit_percent">%</string>
     <string name="unit_bpm">bpm</string>
@@ -28,14 +26,12 @@
     <string name="unit_calories">kcal</string>
     <string name="unit_km">km</string>
 
-    <!-- Tabs -->
     <string name="tab_main">Home</string>
     <string name="tab_programs">Programs</string>
     <string name="tab_history">Log</string>
     <string name="tab_settings">Settings</string>
     <string name="debug">Debug</string>
 
-    <!-- Main screen -->
     <string name="main_no_treadmill">Treadmill not connected</string>
     <string name="main_caps_contentdesc">Treadmill capabilities</string>
     <string name="main_treadmill_label">Treadmill</string>
@@ -65,13 +61,14 @@
     <string name="main_segment_progress">Segment %1$d/%2$d</string>
     <string name="main_segment_paused">PAUSED</string>
 
-    <!-- Scan dialog -->
     <string name="scan_title_treadmill">Select treadmill</string>
     <string name="scan_title_hr">Select heart rate monitor</string>
     <string name="scan_searching">Searching for devices…\nMake sure the device is on and nearby.</string>
     <string name="scan_cancel">Cancel</string>
+    <string name="scan_show_all">Show all BLE devices</string>
+    <string name="scan_hide_non_matching">Hide non-matching</string>
+    <string name="scan_nothing_matched">No matching devices. Try \"Show all BLE devices\".</string>
 
-    <!-- Settings screen -->
     <string name="settings_title">Settings</string>
     <string name="settings_group_profiles">Athletes</string>
     <string name="settings_profiles_title">Training profiles</string>
@@ -115,7 +112,6 @@
     <string name="settings_about_title">About the app</string>
     <string name="settings_about_subtitle">Instructions and reference</string>
 
-    <!-- Workout screen -->
     <string name="workout_title">Workout</string>
     <string name="workout_manual">Manual</string>
     <string name="workout_finished">Workout complete</string>
@@ -138,7 +134,6 @@
     <string name="workout_finish_confirm">Finish</string>
     <string name="workout_finish_dismiss">Keep running</string>
 
-    <!-- Programs screen -->
     <string name="programs_title">Programs</string>
     <string name="programs_create">Create</string>
     <string name="programs_generator_tooltip">Generator</string>
@@ -175,7 +170,6 @@
     <string name="programs_corrupted_title">Program is corrupted</string>
     <string name="programs_corrupted_text">Segment data cannot be read. Delete this program and create a new one.</string>
 
-    <!-- Program generator dialog -->
     <string name="generator_title">Workout generator</string>
     <string name="generator_profile_label">Profile: %1$s (%2$.0f kg, %3$d y.o.)</string>
     <string name="generator_goal">Goal:</string>
@@ -188,7 +182,6 @@
     <string name="generator_limits_no_incline">Limits: up to %1$.1f km/h (incline unavailable)</string>
     <string name="generator_create">Create</string>
 
-    <!-- Goals -->
     <string name="goal_weight_loss_title">Weight loss</string>
     <string name="goal_weight_loss_desc">Moderate steady pace</string>
     <string name="goal_cardio_title">Cardio</string>
@@ -196,19 +189,15 @@
     <string name="goal_speed_title">Speed</string>
     <string name="goal_speed_desc">Fast segments with rest</string>
 
-    <!-- Templates dialog -->
     <string name="templates_title">Create workout</string>
     <string name="templates_empty">Empty (start from scratch)</string>
 
-    <!-- Not connected dialog -->
     <string name="not_connected_title">Treadmill not connected</string>
     <string name="not_connected_text">Connect the treadmill on the home screen, then return and start the program.</string>
 
-    <!-- Delete program dialog -->
     <string name="delete_program_title">Delete program?</string>
     <string name="delete_program_text">Program "%1$s" will be deleted.</string>
 
-    <!-- Program editor -->
     <string name="editor_new_title">New program</string>
     <string name="editor_edit_title">Editor</string>
     <string name="editor_total">Total: %1$d min</string>
@@ -225,7 +214,6 @@
     <string name="editor_validate_segments">Check segments: time and speed must be greater than zero</string>
     <string name="editor_segment_short">Segment</string>
 
-    <!-- Profiles -->
     <string name="profiles_title">Profiles</string>
     <string name="profiles_add">Add</string>
     <string name="profiles_edit">Edit</string>
@@ -246,7 +234,6 @@
     <string name="profiles_level_intermediate">Intermediate</string>
     <string name="profiles_level_advanced">Advanced</string>
 
-    <!-- TTS settings -->
     <string name="tts_title">Voice phrases</string>
     <string name="tts_variables_title">Available variables (tags):</string>
     <string name="tts_variables_start">Start: {name}, {segName}, {speed}, {speed_text}</string>
@@ -277,7 +264,6 @@
         <item quantity="other">%d percent</item>
     </plurals>
 
-    <!-- About -->
     <string name="about_title">About</string>
     <string name="about_version">v2.2 — BLE treadmill control (FTMS)</string>
     <string name="about_description">Universal app for treadmills supporting the FTMS standard (Fitness Machine Service, Bluetooth SIG). Works fully offline. INTERNET permission is intentionally not requested.</string>
@@ -296,7 +282,6 @@
     <string name="about_footer">Made for personal use. Works offline.</string>
     <string name="about_instructions">HOW TO CREATE YOUR OWN WORKOUT\n\n1. Tap "Template" — JSON is copied to clipboard\n2. Open any notes app\n3. Paste the template\n4. Edit:\n   - "name" — program name\n   - "description" — optional\n   - "segments" — list of segments\n\n   Segment fields:\n   - "name" — segment name (string)\n   - "durationSec" — duration in SECONDS (300 = 5 min)\n   - "speedKmh" — speed in km/h\n   - "inclinePercent" — incline in %\n\n5. Copy all text from notes\n6. In the app open "Programs" → import from file\n7. Done — the program appears in the list\n\nIMPORTANT:\n- Do not remove quotes and commas\n- Each segment in { }\n- Comma between segments, none after the last\n- Integers are fine: 300 instead of 300.0\n- Speed and incline are limited by your treadmill</string>
 
-    <!-- Capabilities dialog -->
     <string name="caps_title">Treadmill capabilities</string>
     <string name="caps_no_feature">The treadmill does not provide capability information (FTMS Feature). Universal settings will be used.</string>
     <string name="caps_speed">Speed</string>
@@ -310,7 +295,6 @@
     <string name="caps_time">Time measurement</string>
     <string name="caps_footer">If something is missing, the app still works, but the corresponding features will be unavailable.</string>
 
-    <!-- Debug -->
     <string name="debug_clear">Clear</string>
     <string name="debug_save">Save</string>
     <string name="debug_share">Share</string>
@@ -318,6 +302,7 @@
     <string name="debug_save_error">Error: %1$s</string>
     <string name="debug_share_subject">Treadmill debug log</string>
     <string name="debug_share_chooser">Share log</string>
+    <string name="debug_share_too_large">Log is too large for Share — opening Save dialog</string>
     <string name="debug_no_connection">Not connected</string>
     <string name="debug_status_format">Speed: %1$.1f · Incline: %2$.0f%% · Logs: %3$d</string>
     <string name="debug_send">Send</string>
@@ -352,7 +337,6 @@
     <string name="debug_stop">Stop</string>
     <string name="debug_send_incline">Send incline</string>
 
-    <!-- History -->
     <string name="history_title">Workout log</string>
     <string name="history_tab_list">List</string>
     <string name="history_tab_stats">Statistics</string>
@@ -409,7 +393,6 @@
     <string name="history_zone_z5">Z5 Maximum</string>
     <string name="manual_workout">Manual workout</string>
 
-    <!-- Session messages -->
     <string name="session_lost_connection">Connection lost. Reconnecting…</string>
     <string name="session_reconnected">Connection restored!</string>
     <string name="session_reconnected_paused">Connection restored. Workout is paused — press "Resume".</string>
@@ -419,7 +402,6 @@
     <string name="session_treadmill_no_response">Treadmill not responding. Press the button on the treadmill.</string>
     <string name="session_hr_disconnected">HR monitor disconnected</string>
 
-    <!-- Program templates -->
     <string name="template_intervals_title">Intervals 4×3 min</string>
     <string name="template_intervals_desc">VO₂max: 4 fast intervals of 3 minutes</string>
     <string name="template_pyramid_title">Pyramid (1-2-3-2-1)</string>
@@ -429,7 +411,6 @@
     <string name="template_fartlek_title">Fartlek 20 min</string>
     <string name="template_fartlek_desc">Free speed play</string>
 
-    <!-- Template segments -->
     <string name="seg_warmup_easy">Warmup: easy jog</string>
     <string name="seg_warmup_accel">Warmup: acceleration</string>
     <string name="seg_warmup_jog">Warmup: jog</string>
@@ -448,21 +429,17 @@
     <string name="seg_trot">Trot</string>
     <string name="seg_tempo">Tempo</string>
 
-    <!-- History time formats -->
     <string name="history_duration_hm">%1$dh %2$dm</string>
     <string name="history_duration_m">%1$dm</string>
     <string name="history_duration_hms">%1$dh %2$dm %3$ds</string>
     <string name="history_duration_ms">%1$dm %2$ds</string>
     <string name="history_duration_s">%1$ds</string>
 
-    <!-- Heart rate chart / sparkline -->
     <string name="hr_waiting_for_data">Waiting for heart rate data…</string>
     <string name="hr_no_data">No heart rate data</string>
 
-    <!-- Chart -->
     <string name="chart_hours">%1$dh</string>
 
-    <!-- Generator (ProgramGenerator.kt) -->
     <string name="gen_name_weight_loss">Fat burn %1$dm</string>
     <string name="gen_name_cardio">Cardio %1$dm</string>
     <string name="gen_name_speed">Speed %1$dm</string>
@@ -473,7 +450,6 @@
     <string name="gen_level_intermediate">intermediate</string>
     <string name="gen_level_advanced">advanced</string>
 
-    <!-- Generator Segments -->
     <string name="gen_seg_warmup_walk">Warmup (Walk)</string>
     <string name="gen_seg_hill_walk">Hill walk %1$d</string>
     <string name="gen_seg_recovery">Recovery %1$d</string>
@@ -485,7 +461,6 @@
     <string name="gen_seg_slow">Slow %1$d</string>
     <string name="unit_hour">h</string>
 
-    <!-- Data / Backup -->
     <string name="settings_group_data">Data</string>
     <string name="settings_backup_export_title">Export backup</string>
     <string name="settings_backup_export_subtitle">Save all programs, workouts and settings as a ZIP file</string>
@@ -505,16 +480,10 @@
     <string name="backup_restore_in_progress">Restoring…</string>
     <string name="backup_restore_success_restart">Backup restored. Restarting…</string>
 
-    <!-- v2.3.3: warning на импорт с превышением лимитов -->
     <string name="programs_import_overflow">Program "%1$s" imported, but %2$d segment(s) exceed %3$.1f km/h — check your settings</string>
 
-    <!-- v2.3.3: About без шаблона (короткая подсказка) -->
     <string name="about_custom_workout_hint">Create a workout: Programs → Create, or import a JSON file via 📤. See README for the format.</string>
 
     <string name="ble_permission_denied">Bluetooth permissions are required to connect the treadmill</string>
-
-    <string name="scan_show_all">Show all BLE devices</string>
-    <string name="scan_hide_non_matching">Hide non-matching</string>
-    <string name="scan_nothing_matched">No matching devices. Try \"Show all BLE devices\".</string>
 
 </resources>
