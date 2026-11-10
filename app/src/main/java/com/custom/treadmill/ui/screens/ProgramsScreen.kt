@@ -57,6 +57,7 @@ import com.custom.treadmill.data.database.ProgramData
 import com.custom.treadmill.data.database.ProgramEntity
 import com.custom.treadmill.data.database.ProgramSegment
 import com.custom.treadmill.logic.ProgramGenerator
+import com.custom.treadmill.logic.SpeedFormatter
 import com.custom.treadmill.logic.WorkoutGoal
 import com.custom.treadmill.ui.LocalTreadmillColors
 import com.custom.treadmill.ui.viewmodels.MainViewModel
@@ -276,8 +277,6 @@ fun ProgramsScreen(
                 ) {
                     items(visible, key = { it.id }) { p ->
                         val data = remember(p.id, p.segmentsJson) { programVm.toData(p) }
-                        // [ФИКС] Если сегменты не декодировались — показываем
-                        // предупреждение и кнопку «удалить», а не пустую программу.
                         if (data.segments.isEmpty()) {
                             CorruptedProgramCard(
                                 entity = p,
@@ -682,11 +681,14 @@ private fun ProgramCardModern(
 
                                 val unitKmh = stringResource(R.string.unit_kmh)
                                 val unitPercent = stringResource(R.string.unit_percent)
+                                val unitPace = stringResource(R.string.unit_pace)
                                 val speedStr = "%.1f".format(seg.speedKmh)
+                                // [ФИКС] Темп в скобках рядом со скоростью.
+                                val paceStr = SpeedFormatter.formatPace(seg.speedKmh)
                                 val inclineStr = "%.0f".format(seg.inclinePercent)
 
                                 Text(
-                                    "$timeStr · $speedStr $unitKmh · $inclineStr$unitPercent",
+                                    "$timeStr · $speedStr $unitKmh ($paceStr $unitPace) · $inclineStr$unitPercent",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
@@ -1183,8 +1185,22 @@ private fun SegmentEditor(
 
             Spacer(Modifier.height(2.dp))
 
-            Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.editor_speed), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            // [ФИКС] Строка скорости. Слева — название и темп мелким шрифтом.
+            // Высота увеличена с 32 до 44 dp, чтобы влезли две строки.
+            Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.editor_speed),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        SpeedFormatter.formatPaceWithUnit(seg.speedKmh, stringResource(R.string.unit_pace)),
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     HoldableStepButton(
                         icon = Icons.Default.Remove,
