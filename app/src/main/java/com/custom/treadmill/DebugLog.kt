@@ -21,10 +21,9 @@ import java.util.concurrent.TimeUnit
 //
 // Формат: [HH:mm:ss.SSS][TAG] сообщение
 //
-// [ФИКС] Внутри ArrayDeque + снимок в StateFlow раз в 300 мс вместо копирования
-// List на каждую строку. При частом BLE это заметно снижает нагрузку на GC:
-// старый код делал (old + line).takeLast(3000) на каждый emit — O(n) копию
-// списка на 3000 элементов. Новый — O(1) add/removeFirst + один снимок раз в 300мс.
+// [ФИКС] SimpleDateFormat обёрнут в ThreadLocal: d() вызывается из 4+ потоков
+// одновременно (BLE, main, TTS, service). Без этого в логе появляются
+// битые таймстампы вида "[12:34:5" или "[null]".
 object DebugLog {
 
     private const val MAX_LINES = 3000
@@ -37,10 +36,19 @@ object DebugLog {
     private val _lines = MutableStateFlow<List<String>>(emptyList())
     val lines: StateFlow<List<String>> = _lines.asStateFlow()
 
-    private val timeFmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
-    private val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    // [ФИКС] ThreadLocal вместо shared instance.
+    private val timeFmt: ThreadLocal<SimpleDateFormat> = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue(): SimpleDateFormat =
+            SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+    }
+    private val dayFmt: ThreadLocal<SimpleDateFormat> = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue(): SimpleDateFormat =
+            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    }
 
-    // Один writer для файла + один scheduler для периодического снимка в StateFlow.
+    private fun formatTimeNow(): String = timeFmt.get()!!.format(Date())
+    private fun formatDayNow(): String = dayFmt.get()!!.format(Date())
+
     private val writer = Executors.newSingleThreadExecutor { r ->
         Thread(r, "DebugLog-writer").apply { isDaemon = true }
     }
@@ -60,7 +68,6 @@ object DebugLog {
             cleanupOld(dir)
             rotate(dir)
             d("SYS", "DebugLog готов, dir=${dir.absolutePath}")
-            // Периодический снимок буфера → StateFlow для UI.
             emitter.scheduleWithFixedDelay(
                 { emitSnapshot() },
                 EMIT_INTERVAL_MS,
@@ -75,8 +82,9 @@ object DebugLog {
     private fun emitSnapshot() {
         try {
             val snapshot = synchronized(bufferLock) { buffer.toList() }
-            // Если ничего не изменилось — не дёргаем StateFlow зря.
-            if (snapshot.size != _lines.value.size || (snapshot.isNotEmpty() && snapshot.last() != _lines.value.lastOrNull())) {
+            if (snapshot.size != _lines.value.size ||
+                (snapshot.isNotEmpty() && snapshot.last() != _lines.value.lastOrNull())
+            ) {
                 _lines.value = snapshot
             }
         } catch (_: Exception) { }
@@ -90,7 +98,7 @@ object DebugLog {
     }
 
     private fun rotate(dir: File) {
-        val today = dayFmt.format(Date())
+        val today = formatDayNow()
         if (logDay != today) {
             logDay = today
             logFile = File(dir, "debug-$today.log")
@@ -98,18 +106,20 @@ object DebugLog {
     }
 
     fun d(tag: String, msg: String) {
-        val line = "[${timeFmt.format(Date())}][$tag] $msg"
-        // [ФИКС] O(1) вставка и удаление в ArrayDeque.
+        val line = "[${formatTimeNow()}][$tag] $msg"
         synchronized(bufferLock) {
             if (buffer.size >= MAX_LINES) buffer.removeFirst()
             buffer.addLast(line)
         }
         Log.d("TC.$tag", msg)
-        val f = logFile ?: return
+        // [ФИКС] Раньше `f` захватывался до writer — если за день ротация
+        // случалась между вызовами, строка уходила в старый файл. Теперь
+        // читаем logFile заново внутри writer.
         writer.execute {
             try {
-                if (dayFmt.format(Date()) != logDay) f.parentFile?.let { rotate(it) }
-                f.appendText(line + "\n")
+                val dir = logFile?.parentFile ?: return@execute
+                if (formatDayNow() != logDay) rotate(dir)
+                logFile?.appendText(line + "\n")
             } catch (e: Exception) {
                 Log.w("DebugLog", "write failed: ${e.message}")
             }
