@@ -25,6 +25,7 @@
     <string name="unit_min">min</string>
     <string name="unit_calories">kcal</string>
     <string name="unit_km">km</string>
+    <string name="unit_pace">/km</string>
 
     <string name="tab_main">Home</string>
     <string name="tab_programs">Programs</string>
@@ -44,6 +45,7 @@
     <string name="main_btn_disconnect">Disconnect</string>
     <string name="main_btn_cooldown">Wait %1$ds</string>
     <string name="main_speed">Speed</string>
+    <string name="main_pace">Pace</string>
     <string name="main_incline">Incline</string>
     <string name="main_reset">Reset</string>
     <string name="main_hr">Heart rate</string>
@@ -363,12 +365,15 @@
     <string name="history_hr_zones">Heart rate zones</string>
     <string name="history_hr_zones_approx">≈ approximate</string>
     <string name="history_avg_speed">avg speed</string>
+    <string name="history_avg_pace">avg pace</string>
     <string name="history_max_hr">max HR</string>
     <string name="history_summary_title">Summary</string>
     <string name="history_summary_workouts">Workouts</string>
     <string name="history_summary_time">Time</string>
     <string name="history_summary_distance">Distance</string>
     <string name="history_summary_calories">Calories</string>
+    <string name="history_summary_speed">Avg speed</string>
+    <string name="history_summary_pace">Avg pace</string>
     <string name="history_hr_card_title">Heart rate</string>
     <string name="history_hr_avg">Average</string>
     <string name="history_hr_max">Maximum</string>
