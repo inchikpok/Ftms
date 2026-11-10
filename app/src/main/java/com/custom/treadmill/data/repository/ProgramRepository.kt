@@ -1,5 +1,6 @@
 package com.custom.treadmill.data.repository
 
+import com.custom.treadmill.DebugLog
 import com.custom.treadmill.data.database.ProgramData
 import com.custom.treadmill.data.database.ProgramDao
 import com.custom.treadmill.data.database.ProgramEntity
@@ -34,31 +35,35 @@ class ProgramRepository(
     suspend fun delete(entity: ProgramEntity) = programDao.delete(entity)
     suspend fun addLog(log: WorkoutLogEntity) = logDao.insert(log)
 
-    /**
-     * Добавляет журнал демо-тренировками: 15 записей за ~6 недель.
-     * Покрывает все 5 пульсовых зон, показывает тренд улучшения формы.
-     *
-     * [ФИКС] Больше НЕ стирает существующие записи. Демо-данные просто
-     * добавляются в конец с префиксом "(demo)" в названии, чтобы их
-     * можно было отличить от реальных.
-     */
     suspend fun addDemoLogs() {
         val demos = buildDemoLogs().map { it.copy(programName = "(demo) ${it.programName}") }
         logDao.insertAll(demos)
     }
 
-    /** Удаляет все записи из журнала. */
     suspend fun clearLogs() = logDao.deleteAll()
 
     // ---------- Сериализация ----------
 
+    /**
+     * [ФИКС] Раньше битый JSON молча подменялся на пустой список сегментов,
+     * и пользователь видел «программу без сегментов» без объяснений.
+     * Теперь:
+     *  - случай логгируется в DebugLog с id и именем программы,
+     *  - UI (ProgramsScreen) видит пустой segments и показывает плашку
+     *    «Программа повреждена, удалите её» вместо графика.
+     */
     fun toData(e: ProgramEntity): ProgramData {
+        if (e.segmentsJson.isBlank()) {
+            DebugLog.d("PROGRAMS", "toData: пустой segmentsJson для id=${e.id} name=${e.name}")
+            return ProgramData(e.name, e.description, emptyList())
+        }
         val segs: List<ProgramSegment> = try {
             json.decodeFromString(
                 ListSerializer(ProgramSegment.serializer()),
                 e.segmentsJson
             )
-        } catch (_: Exception) {
+        } catch (ex: Exception) {
+            DebugLog.d("PROGRAMS", "toData: битый JSON для id=${e.id} name=${e.name}: ${ex.message}")
             emptyList()
         }
         return ProgramData(e.name, e.description, segs)
