@@ -14,6 +14,7 @@ import com.custom.treadmill.MainActivity
 import com.custom.treadmill.R
 import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.ble.BleConnectionState
+import com.custom.treadmill.logic.SpeedFormatter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,14 +29,10 @@ class TreadmillService : Service() {
     private val notificationId = 1
     private val channelId = "treadmill_channel"
 
-    // SupervisorJob вместо Job: падение одного коллектора не убивает остальные.
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // Коллекторы уже запущены. При повторных onStartCommand
-    // (например, после нажатия «Пауза»/«Стоп» в уведомлении) не перезапускаем.
     @Volatile private var collectorsStarted = false
 
-    // Троттлинг уведомления: CONFLATED-канал + delay в воркере.
     private val notificationChannel = Channel<Unit>(Channel.CONFLATED)
 
     override fun onCreate() {
@@ -124,7 +121,6 @@ class TreadmillService : Service() {
         val hrStr = if (hr > 0) "$hr ${getString(R.string.unit_bpm)}" else "—"
 
         val title = if (ws.running || ws.paused) {
-            // [ФИКС] Локализованные строки вместо хардкода.
             val segName = ws.currentSegmentName.ifBlank {
                 getString(R.string.programs_segment_default, ws.currentSegmentIndex + 1)
             }
@@ -133,8 +129,17 @@ class TreadmillService : Service() {
             getString(R.string.app_name)
         }
 
+        // [ФИКС] Скорость + темп рядом. Темп показываем только когда дорожка
+        // реально едет — иначе в шторке будет бессмысленное "0.0 км/ч (— /км)".
         val content = buildString {
             append("%.1f %s".format(data.speedKmh, getString(R.string.unit_kmh)))
+            if (data.speedKmh > 0.5) {
+                append(" (")
+                append(SpeedFormatter.formatPace(data.speedKmh))
+                append(" ")
+                append(getString(R.string.unit_pace))
+                append(")")
+            }
             append(" · ")
             append(hrStr)
             append(" · ")
@@ -197,8 +202,6 @@ class TreadmillService : Service() {
                 getString(R.string.workout_title),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                // Описание канала — служебное, оставлю английское,
-                // потому что оно видно только в системных настройках уведомлений.
                 description = "Shows current workout metrics"
             }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
