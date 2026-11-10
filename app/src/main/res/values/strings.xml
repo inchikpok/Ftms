@@ -172,6 +172,8 @@
     <string name="programs_import_error_save">Save error: %1$s</string>
     <string name="programs_import_error_read">Read error: %1$s</string>
     <string name="programs_generated_toast">Program generated and saved!</string>
+    <string name="programs_corrupted_title">Program is corrupted</string>
+    <string name="programs_corrupted_text">Segment data cannot be read. Delete this program and create a new one.</string>
 
     <!-- Program generator dialog -->
     <string name="generator_title">Workout generator</string>
@@ -264,7 +266,6 @@
     <string name="tts_default_pause">Paused</string>
     <string name="tts_default_resume">Resuming</string>
 
-    <!-- Test phrase for the "Listen" button in TTS settings -->
     <string name="tts_test_workout_name">Test workout</string>
 
     <plurals name="tts_kmh_plural">
