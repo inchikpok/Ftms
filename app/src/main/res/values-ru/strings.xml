@@ -238,10 +238,10 @@
 
     <string name="tts_title">Голосовые фразы</string>
     <string name="tts_variables_title">Доступные переменные (теги):</string>
-    <string name="tts_variables_start">Старт: {name}, {segName}, {speed}, {speed_text}</string>
-    <string name="tts_variables_segment">Сегмент: {i}, {n}, {segName}, {speed}, {speed_text}, {angle}, {angle_text}</string>
-    <string name="tts_variables_finish">Финиш: {dist}, {hr}</string>
-    <string name="tts_variables_note">Примечание: {speed} даст цифру (8.5), а {speed_text} — словами (8.5 километров в час).</string>
+    <string name="tts_variables_start">Старт: {name}, {segName}, {speed}, {speed_text}, {pace}, {pace_text}</string>
+    <string name="tts_variables_segment">Сегмент: {i}, {n}, {segName}, {speed}, {speed_text}, {pace}, {pace_text}, {angle}, {angle_text}</string>
+    <string name="tts_variables_finish">Финиш: {dist}, {pace}, {pace_text}, {hr}</string>
+    <string name="tts_variables_note">Примечание: {speed} и {pace} дают цифры (8.5 и 7:03), а {speed_text} и {pace_text} — словами (8.5 километров в час, 7 минут 3 секунды).</string>
     <string name="tts_start_label">Старт тренировки</string>
     <string name="tts_segment_label">Смена сегмента</string>
     <string name="tts_finish_label">Финиш тренировки</string>
@@ -249,9 +249,9 @@
     <string name="tts_resume_label">Продолжение</string>
     <string name="tts_reset_defaults">Сбросить настройки по умолчанию</string>
 
-    <string name="tts_default_start">Тренировка «{name}» началась. Сегмент 1: {segName}, скорость {speed_text}</string>
-    <string name="tts_default_segment">Сегмент {i} из {n}: {segName}, скорость {speed_text}, угол {angle_text}</string>
-    <string name="tts_default_finish">Тренировка завершена. Дистанция {dist} км, средний пульс {hr}</string>
+    <string name="tts_default_start">Тренировка «{name}» началась. Сегмент 1: {segName}, темп {pace_text}</string>
+    <string name="tts_default_segment">Сегмент {i} из {n}: {segName}, темп {pace_text}, угол {angle_text}</string>
+    <string name="tts_default_finish">Тренировка завершена. Дистанция {dist} км, средний темп {pace_text}, средний пульс {hr}</string>
     <string name="tts_default_pause">Пауза</string>
     <string name="tts_default_resume">Продолжаем</string>
 
@@ -268,6 +268,18 @@
         <item quantity="few">%d процента</item>
         <item quantity="many">%d процентов</item>
         <item quantity="other">%d процента</item>
+    </plurals>
+    <plurals name="tts_pace_min_plural">
+        <item quantity="one">%d минуту</item>
+        <item quantity="few">%d минуты</item>
+        <item quantity="many">%d минут</item>
+        <item quantity="other">%d минуты</item>
+    </plurals>
+    <plurals name="tts_pace_sec_plural">
+        <item quantity="one">%d секунду</item>
+        <item quantity="few">%d секунды</item>
+        <item quantity="many">%d секунд</item>
+        <item quantity="other">%d секунды</item>
     </plurals>
 
     <string name="about_title">О программе</string>
