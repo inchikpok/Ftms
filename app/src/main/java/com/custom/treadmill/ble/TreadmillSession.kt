@@ -15,10 +15,12 @@ import com.custom.treadmill.logic.TtsManager
 import com.custom.treadmill.logic.WorkoutManager
 import com.custom.treadmill.service.TreadmillService
 import com.custom.treadmill.ui.components.HrPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,7 +41,7 @@ class TreadmillSession(private val appContext: Context) {
     private var treadmillConn: BleConnection? = null
     private var hrConn: BleConnection? = null
     private var protocol: FTMSProtocol? = null
-    private val hrService = HeartRateService()
+    private val hrService = HeartRateService(scope)
 
     private var treadmillStateJob: Job? = null
     private var treadmillNotifyJob: Job? = null
@@ -47,9 +49,15 @@ class TreadmillSession(private val appContext: Context) {
     private var hrStateJob: Job? = null
     private var hrNotifyJob: Job? = null
     private var hrLogJob: Job? = null
+    private var hrMirrorJob: Job? = null
     private var autoHrJob: Job? = null
     private var startJob: Job? = null
     private var autoReconnectJob: Job? = null
+
+    // [ФИКС] Очереди команд CONFLATED: при быстрых нажатиях «+» дорожка
+    // всегда получает последнее значение, промежуточные схлопываются.
+    private val speedChannel = Channel<Double>(Channel.CONFLATED)
+    private val inclineChannel = Channel<Double>(Channel.CONFLATED)
 
     private val _treadmillState = MutableStateFlow(BleConnectionState.DISCONNECTED)
     val treadmillState: StateFlow<BleConnectionState> = _treadmillState.asStateFlow()
@@ -126,8 +134,30 @@ class TreadmillSession(private val appContext: Context) {
         DebugLog.init(appContext)
         scope.launch { ble.scanLog.collect { addLog(it) } }
 
-        // [ФИКС] Здесь только копим hrHistory (без обрезки по 30 мин).
-        // Средние считает startMetricsLoop ровно на 1 Гц.
+        // [ФИКС] Воркеры очередей команд: один за раз, последнее значение побеждает.
+        scope.launch {
+            for (speed in speedChannel) {
+                try {
+                    protocol?.setSpeed(speed)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    addLog("Ошибка отправки скорости $speed: ${e.message}")
+                }
+            }
+        }
+        scope.launch {
+            for (incl in inclineChannel) {
+                try {
+                    protocol?.setIncline(incl)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    addLog("Ошибка отправки уклона $incl: ${e.message}")
+                }
+            }
+        }
+
         scope.launch {
             _heartRate.collect { hr ->
                 if (hr > 0 && _uiElapsedSec.value > 0) {
@@ -141,7 +171,6 @@ class TreadmillSession(private val appContext: Context) {
             }
         }
 
-        // [ФИКС] speedSum/speedCount больше не накапливаются здесь — только в 1 Гц-цикле.
         scope.launch {
             _treadmillData.collect { d ->
                 val now = System.currentTimeMillis()
@@ -253,14 +282,12 @@ class TreadmillSession(private val appContext: Context) {
 
     fun showMessage(msg: String) { _statusMessage.value = msg }
 
-    // [ФИКС] Средние пульс/скорость и прочие метрики — строго 1 Гц.
     private fun startMetricsLoop() {
         scope.launch {
             while (isActive) {
                 delay(1000L)
                 if (_treadmillState.value != BleConnectionState.READY) continue
 
-                // Пульс: 1 Гц, только если тренировка уже началась.
                 val hr = _heartRate.value
                 if (hr > 0 && _uiElapsedSec.value > 0) {
                     hrSum += hr
@@ -270,13 +297,11 @@ class TreadmillSession(private val appContext: Context) {
 
                 val d = _treadmillData.value
 
-                // Скорость: 1 Гц, только при движении ленты (порог как раньше).
                 if (d.speedKmh > 0.05) {
                     speedSum += d.speedKmh
                     speedCount++
                 }
 
-                // Остальные метрики — только если лента реально бежит.
                 if (d.speedKmh < 0.3) continue
 
                 val weight = settingsStore.settings.value.activeProfile.weightKg
@@ -493,15 +518,21 @@ class TreadmillSession(private val appContext: Context) {
         hrNotifyJob = scope.launch {
             conn.notifications.collect {
                 hrService.onNotification(it)
-                _heartRate.value = hrService.heartRate.value
             }
+        }
+        // [ФИКС] зеркалим пульс из сервиса в сессию — так сброс по таймауту
+        // автоматически доезжает и до UI, и до AutoHR.
+        hrMirrorJob = scope.launch {
+            hrService.heartRate.collect { _heartRate.value = it }
         }
         conn.connect(device)
     }
 
     fun disconnectHeartRate() {
         hrStateJob?.cancel(); hrNotifyJob?.cancel(); hrLogJob?.cancel()
+        hrMirrorJob?.cancel(); hrMirrorJob = null
         hrConn?.disconnect(); hrConn = null
+        hrService.reset()
         _hrState.value = BleConnectionState.DISCONNECTED
         _heartRate.value = 0
         _hrName.value = null
@@ -512,13 +543,13 @@ class TreadmillSession(private val appContext: Context) {
         val caps = _capabilities.value
         val rawMin = if (caps.isLoaded) maxOf(s.minSpeedKmh, caps.minSpeedKmh) else s.minSpeedKmh
         val rawMax = if (caps.isLoaded) minOf(s.maxSpeedKmh, caps.maxSpeedKmh) else s.maxSpeedKmh
-        // [ФИКС] coerceIn падает, если min > max — берём гарантированно корректный диапазон.
         val lo = minOf(rawMin, rawMax)
         val hi = maxOf(rawMin, rawMax)
         val safe = kmh.coerceIn(lo, hi)
         _targetSpeed.value = safe
         lastSpeedCmdTime = System.currentTimeMillis()
-        scope.launch { protocol?.setSpeed(safe) }
+        // [ФИКС] в очередь CONFLATED — быстрое «+++» схлопнется в одно значение.
+        speedChannel.trySend(safe)
     }
 
     fun setIncline(percent: Double) {
@@ -526,12 +557,11 @@ class TreadmillSession(private val appContext: Context) {
         val caps = _capabilities.value
         if (caps.isLoaded && !caps.supportsIncline) { _targetIncline.value = 0.0; return }
         val rawMax = if (caps.isLoaded) minOf(s.maxInclinePercent, caps.maxInclinePercent) else s.maxInclinePercent
-        // [ФИКС] защита от отрицательного верхнего предела.
         val hi = rawMax.coerceAtLeast(0.0)
         val safe = percent.coerceIn(0.0, hi)
         _targetIncline.value = safe
         lastInclineCmdTime = System.currentTimeMillis()
-        scope.launch { protocol?.setIncline(safe) }
+        inclineChannel.trySend(safe)
     }
 
     private suspend fun waitForBeltRunning(minSpeedKmh: Double = 0.9, timeoutMs: Long = 15000L): Boolean {
@@ -560,7 +590,6 @@ class TreadmillSession(private val appContext: Context) {
             resetMetrics()
             resetStats()
             workoutLogSaved = false
-            // [ФИКС] новая сессия — сбрасываем точку возврата.
             speedBeforePause = 0.0
         }
         val resumeSpeed = if (isResume) speedBeforePause else 0.0
@@ -618,7 +647,6 @@ class TreadmillSession(private val appContext: Context) {
         resetStats()
         resetMetrics()
         workoutLogSaved = false
-        // [ФИКС] новая программа — точка возврата не должна тащиться с прошлой сессии.
         speedBeforePause = 0.0
         _isPaused.value = false
         lastSpokenSegmentIndex = 0
@@ -641,6 +669,7 @@ class TreadmillSession(private val appContext: Context) {
                             val safe = it.coerceIn(lo, hi)
                             _targetSpeed.value = safe
                             lastSpeedCmdTime = System.currentTimeMillis()
+                            // Прямой вызов: WorkoutManager ждёт ответа и ловит ошибки.
                             protocol?.setSpeed(safe)
                         },
                         onSetIncline = {
@@ -668,6 +697,12 @@ class TreadmillSession(private val appContext: Context) {
                             val template = settingsStore.settings.value.ttsFinishTemplate
                             val text = template.replace("{dist}", distStr).replace("{hr}", avgHr.toString())
                             speak(text)
+                        },
+                        // [ФИКС] ошибка записи: останавливаем мотор и показываем сообщение.
+                        onError = { msg ->
+                            addLog("Ошибка тренировки: $msg")
+                            protocol?.stop()
+                            _statusMessage.value = msg
                         }
                     )
                     val first = program.segments.firstOrNull()
