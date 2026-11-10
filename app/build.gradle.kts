@@ -38,7 +38,7 @@ android {
             // [ФИКС] Минификация и сокращение ресурсов для release-сборки.
             // Если APK из Releases начнёт вылетать при запуске — вернуть оба флага в false.
             isMinifyEnabled = true
-            isShrinkResources = true
+            isShrinkResources = false
             signingConfig = signingConfigs.getByName("stable")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
