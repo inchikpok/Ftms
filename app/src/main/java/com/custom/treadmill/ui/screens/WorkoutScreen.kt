@@ -24,6 +24,7 @@ import com.custom.treadmill.R
 import com.custom.treadmill.ble.BleConnectionState
 import com.custom.treadmill.data.repository.HrMode
 import com.custom.treadmill.logic.HeartRateZoneCalculator
+import com.custom.treadmill.logic.SpeedFormatter
 import com.custom.treadmill.ui.LocalTreadmillColors
 import com.custom.treadmill.ui.components.HeartRateChart
 import com.custom.treadmill.ui.components.RollingText
@@ -35,9 +36,6 @@ import kotlin.math.roundToInt
 fun WorkoutScreen(
     vm: MainViewModel,
     onBack: () -> Unit,
-    // [ФИКС] Параметр сохранён для совместимости с AppNavHost, но кнопка
-    // отладки из шапки экрана убрана — она мешала и нажималась случайно.
-    // Debug доступен из настроек.
     @Suppress("UNUSED_PARAMETER") onOpenDebug: () -> Unit = {}
 ) {
     val ws by vm.workoutState.collectAsState()
@@ -90,7 +88,6 @@ fun WorkoutScreen(
                         fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }
-                // Симметричный spacer, чтобы заголовок остался по центру
                 Spacer(Modifier.width(48.dp))
             }
 
@@ -153,16 +150,26 @@ fun WorkoutScreen(
             Spacer(Modifier.height(6.dp))
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                MiniControl(stringResource(R.string.workout_speed), "%.1f".format(targetSpeed), stringResource(R.string.unit_kmh),
-                    { vm.setSpeed(targetSpeed - speedStep) },
-                    { vm.setSpeed(targetSpeed + speedStep) },
-                    Modifier.weight(1f)
+                MiniControl(
+                    label = stringResource(R.string.workout_speed),
+                    value = "%.1f".format(targetSpeed),
+                    unit = stringResource(R.string.unit_kmh),
+                    onMinus = { vm.setSpeed(targetSpeed - speedStep) },
+                    onPlus = { vm.setSpeed(targetSpeed + speedStep) },
+                    modifier = Modifier.weight(1f),
+                    subValue = SpeedFormatter.formatPaceWithUnit(
+                        targetSpeed,
+                        stringResource(R.string.unit_pace)
+                    )
                 )
                 if (showIncline) {
-                    MiniControl(stringResource(R.string.workout_incline), "${targetIncline.roundToInt()}", stringResource(R.string.unit_percent),
-                        { vm.setIncline(max(0.0, targetIncline.roundToInt() - 1.0)) },
-                        { vm.setIncline(targetIncline.roundToInt() + 1.0) },
-                        Modifier.weight(1f)
+                    MiniControl(
+                        label = stringResource(R.string.workout_incline),
+                        value = "${targetIncline.roundToInt()}",
+                        unit = stringResource(R.string.unit_percent),
+                        onMinus = { vm.setIncline(max(0.0, targetIncline.roundToInt() - 1.0)) },
+                        onPlus = { vm.setIncline(targetIncline.roundToInt() + 1.0) },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -293,7 +300,16 @@ fun WorkoutScreen(
 }
 
 @Composable
-private fun MiniControl(label: String, value: String, unit: String, onMinus: () -> Unit, onPlus: () -> Unit, modifier: Modifier = Modifier) {
+private fun MiniControl(
+    label: String,
+    value: String,
+    unit: String,
+    onMinus: () -> Unit,
+    onPlus: () -> Unit,
+    modifier: Modifier = Modifier,
+    // [ФИКС] Подпись под большой цифрой: темп для скорости, null для наклона.
+    subValue: String? = null
+) {
     Card(modifier = modifier, elevation = CardDefaults.cardElevation(2.dp)) {
         Column(Modifier.fillMaxWidth().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(label.uppercase(), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium, letterSpacing = 1.sp)
@@ -301,6 +317,20 @@ private fun MiniControl(label: String, value: String, unit: String, onMinus: () 
                 RollingText(text = value, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(3.dp))
                 Text(unit, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+            }
+            // [ФИКС] Темп под скоростью. Spacer при null держит высоту,
+            // чтобы карточки скорости и наклона были одинаковые.
+            if (subValue != null) {
+                Text(
+                    subValue,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 1.dp, bottom = 1.dp)
+                )
+            } else {
+                Spacer(Modifier.height(14.dp))
             }
             Spacer(Modifier.height(2.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
