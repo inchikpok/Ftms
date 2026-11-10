@@ -68,6 +68,10 @@ class BleConnection(
     @Volatile private var isDisconnecting = false
     private var disconnectTimeoutJob: Job? = null
 
+    // [ФИКС] Таймаут подключения: если за 15с не дошли до READY — уходим в FAILED,
+    // иначе при зависшем GATT состояние навсегда останется CONNECTING.
+    private var connectionTimeoutJob: Job? = null
+
     private fun log(msg: String) {
         Log.d(tag, msg)
         _log.tryEmit("[$tag] $msg")
@@ -77,6 +81,14 @@ class BleConnection(
 
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
             log("onConnectionStateChange status=$status newState=$newState")
+
+            // [ФИКС] отсеиваем события от устаревшего GATT (после таймаута или реконнекта)
+            if (newState == BluetoothProfile.STATE_CONNECTED && gatt !== g) {
+                log("CONNECTED для устаревшего GATT — отключаем")
+                try { g.disconnect() } catch (_: Exception) {}
+                return
+            }
+
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     if (isDisconnecting) {
@@ -100,6 +112,10 @@ class BleConnection(
         }
 
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
+            if (gatt !== g) {
+                log("onServicesDiscovered для устаревшего GATT — игнорируем")
+                return
+            }
             log("onServicesDiscovered status=$status")
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 _state.value = BleConnectionState.FAILED
@@ -114,6 +130,9 @@ class BleConnection(
                 }
             }
             _characteristics.value = list
+            // [ФИКС] дошли до READY — таймаут больше не нужен
+            connectionTimeoutJob?.cancel()
+            connectionTimeoutJob = null
             _state.value = BleConnectionState.READY
         }
 
@@ -160,6 +179,10 @@ class BleConnection(
     }
 
     fun connect(device: BluetoothDevice) {
+        // [ФИКС] сбрасываем предыдущий таймаут, если он ещё висит
+        connectionTimeoutJob?.cancel()
+        connectionTimeoutJob = null
+
         log("Подключение к ${device.address}…")
         _state.value = BleConnectionState.CONNECTING
         isDisconnecting = false
@@ -170,7 +193,7 @@ class BleConnection(
         }
         gatt = null
 
-        gatt = try {
+        val newGatt = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
             } else {
@@ -181,9 +204,42 @@ class BleConnection(
             log("Ошибка connectGatt: ${e.message}")
             null
         }
+
+        if (newGatt == null) {
+            // [ФИКС] сразу FAILED — не оставляем вечный CONNECTING
+            _state.value = BleConnectionState.FAILED
+            return
+        }
+        gatt = newGatt
+
+        // [ФИКС] Таймаут подключения: если через 15с не дошли до READY — принудительно
+        // закрываем GATT и уходим в FAILED. Пользователь увидит ошибку и сможет нажать
+        // «подключить» заново, вместо бесконечного «Подключение…».
+        connectionTimeoutJob = scope.launch {
+            delay(15_000L)
+            if (_state.value != BleConnectionState.READY) {
+                val cur = _state.value
+                log("Таймаут подключения (state=$cur за 15с) — принудительный сброс в FAILED")
+                val g = gatt
+                if (g != null) {
+                    try { g.disconnect() } catch (_: Exception) {}
+                    closeGattSilently(g)
+                    if (gatt === g) gatt = null
+                }
+                completePending()
+                disconnectTimeoutJob?.cancel()
+                disconnectTimeoutJob = null
+                isDisconnecting = false
+                _state.value = BleConnectionState.FAILED
+            }
+        }
     }
 
     fun disconnect() {
+        // [ФИКС] отменяем таймаут подключения до всего остального
+        connectionTimeoutJob?.cancel()
+        connectionTimeoutJob = null
+
         if (isDisconnecting) {
             log("disconnect: уже в процессе — игнор")
             return
@@ -218,6 +274,9 @@ class BleConnection(
     }
 
     private fun forceCloseGatt(g: BluetoothGatt) {
+        connectionTimeoutJob?.cancel()
+        connectionTimeoutJob = null
+
         disconnectTimeoutJob?.cancel()
         disconnectTimeoutJob = null
 
