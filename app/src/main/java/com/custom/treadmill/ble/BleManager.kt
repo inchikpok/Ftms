@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
@@ -12,6 +13,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +21,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+
+enum class ScanProfile { TREADMILL, HR, ALL }
 
 @SuppressLint("MissingPermission")
 class BleManager(private val context: Context) {
@@ -45,6 +49,10 @@ class BleManager(private val context: Context) {
     private val maxScanRetries = 3
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    // [ФИКС] Сохраняем текущий набор фильтров, чтобы при ретрае ALREADY_STARTED
+    // повторить тот же скан с теми же фильтрами (а не уйти случайно в unfiltered).
+    @Volatile private var currentFilters: List<ScanFilter>? = null
+
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             scanRetryCount = 0
@@ -66,7 +74,7 @@ class BleManager(private val context: Context) {
                         scanRetryCount++
                         _scanLog.tryEmit("ALREADY_STARTED — перезапуск #$scanRetryCount")
                         mainHandler.postDelayed({
-                            if (shouldScan) doStartScanInternal(clearResults = false)
+                            if (shouldScan) doStartScanInternal(clearResults = false, filters = currentFilters)
                         }, 300L)
                     } else {
                         _scanLog.tryEmit("ALREADY_STARTED — лимит попыток исчерпан")
@@ -82,7 +90,6 @@ class BleManager(private val context: Context) {
                     _scanLog.tryEmit("BLE-сканирование не поддерживается")
                 }
                 else -> {
-                    // 4 = SCAN_FAILED_SCANNING_TOO_FREQUENTLY (Android 8+)
                     _scanLog.tryEmit("Слишком частое сканирование — подождите немного")
                 }
             }
@@ -114,7 +121,25 @@ class BleManager(private val context: Context) {
         _scanLog.tryEmit("Установлен кулдаун сканирования до ${until} (${ms}мс)")
     }
 
+    /**
+     * [ФИКС] Совместимость со старым кодом: скан без фильтра на уровне системы.
+     * Все найденные устройства попадают в scanResults, фильтрация — на клиенте
+     * (в MainScreen.ScanDialog).
+     */
     fun startScan() {
+        startScan(ScanProfile.ALL)
+    }
+
+    /**
+     * [ФИКС] Сканирование с системным ScanFilter по профилю:
+     *  - TREADMILL: advertisement содержит FTMS Service UUID (0x1826);
+     *  - HR: advertisement содержит Heart Rate Service UUID (0x180D);
+     *  - ALL: без фильтра (старое поведение, ловит всё).
+     *
+     * Если дорожка не рекламирует FTMS — в TREADMILL её не будет. Для таких
+     * случаев в UI есть кнопка «показать все» — она использует ScanProfile.ALL.
+     */
+    fun startScan(profile: ScanProfile) {
         if (!hasScanPermission()) {
             _scanLog.tryEmit("Нет разрешения на сканирование BLE")
             return
@@ -130,10 +155,26 @@ class BleManager(private val context: Context) {
 
         shouldScan = true
         scanRetryCount = 0
-        doStartScanInternal(clearResults = true)
+        val filters = filtersFor(profile)
+        currentFilters = filters
+        doStartScanInternal(clearResults = true, filters = filters)
     }
 
-    private fun doStartScanInternal(clearResults: Boolean) {
+    private fun filtersFor(profile: ScanProfile): List<ScanFilter>? = when (profile) {
+        ScanProfile.TREADMILL -> listOf(
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(Uuids.FTMS_SERVICE))
+                .build()
+        )
+        ScanProfile.HR -> listOf(
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(Uuids.HR_SERVICE))
+                .build()
+        )
+        ScanProfile.ALL -> null
+    }
+
+    private fun doStartScanInternal(clearResults: Boolean, filters: List<ScanFilter>?) {
         val a = adapter ?: run {
             _scanLog.tryEmit("Bluetooth адаптер недоступен")
             return
@@ -159,9 +200,14 @@ class BleManager(private val context: Context) {
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
         try {
-            scanner.startScan(null, settings, scanCallback)
+            if (filters != null && filters.isNotEmpty()) {
+                scanner.startScan(filters, settings, scanCallback)
+                _scanLog.tryEmit("Сканирование запущено (фильтр: ${filters.size})")
+            } else {
+                scanner.startScan(null, settings, scanCallback)
+                _scanLog.tryEmit("Сканирование запущено (без фильтра)")
+            }
             scanning = true
-            _scanLog.tryEmit("Сканирование запущено")
         } catch (e: Exception) {
             _scanLog.tryEmit("Ошибка запуска сканирования: ${e.message}")
         }
@@ -170,6 +216,7 @@ class BleManager(private val context: Context) {
     fun stopScan() {
         shouldScan = false
         scanRetryCount = 0
+        currentFilters = null
         try { adapter?.bluetoothLeScanner?.stopScan(scanCallback) } catch (_: Exception) {}
         scanning = false
         _scanLog.tryEmit("Сканирование остановлено")
@@ -177,12 +224,27 @@ class BleManager(private val context: Context) {
 
     fun isTreadmillDevice(r: ScanResult): Boolean {
         val name = safeName(r).lowercase()
-        if (name.startsWith("fs-") || name.contains("fitshow")) return true
+        // [ФИКС] Расширенная эвристика по имени: маркеры, которые используют
+        // производители беговых дорожек. Расширение безопасно — при ложном
+        // срабатывании пользователь всегда может нажать «показать все».
+        if (name.startsWith("fs-")) return true
+        if (name.contains("fitshow")) return true
+        if (name.contains("ftms")) return true
+        if (name.contains("treadmill")) return true
+        if (name.contains("running")) return true
         val uuids = r.scanRecord?.serviceUuids ?: return false
         return uuids.any { it.uuid == Uuids.FTMS_SERVICE }
     }
 
     fun isHeartRateDevice(r: ScanResult): Boolean {
+        val name = safeName(r).lowercase()
+        // [ФИКС] Часто HR-датчики не рекламируют сервис, но их имена узнаваемы.
+        // UUID остаётся основным критерием, имя — подсказкой для фильтра.
+        if (name.contains("polar")) return true
+        if (name.contains("garmin")) return true
+        if (name.contains("coospo")) return true
+        if (name.contains("magene")) return true
+        if (name.contains("hrm")) return true
         val uuids = r.scanRecord?.serviceUuids ?: return false
         return uuids.any { it.uuid == Uuids.HR_SERVICE }
     }
