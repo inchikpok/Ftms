@@ -27,7 +27,11 @@ jobs:
         with:
           gradle-version: '8.6'
 
+      # [ФИКС] Пароль больше не хардкодится, берётся из GitHub Secrets.
       - name: Verify keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           KS=app/keystore/treadmill.keystore
           if [ ! -f "$KS" ]; then
@@ -39,10 +43,10 @@ jobs:
             echo "::error::Keystore looks corrupt (size=$SIZE bytes)"
             exit 1
           fi
-          keytool -list -keystore "$KS" -storepass treadmill123 -alias treadmill \
-            || { echo "::error::Keystore cannot be read"; exit 1; }
+          keytool -list -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
+            || { echo "::error::Keystore cannot be read (wrong secret KEYSTORE_PASSWORD / KEY_ALIAS?)"; exit 1; }
           echo "Keystore fingerprint (must be constant):"
-          keytool -list -v -keystore "$KS" -storepass treadmill123 -alias treadmill \
+          keytool -list -v -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
             | grep -E "SHA1:|SHA256:" || true
 
       - name: Inject version code
@@ -51,23 +55,32 @@ jobs:
           sed -i "s/versionCode = .*/versionCode = $NEW_CODE/" app/build.gradle.kts
           sed -i "s/versionName = .*/versionName = \"2.0.${{ github.run_number }}\"/" app/build.gradle.kts
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon --no-configuration-cache
+      # [ФИКС] Собираем release, а не debug. Пароли пробрасываем в env для Gradle.
+      - name: Build Release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: gradle assembleRelease --no-daemon --no-configuration-cache
 
-      - name: Show APK signature (informational)
-        continue-on-error: true
+      # [ФИКС] Обязательная проверка подписи: если не прошла — билд падает.
+      - name: Verify APK signature
         run: |
-          APK=app/build/outputs/apk/debug/app-debug.apk
-          echo "APK: $APK ($(stat -c%s "$APK") bytes)"
-          echo "--- keytool -printcert -jarfile ---"
-          keytool -printcert -jarfile "$APK" 2>&1 | head -30 || true
-          echo "--- apksigner verify ---"
-          BT=$(ls -d "${ANDROID_HOME}"/build-tools/* 2>/dev/null | sort -V | tail -1)
-          if [ -n "$BT" ] && [ -x "${BT}/apksigner" ]; then
-            "${BT}/apksigner" verify --print-certs "$APK" 2>&1 | head -30 || true
-          else
-            echo "apksigner not found at expected path, skipping"
+          APK=app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$APK" ]; then
+            echo "::error::Release APK not found at $APK"
+            ls -la app/build/outputs/apk/release/ || true
+            exit 1
           fi
+          echo "APK: $APK ($(stat -c%s "$APK") bytes)"
+          BT=$(ls -d "${ANDROID_HOME}"/build-tools/* 2>/dev/null | sort -V | tail -1)
+          if [ -z "$BT" ] || [ ! -x "${BT}/apksigner" ]; then
+            echo "::error::apksigner not found"
+            exit 1
+          fi
+          "${BT}/apksigner" verify --print-certs "$APK" \
+            || { echo "::error::APK signature verification FAILED"; exit 1; }
+          echo "--- apksigner verify OK ---"
 
       - name: Read version from build.gradle.kts
         id: version
@@ -80,17 +93,15 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p artifacts
-          cp app/build/outputs/apk/debug/app-debug.apk \
+          cp app/build/outputs/apk/release/app-release.apk \
              "artifacts/TreadmillControl-${{ steps.version.outputs.name }}.apk"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: treadmill-debug-apk
+          name: treadmill-release-apk
           path: artifacts/TreadmillControl-${{ steps.version.outputs.name }}.apk
-          # [ФИКС] Артефакт живет 1 день вместо 90, чтобы не забивать квоту
           retention-days: 1
-          # [ФИКС] APK уже сжат, не тратим время CI на повторное сжатие
           compression-level: 0
 
       - name: Create GitHub Release
