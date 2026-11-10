@@ -18,14 +18,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.treadmill.R
+import com.custom.treadmill.ui.LocalTreadmillColors
 
 @Composable
 fun HrSparkline(
     samples: List<Pair<Int, Int>>,
     durationSec: Int,
     modifier: Modifier = Modifier,
-    lineColor: Color = Color(0xFFE53935)
+    lineColor: Color? = null   // [ФИКС] nullable: если не задан — берём из темы
 ) {
+    // [ФИКС] Семантический красный из темы. Параметр остался для случаев,
+    // когда нужен кастомный цвет (например, подсветка одной записи).
+    val effectiveLineColor = lineColor ?: LocalTreadmillColors.current.metricRed
+
     if (samples.size < 2) {
         Box(modifier, contentAlignment = Alignment.Center) {
             Text(
@@ -76,14 +81,14 @@ fun HrSparkline(
         drawPath(
             path = fillPath,
             brush = Brush.verticalGradient(
-                colors = listOf(lineColor.copy(alpha = 0.25f), Color.Transparent),
+                colors = listOf(effectiveLineColor.copy(alpha = 0.25f), Color.Transparent),
                 startY = 0f,
                 endY = h
             )
         )
         drawPath(
             path = linePath,
-            color = lineColor,
+            color = effectiveLineColor,
             style = Stroke(
                 width = 1.8.dp.toPx(),
                 cap = StrokeCap.Round,
