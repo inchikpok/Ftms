@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.custom.treadmill.R
 import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.ble.BleConnectionState
+import com.custom.treadmill.ui.LocalTreadmillColors
 import com.custom.treadmill.ui.Routes
 import com.custom.treadmill.ui.components.CapabilitiesDialog
 import com.custom.treadmill.ui.components.RollingText
@@ -53,6 +54,7 @@ import kotlin.math.roundToInt
 fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val ctx = LocalContext.current
     val ble = TreadmillApp.instance.bleManager
+    val tc = LocalTreadmillColors.current
 
     val treadmillState by vm.treadmillState.collectAsState()
     val treadmillName by vm.treadmillName.collectAsState()
@@ -329,7 +331,10 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         contentPadding = PaddingValues(0.dp),
                         colors = if (paused)
-                            ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                            ButtonDefaults.buttonColors(
+                                containerColor = tc.successGreen,
+                                contentColor = Color.White
+                            )
                         else
                             ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -391,6 +396,7 @@ private fun SegmentLine(
     segmentName: String,
     paused: Boolean
 ) {
+    val tc = LocalTreadmillColors.current
     Box(
         Modifier
             .fillMaxWidth()
@@ -421,7 +427,7 @@ private fun SegmentLine(
                         " · " + stringResource(R.string.main_segment_paused),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFF9A825)
+                        color = tc.warningYellow
                     )
                 }
             }
@@ -436,6 +442,7 @@ private fun HoldToConfirmButton(
     modifier: Modifier = Modifier,
     holdDurationMs: Long = 800L
 ) {
+    val tc = LocalTreadmillColors.current
     var isPressing by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     val haptic = LocalHapticFeedback.current
@@ -495,13 +502,13 @@ private fun HoldToConfirmButton(
                 val strokeWidth = 3.dp.toPx()
                 val inset = strokeWidth / 2
                 drawRoundRect(
-                    color = Color(0xFFE53935).copy(alpha = 0.15f),
+                    color = tc.exerciseRed.copy(alpha = 0.15f),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(
                         x = size.height / 2, y = size.height / 2
                     )
                 )
                 drawArc(
-                    color = Color(0xFFE53935),
+                    color = tc.exerciseRed,
                     startAngle = -90f,
                     sweepAngle = 360f * progress,
                     useCenter = false,
@@ -524,13 +531,14 @@ private fun CompactStatus(
     cooldownRemaining: Int,
     modifier: Modifier = Modifier
 ) {
+    val tc = LocalTreadmillColors.current
     val (dotColor, statusText) = when (state) {
-        BleConnectionState.READY -> Color(0xFF2E7D32) to stringResource(R.string.main_status_connected)
+        BleConnectionState.READY -> tc.statusConnected to stringResource(R.string.main_status_connected)
         BleConnectionState.CONNECTING,
         BleConnectionState.CONNECTED,
-        BleConnectionState.DISCOVERING -> Color(0xFFF9A825) to stringResource(R.string.main_status_connecting)
-        BleConnectionState.FAILED -> Color(0xFFC62828) to stringResource(R.string.main_status_error)
-        BleConnectionState.DISCONNECTED -> Color(0xFF9E9E9E) to stringResource(R.string.main_status_none)
+        BleConnectionState.DISCOVERING -> tc.statusConnecting to stringResource(R.string.main_status_connecting)
+        BleConnectionState.FAILED -> tc.statusError to stringResource(R.string.main_status_error)
+        BleConnectionState.DISCONNECTED -> tc.statusDisconnected to stringResource(R.string.main_status_none)
     }
     val connected = state == BleConnectionState.READY
 
@@ -690,12 +698,6 @@ private fun MetricBlock(
     }
 }
 
-// [ФИКС] Полностью переработан диалог сканирования:
-//  - «Показать все BLE-устройства» — обход фильтра по имени/UUID;
-//  - сортировка по RSSI (сильный сигнал — выше);
-//  - звёздочка у «похожих»;
-//  - MAC-адрес рядом с именем;
-//  - счётчики «найдено/подходящих».
 @Composable
 private fun ScanDialog(
     title: String,
