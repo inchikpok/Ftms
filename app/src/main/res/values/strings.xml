@@ -506,5 +506,9 @@
     <string name="about_custom_workout_hint">Create a workout: Programs → Create, or import a JSON file via 📤. See README for the format.</string>
 
     <string name="ble_permission_denied">Bluetooth permissions are required to connect the treadmill</string>
+
+    <string name="scan_show_all">Show all BLE devices</string>
+    <string name="scan_hide_non_matching">Hide non-matching</string>
+    <string name="scan_nothing_matched">No matching devices. Try \"Show all BLE devices\".</string>
     
 </resources>
