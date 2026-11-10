@@ -16,7 +16,10 @@ import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.ble.BleConnectionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -24,15 +27,32 @@ class TreadmillService : Service() {
 
     private val notificationId = 1
     private val channelId = "treadmill_channel"
-    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+
+    // [ФИКС] SupervisorJob вместо Job: падение одного коллектора не убивает остальные.
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    // [ФИКС] Коллекторы уже запущены. При повторных onStartCommand
+    // (например, после нажатия «Пауза»/«Стоп» в уведомлении) не перезапускаем.
+    @Volatile private var collectorsStarted = false
+
+    // [ФИКС] Троттлинг уведомления: CONFLATED-канал + delay в воркере.
+    // Сколько бы раз ни пришли изменения, notify() вызывается не чаще раза в 1.5с.
+    private val notificationChannel = Channel<Unit>(Channel.CONFLATED)
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        // Один воркер на весь срок жизни сервиса.
+        serviceScope.launch {
+            for (u in notificationChannel) {
+                updateNotification()
+                delay(1500L)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // [ИТ.3] Действия из уведомления
+        // Действия из уведомления
         when (intent?.action) {
             ACTION_STOP -> {
                 TreadmillApp.instance.session.stopTreadmill()
@@ -41,34 +61,38 @@ class TreadmillService : Service() {
             }
             ACTION_TOGGLE_PAUSE -> {
                 TreadmillApp.instance.session.togglePause()
-                updateNotification()
+                requestNotificationUpdate()
                 return START_STICKY
             }
         }
 
-        val session = TreadmillApp.instance.session
-
+        // startForeground можно вызывать многократно — просто обновит уведомление
         startForeground(notificationId, buildNotification())
 
+        // [ФИКС] Коллекторы запускаем ровно один раз за жизнь сервиса
+        if (collectorsStarted) return START_STICKY
+        collectorsStarted = true
+
+        val session = TreadmillApp.instance.session
+
         serviceScope.launch {
-            session.treadmillData.collectLatest { updateNotification() }
+            session.treadmillData.collectLatest { requestNotificationUpdate() }
         }
         serviceScope.launch {
-            session.heartRate.collectLatest { updateNotification() }
+            session.heartRate.collectLatest { requestNotificationUpdate() }
         }
         serviceScope.launch {
-            session.uiElapsedSec.collectLatest { updateNotification() }
-        }
-        // [ИТ.3] Следим за паузой и текущим сегментом — обновляем уведомление
-        serviceScope.launch {
-            session.isPaused.collectLatest { updateNotification() }
+            session.uiElapsedSec.collectLatest { requestNotificationUpdate() }
         }
         serviceScope.launch {
-            session.workoutState.collectLatest { updateNotification() }
+            session.isPaused.collectLatest { requestNotificationUpdate() }
+        }
+        serviceScope.launch {
+            session.workoutState.collectLatest { requestNotificationUpdate() }
         }
         serviceScope.launch {
             session.treadmillState.collectLatest { state ->
-                updateNotification()
+                requestNotificationUpdate()
                 if (state == BleConnectionState.DISCONNECTED && !session.workoutState.value.running) {
                     stopSelf()
                 }
@@ -76,6 +100,19 @@ class TreadmillService : Service() {
         }
 
         return START_STICKY
+    }
+
+    // [ФИКС] Утечка корутин: при уничтожении сервиса отменяем scope целиком.
+    // Без этого 6 collectLatest продолжали бы жить и на следующем запуске
+    // сервиса запустились бы ещё раз → дублирующиеся обновления уведомления.
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
+        collectorsStarted = false
+    }
+
+    private fun requestNotificationUpdate() {
+        notificationChannel.trySend(Unit)
     }
 
     private fun updateNotification() {
