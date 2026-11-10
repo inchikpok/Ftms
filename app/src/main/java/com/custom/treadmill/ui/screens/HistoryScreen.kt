@@ -33,6 +33,7 @@ import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.data.database.HrSamplesCodec
 import com.custom.treadmill.data.database.WorkoutLogEntity
 import com.custom.treadmill.logic.HeartRateZoneCalculator
+import com.custom.treadmill.logic.SpeedFormatter
 import com.custom.treadmill.ui.LocalTreadmillColors
 import com.custom.treadmill.ui.components.HeartRateChart
 import com.custom.treadmill.ui.components.HrPoint
@@ -42,8 +43,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// [ФИКС] Бывшая top-level val ZoneColors превращена в @Composable-функцию:
-// цвета берутся из LocalTreadmillColors и автоматически адаптируются к тёмной теме.
 @Composable
 private fun zoneColors(): List<Color> {
     val tc = LocalTreadmillColors.current
@@ -235,9 +234,10 @@ private fun LogsList(logs: List<WorkoutLogEntity>) {
 private fun CompactLogCard(log: WorkoutLogEntity, isExpanded: Boolean, onToggle: () -> Unit, zoneBounds: List<Int>) {
     val tc = LocalTreadmillColors.current
     val zoneColors = zoneColors()
+    val unitKmh = stringResource(R.string.unit_kmh)
+    val unitPace = stringResource(R.string.unit_pace)
 
     val fmt = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
-    // [ФИКС] Поддержка старых записей с текстом "Ручная тренировка"
     val isManual = log.programName.isBlank() || log.programName == "Ручная тренировка" || log.programName == "Manual workout"
     val displayName = if (isManual) stringResource(R.string.manual_workout) else log.programName
 
@@ -278,9 +278,23 @@ private fun CompactLogCard(log: WorkoutLogEntity, isExpanded: Boolean, onToggle:
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                     Spacer(Modifier.height(10.dp))
 
+                    // [ФИКС] Три колонки: скорость, темп, макс. пульс.
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        CompactMetric(Icons.Default.Speed, "%.1f ${stringResource(R.string.unit_kmh)}".format(log.avgSpeedKmh), stringResource(R.string.history_avg_speed))
-                        CompactMetric(Icons.Default.FavoriteBorder, if (log.maxHeartRate > 0) "${log.maxHeartRate} ${stringResource(R.string.unit_bpm)}" else "—", stringResource(R.string.history_max_hr))
+                        CompactMetric(
+                            Icons.Default.Speed,
+                            "%.1f $unitKmh".format(log.avgSpeedKmh),
+                            stringResource(R.string.history_avg_speed)
+                        )
+                        CompactMetric(
+                            Icons.Default.Schedule,
+                            SpeedFormatter.formatPaceWithUnit(log.avgSpeedKmh, unitPace),
+                            stringResource(R.string.history_avg_pace)
+                        )
+                        CompactMetric(
+                            Icons.Default.FavoriteBorder,
+                            if (log.maxHeartRate > 0) "${log.maxHeartRate} ${stringResource(R.string.unit_bpm)}" else "—",
+                            stringResource(R.string.history_max_hr)
+                        )
                     }
 
                     if (log.avgHeartRate > 0) {
@@ -397,6 +411,11 @@ private fun SummaryCard(logs: List<WorkoutLogEntity>) {
     val totalKm = logs.sumOf { it.distanceKm }
     val totalKcal = logs.sumOf { it.calories }
 
+    // [ФИКС] Средние скорость и темп по всем записям.
+    val avgSpeed = if (logs.isNotEmpty()) logs.sumOf { it.avgSpeedKmh } / logs.size else 0.0
+    val unitKmh = stringResource(R.string.unit_kmh)
+    val unitPace = stringResource(R.string.unit_pace)
+
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(Modifier.padding(14.dp)) {
             Text(stringResource(R.string.history_summary_title), fontWeight = FontWeight.Bold)
@@ -407,8 +426,13 @@ private fun SummaryCard(logs: List<WorkoutLogEntity>) {
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth()) {
-                StatBlock(stringResource(R.string.history_summary_distance), "%.1f ${stringResource(R.string.unit_km)}".format(totalKm), Modifier.weight(1f))
+                StatBlock(stringResource(R.string.history_summary_distance), "%.1f $unitKmh".format(totalKm).replace(unitKmh, stringResource(R.string.unit_km)), Modifier.weight(1f))
                 StatBlock(stringResource(R.string.history_summary_calories), "$totalKcal", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth()) {
+                StatBlock(stringResource(R.string.history_summary_speed), "%.1f $unitKmh".format(avgSpeed), Modifier.weight(1f))
+                StatBlock(stringResource(R.string.history_summary_pace), SpeedFormatter.formatPaceWithUnit(avgSpeed, unitPace), Modifier.weight(1f))
             }
         }
     }
