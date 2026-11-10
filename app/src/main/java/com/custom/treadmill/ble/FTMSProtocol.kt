@@ -14,7 +14,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
-import kotlin.math.floor
 import kotlin.math.roundToInt
 import java.util.UUID
 
@@ -185,8 +184,12 @@ class FTMSProtocol : ITreadmillProtocol {
         val caps = _capabilities.value
         val res = if (caps.isLoaded && caps.speedIncrementKmh > 0.0) caps.speedIncrementKmh else speedResolutionKmh
         if (res <= 0.0) return v
-        val floored = floor(v / res) * res
-        return floored.coerceAtLeast(res)
+        // [ФИКС] roundToInt, а не floor: устраняет баг "0.3 → 0.2" из-за 0.3/0.1=2.9999...
+        // Финальное значение приводим к формату FTMS (raw = km/h * 100, шаг 0.01),
+        // чтобы _targetSpeed в UI и то, что реально уходит на дорожку, совпадали.
+        val steps = (v / res).roundToInt().coerceAtLeast(1)
+        val snapped = steps * res
+        return (snapped * 100.0).roundToInt() / 100.0
     }
 
     private suspend fun sendSpeedRaw(speedKmh: Double) {
