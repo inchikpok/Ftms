@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.custom.treadmill.R
 import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.ble.BleConnectionState
+import com.custom.treadmill.logic.SpeedFormatter
 import com.custom.treadmill.ui.LocalTreadmillColors
 import com.custom.treadmill.ui.Routes
 import com.custom.treadmill.ui.components.CapabilitiesDialog
@@ -224,7 +225,11 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         enabled = treadmillReady,
                         onMinus = { vm.setSpeed(targetSpeed - speedStep) },
                         onPlus = { vm.setSpeed(targetSpeed + speedStep) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        subValue = SpeedFormatter.formatPaceWithUnit(
+                            targetSpeed,
+                            stringResource(R.string.unit_pace)
+                        )
                     )
                     if (showIncline) {
                         ControlTile(
@@ -598,7 +603,9 @@ private fun ControlTile(
     onMinus: () -> Unit,
     onPlus: () -> Unit,
     modifier: Modifier = Modifier,
-    onReset: (() -> Unit)? = null
+    onReset: (() -> Unit)? = null,
+    // [ФИКС] Подпись под большой цифрой: темп для скорости, null для наклона.
+    subValue: String? = null
 ) {
     Card(modifier = modifier, elevation = CardDefaults.cardElevation(2.dp)) {
         Column(
@@ -630,6 +637,21 @@ private fun ControlTile(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 5.dp)
                 )
+            }
+            // [ФИКС] Темп под скоростью. Если subValue == null — резервируем
+            // такую же высоту через Spacer, чтобы карточка наклона не «прыгала»
+            // относительно карточки скорости.
+            if (subValue != null) {
+                Text(
+                    subValue,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 1.dp, bottom = 1.dp)
+                )
+            } else {
+                Spacer(Modifier.height(14.dp))
             }
             Spacer(Modifier.height(2.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
