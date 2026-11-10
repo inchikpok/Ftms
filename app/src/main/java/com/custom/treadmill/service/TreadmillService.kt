@@ -28,21 +28,19 @@ class TreadmillService : Service() {
     private val notificationId = 1
     private val channelId = "treadmill_channel"
 
-    // [ФИКС] SupervisorJob вместо Job: падение одного коллектора не убивает остальные.
+    // SupervisorJob вместо Job: падение одного коллектора не убивает остальные.
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // [ФИКС] Коллекторы уже запущены. При повторных onStartCommand
+    // Коллекторы уже запущены. При повторных onStartCommand
     // (например, после нажатия «Пауза»/«Стоп» в уведомлении) не перезапускаем.
     @Volatile private var collectorsStarted = false
 
-    // [ФИКС] Троттлинг уведомления: CONFLATED-канал + delay в воркере.
-    // Сколько бы раз ни пришли изменения, notify() вызывается не чаще раза в 1.5с.
+    // Троттлинг уведомления: CONFLATED-канал + delay в воркере.
     private val notificationChannel = Channel<Unit>(Channel.CONFLATED)
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        // Один воркер на весь срок жизни сервиса.
         serviceScope.launch {
             for (u in notificationChannel) {
                 updateNotification()
@@ -52,7 +50,6 @@ class TreadmillService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Действия из уведомления
         when (intent?.action) {
             ACTION_STOP -> {
                 TreadmillApp.instance.session.stopTreadmill()
@@ -66,10 +63,8 @@ class TreadmillService : Service() {
             }
         }
 
-        // startForeground можно вызывать многократно — просто обновит уведомление
         startForeground(notificationId, buildNotification())
 
-        // [ФИКС] Коллекторы запускаем ровно один раз за жизнь сервиса
         if (collectorsStarted) return START_STICKY
         collectorsStarted = true
 
@@ -102,9 +97,6 @@ class TreadmillService : Service() {
         return START_STICKY
     }
 
-    // [ФИКС] Утечка корутин: при уничтожении сервиса отменяем scope целиком.
-    // Без этого 6 collectLatest продолжали бы жить и на следующем запуске
-    // сервиса запустились бы ещё раз → дублирующиеся обновления уведомления.
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
@@ -129,23 +121,27 @@ class TreadmillService : Service() {
         val isPaused = session.isPaused.value || ws.paused
 
         val timeStr = formatElapsed(sec)
-        val hrStr = if (hr > 0) "$hr уд/мин" else "—"
+        val hrStr = if (hr > 0) "$hr ${getString(R.string.unit_bpm)}" else "—"
 
         val title = if (ws.running || ws.paused) {
-            val segName = ws.currentSegmentName.ifBlank { "Сегмент ${ws.currentSegmentIndex + 1}" }
-            "Сегмент ${ws.currentSegmentIndex + 1}/${ws.totalSegments} · $segName"
+            // [ФИКС] Локализованные строки вместо хардкода.
+            val segName = ws.currentSegmentName.ifBlank {
+                getString(R.string.programs_segment_default, ws.currentSegmentIndex + 1)
+            }
+            getString(R.string.workout_segment_progress, ws.currentSegmentIndex + 1, ws.totalSegments, segName)
         } else {
-            "Treadmill Control"
+            getString(R.string.app_name)
         }
 
         val content = buildString {
-            append("%.1f км/ч".format(data.speedKmh))
+            append("%.1f %s".format(data.speedKmh, getString(R.string.unit_kmh)))
             append(" · ")
             append(hrStr)
             append(" · ")
             append(timeStr)
             if (isPaused) {
-                append(" · ПАУЗА")
+                append(" · ")
+                append(getString(R.string.workout_paused))
             }
         }
 
@@ -171,7 +167,9 @@ class TreadmillService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val pauseLabel = if (isPaused) "Продолжить" else "Пауза"
+        val pauseLabel = getString(
+            if (isPaused) R.string.main_btn_resume else R.string.main_btn_pause
+        )
 
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)
@@ -180,7 +178,7 @@ class TreadmillService : Service() {
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .addAction(0, pauseLabel, pausePendingIntent)
-            .addAction(0, "Стоп", stopPendingIntent)
+            .addAction(0, getString(R.string.main_btn_stop), stopPendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
@@ -196,10 +194,12 @@ class TreadmillService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "Тренировка",
+                getString(R.string.workout_title),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Показывает текущие метрики тренировки"
+                // Описание канала — служебное, оставлю английское,
+                // потому что оно видно только в системных настройках уведомлений.
+                description = "Shows current workout metrics"
             }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
