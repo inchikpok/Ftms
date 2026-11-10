@@ -12,6 +12,9 @@ Bowflex, Sole, NordicTrack и т.д.
 
 Работает полностью офлайн — разрешение INTERNET намеренно не запрашивается.
 
+Репозиторий **публичный** — GitHub Actions без лимитов на минуты и хранилище
+артефактов (для private-репо был лимит 500 МБ, намучились).
+
 ---
 
 ## Стек
@@ -26,7 +29,7 @@ Bowflex, Sole, NordicTrack и т.д.
 - Локализация: `values/strings.xml` (EN) + `values-ru/strings.xml` (RU)
 - Сборка: Gradle 8.6, AGP 8.2.2, KSP 1.9.22-1.0.17
 - SDK: min 21, target/compile 34
-- CI/CD: GitHub Actions (автоматический versionCode)
+- CI/CD: GitHub Actions (автоматический versionCode, публичный репо)
 
 ---
 
@@ -34,16 +37,16 @@ Bowflex, Sole, NordicTrack и т.д.
 
     app/src/main/java/com/custom/treadmill/
     ├── TreadmillApp.kt              — Application, ручной DI (включая TtsManager)
-    ├── MainActivity.kt              — точка входа, тема из настроек, перехват тапов/свайпов
+    ├── MainActivity.kt              — точка входа, тема из настроек, перехват тапов/свайпов, запрос POST_NOTIFICATIONS
     ├── DebugLog.kt                  — единый хаб логирования (memory + file)
     │
     ├── ble/
     │   ├── Uuids.kt                 — UUID сервисов и характеристик (FTMS + HR)
-    │   ├── BleManager.kt            — сканирование BLE + кулдаун сканирования + защита от ALREADY_STARTED
-    │   ├── BleConnection.kt         — обёртка BluetoothGatt (writeSuspend, корректный disconnect)
+    │   ├── BleManager.kt            — сканирование BLE + кулдаун + защита от ALREADY_STARTED
+    │   ├── BleConnection.kt         — обёртка BluetoothGatt (gattMutex, setNotifySuspend, writeSuspend)
     │   ├── ITreadmillProtocol.kt    — интерфейс + TreadmillData + capabilities
     │   ├── TreadmillCapabilities.kt — парсер FTMS Feature / Speed/Incline Range
-    │   ├── FTMSProtocol.kt          — стандартный FTMS (читает возможности)
+    │   ├── FTMSProtocol.kt          — стандартный FTMS (строгий парсер, incline 4 байта)
     │   ├── TreadmillSession.kt      — ЯДРО: связь, AutoHR, TTS, метрики, реконнект, локализация
     │   └── HeartRateService.kt      — чтение пульса (0x180D)
     │
@@ -54,16 +57,16 @@ Bowflex, Sole, NordicTrack и т.д.
     │   │   ├── ProgramEntity.kt     — ProgramEntity + ProgramData + ProgramSegment + WorkoutLogEntity
     │   │   └── HrSamplesCodec.kt    — компактное кодирование кривой пульса
     │   └── repository/
-    │       ├── ProgramRepository.kt — CRUD, JSON, демо
-    │       └── SettingsStore.kt     — SharedPreferences + JSON + профили + TTS + миграция
+    │       ├── ProgramRepository.kt — CRUD, JSON, демо (БЕЗ deleteAll)
+    │       └── SettingsStore.kt     — SharedPreferences + JSON + профили + TTS + битый JSON
     │
     ├── logic/
-    │   ├── WorkoutManager.kt        — программа + пауза/пропуск/onFinish (один copy() при смене)
+    │   ├── WorkoutManager.kt        — программа + пауза/пропуск/onFinish (safeSetSpeed/Incline)
     │   ├── HeartRateController.kt   — авторегулировка (AutoHR)
     │   ├── HeartRateZoneCalculator.kt — расчет пульсовых зон (Karvonen)
     │   ├── ProgramGenerator.kt      — генератор тренировок (волшебная палочка)
     │   ├── TtsManager.kt            — обёртка TextToSpeech
-    │   └── BackupManager.kt         — экспорт/импорт ZIP (программы, журнал, настройки)
+    │   └── BackupManager.kt         — экспорт/импорт ZIP (атомарное восстановление)
     │
     ├── service/
     │   └── TreadmillService.kt      — Foreground Service (уведомление в шторке с кнопками)
@@ -71,19 +74,16 @@ Bowflex, Sole, NordicTrack и т.д.
     └── ui/
         ├── Theme.kt, AppNavHost.kt, Permissions.kt
         ├── components/
-        │   ├── HeartRateChart.kt    — чистый Canvas, зоны, градиент, даты
-        │   ├── HrSparkline.kt       — мини-график пульса для карточки журнала
-        │   ├── ZoneLegend.kt        — компактная легенда зон Z1-Z5
-        │   ├── CapabilitiesDialog.kt — диалог возможностей дорожки
-        │   └── RollingText.kt
+        │   ├── HeartRateChart.kt, HrSparkline.kt, ZoneLegend.kt
+        │   ├── CapabilitiesDialog.kt, RollingText.kt
         ├── screens/
-        │   ├── MainScreen.kt        — главный, HoldToConfirmButton, SegmentLine
+        │   ├── MainScreen.kt        — главный, HoldToConfirmButton, SegmentLine, BLE-разрешения при тапе «Подкл.»
         │   ├── WorkoutScreen.kt, SettingsScreen.kt
-        │   ├── ProgramsScreen.kt    — списки, редактор, шаблоны, генератор, импорт/экспорт
-        │   ├── HistoryScreen.kt     — список, статистика, Info-кнопка
-        │   ├── DebugScreen.kt, AboutScreen.kt
-        │   ├── ProfilesScreen.kt    — CRUD профилей спортсмена
-        │   └── TtsSettingsScreen.kt — редактор TTS-фраз
+        │   ├── ProgramsScreen.kt    — списки, редактор, шаблоны (clamp по лимитам), генератор, импорт/экспорт
+        │   ├── HistoryScreen.kt     — список, статистика, Info-кнопка, диалог подтверждения демо
+        │   ├── DebugScreen.kt       — 3 таба, фильтры FTMS + UI (компактные switch)
+        │   ├── AboutScreen.kt       — без шаблона/инструкции, короткая подсказка
+        │   ├── ProfilesScreen.kt, TtsSettingsScreen.kt
         └── viewmodels/MainViewModel.kt, ProgramViewModel.kt
 
     app/src/main/res/
@@ -102,7 +102,7 @@ Bowflex, Sole, NordicTrack и т.д.
 - FTMS Supported Speed Range: 0x2AD4 (read)
 - FTMS Supported Incline Range: 0x2AD5 (read)
 - FTMS Control Point: 0x2AD9 (write, indicate)
-- FTMS Control Point Alt: 0x2A66
+- FTMS Control Point Alt: 0x2A66 — **ВНИМАНИЕ: это Cycling Power Control Point, а не FTMS** (см. подводные камни)
 - HR Service: 0x180D, Measurement: 0x2A37
 
 ### Протокол belt'а FS-E629DD (проверено на железе)
@@ -124,11 +124,22 @@ Bowflex, Sole, NordicTrack и т.д.
 3. **Остановка:** `08 01`. Старый `02 00 00` останавливал мотор, но не таймер.
 4. **Sleep mode:** belt подключён по BLE, но мотор не реагирует. Только
    физическая кнопка.
-5. `parseTreadmillData`: если флаг incline отсутствует → incline = 0.0.
+5. `parseTreadmillData`: если флаг incline отсутствует → incline = prev.inclinePercent
+   (раньше было 0.0 — баг, пакет без флага обнулял наклон).
 6. **Особенность BLE-чипа FitShow**: иногда «залипает» в состоянии «подключён»
    на 30-60 сек после отключения телефона. Приложение при этом перестаёт
    видеть дорожку в сканере. Лечится только выключением/включением питания
    дорожки. Не баг приложения. **Частично лечится** корректным `disconnect → wait callback → refresh() → close()`.
+
+### Парсер FTMS — строгий (v2.3.3)
+
+`FTMSProtocol.parseTreadmillData()`:
+
+- Все чтения проверяют `o + size <= b.size`, иначе `return` (не пытаться парсить обрезанный пакет).
+- `Inclination (bit 3)` = **4 байта**: Inclination s16 + Ramp Angle s16. Было 2 байта — критический баг, сдвигал всё после наклона.
+- `Elevation Gain (bit 4)` = **4 байта**: Pos uint16 + Neg uint16. Было 2 байта.
+- `Total Energy (bit 7)` = 5 байт: Total Energy uint16 + Energy Per Hour uint16 + Energy Per Minute uint8.
+- Если `prev.inclinePercent` был ненулевым, а в новом пакете нет флага incline — сохраняем предыдущее значение.
 
 ---
 
@@ -142,69 +153,43 @@ Bowflex, Sole, NordicTrack и т.д.
   и пульс выше верхней границы → `-stepKmh`. Если ниже нижней → `+stepKmh`.
   НЕ работает во время программы. Учитывает наклон, вес, ИМТ.
 - **TTS**: озвучка старта, смены сегмента, паузы/продолжения, финиша.
-  Шаблоны фраз редактируются в настройках. Словоформы через `plurals` в ресурсах.
 - **Метрики**: `uiElapsedSec`, `uiDistanceKm`, `uiCalories` (формула MET).
-  Вес из активного профиля.
-- **Capabilities**: после подключения читает FTMS Feature / Speed Range /
-  Incline Range. Если наклон не поддерживается — UI скрывает слайдеры.
-- **Foreground Service**: `TreadmillService` держит процесс живым и показывает
-  плашку в шторке (Сегмент · Скорость · Пульс · Время · Пауза). Кнопки действий.
-- **WorkoutManager**: управляет программой. При пропуске сегмента время не
-  накручивается. При окончании — останавливает belt и сохраняет лог.
+- **Capabilities**: после подключения читает FTMS Feature / Speed Range / Incline Range.
+- **Foreground Service**: `TreadmillService` держит процесс живым + плашка в шторке.
+- **WorkoutManager**: управляет программой. При пропуске сегмента время не накручивается.
 
 ### Важные защитные механизмы
 
-- `startJob` — фоновый запуск belt. Отменяется при Stop/Pause, чтобы не
-  спамить командами `00+07+02` после того, как пользователь уже нажал Стоп.
-- `autoReconnectJob` — цикл реконнекта. Отменяется при ручном подключении,
-  чтобы не «дрались» два параллельных BLE-подключения.
-- **Кулдаун сканирования** (`BleManager.setScanCooldown(ms)`) — после ручного
-  отключения на 5 сек блокирует повторное сканирование. Защищает от «залипания»
-  BLE-чипа дорожки и гонки GATT-подключений.
-- **`hasBeenReady`** в stateJob — предотвращает ложный `triggerAutoReconnect` на
-  первой эмиссии StateFlow(DISCONNECTED). Иначе создавался «сирота» BleConnection
-  с открытым GATT.
+- `startJob` — фоновый запуск belt. Отменяется при Stop/Pause.
+- `autoReconnectJob` — цикл реконнекта. Отменяется при ручном подключении.
+- **Кулдаун сканирования** — 5 сек после ручного отключения.
+- **`hasBeenReady`** в stateJob — предотвращает ложный `triggerAutoReconnect` на первой эмиссии.
 - **`isDisconnecting`** в `BleConnection` — защита от повторного `disconnect()`.
+- **`gattMutex`** в `BleConnection` (v2.3.3) — все GATT-операции строго сериализованы, один `activeDeferred: CompletableDeferred<Any?>`.
 
 ### Обработка потери связи (v2.3)
 
 При `DISCONNECTED` во время активной тренировки/ручного режима:
 
-1. Программа или ручной режим **ставится на паузу** (время/дистанция не накручиваются).
+1. Программа или ручной режим **ставится на паузу**.
 2. Запускается цикл автопереподключения (10 попыток × 3 сек).
-3. После успешного реконнекта — сообщение «Связь восстановлена. Тренировка на
-   паузе — нажмите «Продолжить»». Пользователь сам решает, продолжать ли.
+3. После успешного реконнекта — сообщение «Связь восстановлена. Тренировка на паузе».
 
 ### Кривая пульса (v2.3)
 
-- В `WorkoutLogEntity` добавлено поле `hrSamples: String = ""`.
-- Формат: `"0:120,5:125,10:130"` (offsetSec : bpm, через запятую).
-- Кодирование/декодирование — `HrSamplesCodec`.
-- Прореживание при сохранении: 1 точка в 5 секунд.
-- Используется в `HistoryScreen`:
-  - для точного расчёта пульсовых зон (`computeZoneDurations`);
-  - для отрисовки sparkline (`HrSparkline`).
-- Для старых записей (без `hrSamples`) — fallback на гауссову аппроксимацию
-  с пометкой «≈ приближённо».
+- В `WorkoutLogEntity` поле `hrSamples: String = ""`.
+- Формат: `"0:120,5:125,10:130"` (offsetSec : bpm).
+- Прореживание: 1 точка в 5 секунд.
+- Для старых записей — гауссова аппроксимация с пометкой «≈ приближённо».
 
 ---
 
 ## Профили пользователей
 
-`AppSettings.profiles: List<UserProfile>` + `activeProfileId`.
+`AppSettings.profiles: List<UserProfile>` + `activeProfileId`. Поля:
+`id`, `name`, `weightKg`, `heightCm`, `age`, `isMale`, `restingHr`, `level`.
 
-Поля `UserProfile`:
-
-- `id`, `name` (по умолчанию `""` — при отображении подставляется placeholder)
-- `weightKg`, `heightCm`, `age`, `isMale`
-- `restingHr` — пульс покоя
-- `level` — BEGINNER / INTERMEDIATE / ADVANCED
-
-Профили используются:
-
-- в расчёте калорий (вес),
-- в пульсовых зонах (возраст, пол, restingHr),
-- в генераторе тренировок (ИМТ, уровень, пол).
+Используется: калории (вес), зоны пульса (возраст/пол/restingHr), генератор (ИМТ/уровень).
 
 Экран: `ui/screens/ProfilesScreen.kt`, маршрут `Routes.PROFILES`.
 
@@ -212,166 +197,99 @@ Bowflex, Sole, NordicTrack и т.д.
 
 ## Голосовые подсказки (TTS)
 
-`logic/TtsManager.kt` — обёртка `TextToSpeech`, язык из системы.
+Шаблоны в `AppSettings`, дефолты из ресурсов в `SettingsStore.load()`:
+`ttsStartTemplate`, `ttsSegmentTemplate`, `ttsFinishTemplate`, `ttsPauseText`, `ttsResumeText`.
 
-Шаблоны фраз в `AppSettings` (по умолчанию `""` — заполняются из ресурсов в `SettingsStore.load()`):
+Теги: `{name}`, `{segName}`, `{i}`, `{n}`, `{speed}`, `{speed_text}`, `{angle}`,
+`{angle_text}`, `{dist}`, `{hr}`.
 
-- `ttsStartTemplate`
-- `ttsSegmentTemplate`
-- `ttsFinishTemplate`
-- `ttsPauseText`
-- `ttsResumeText`
+Словоформы — через `plurals` (`tts_kmh_plural`, `tts_percent_plural`).
 
-Доступные теги в шаблонах:
-
-- `{name}` — имя программы
-- `{segName}` — имя сегмента
-- `{i}` / `{n}` — номер сегмента / всего сегментов
-- `{speed}` (цифра) / `{speed_text}` (словами)
-- `{angle}` / `{angle_text}` — наклон
-- `{dist}` — дистанция (км)
-- `{hr}` — средний пульс
-
-Словоформы (`{speed_text}`, `{angle_text}`) — через `plurals` в ресурсах
-(`tts_kmh_plural`, `tts_percent_plural`). На русском — «1 километр», «2 километра»,
-«8 километров». На английском — «1 kilometer», «2 kilometers».
-
-Экран: `ui/screens/TtsSettingsScreen.kt`, маршрут `Routes.TTS`.
-Кнопка «Прослушать» под каждым полем.
-Кнопка «Сбросить» — ставит значения из текущего языка системы.
+Экран: `ui/screens/TtsSettingsScreen.kt`, `Routes.TTS`.
 
 ---
 
-## Генератор тренировок (волшебная палочка)
+## Генератор тренировок
 
-`logic/ProgramGenerator.kt` — генерирует программу по параметрам профиля.
-
-Параметры:
-
-- Цель: WEIGHT_LOSS / CARDIO / SPEED
-- Длительность: 20-60 мин
-- Интенсивность: 70-130%
-
-Учитывает:
-
-- ИМТ (штраф на скорость для высокого веса, защита коленей)
-- Уровень подготовки (новичок/средний/профи → базовые скорости +30-40%)
-- Плавное масштабирование наклона от уровня (новичок 4%, профи 12%)
-- Реальные лимиты железа (min/max скорость и наклон из Capabilities)
-
-Кнопка `AutoFixHigh` в шапке `ProgramsScreen`.
-
-**Локализация (v2.3.1):** названия программ и сегментов берутся из
-`strings.xml` через ключи `gen_name_*`, `gen_desc_*`, `gen_seg_*`,
-`gen_level_*`. Генератор получает `Context`, а не `stringResource`
-(он Composable-only).
+`logic/ProgramGenerator.kt` — по профилю (ИМТ, уровень, пол), цель (WEIGHT_LOSS/CARDIO/SPEED),
+длительность 20–60 мин, интенсивность 70–130%. Учитывает реальные лимиты `Capabilities`.
+Названия программ/сегментов — через `strings.xml` (`gen_name_*`, `gen_desc_*`, `gen_seg_*`).
 
 ---
 
 ## Возможности дорожки (Capabilities)
 
-`ble/TreadmillCapabilities.kt` — парсер трёх характеристик FTMS:
+`ble/TreadmillCapabilities.kt` — парсер FTMS Feature / Speed Range / Incline Range.
 
-- `FTMS Feature` (0x2ACC) — битовая маска поддерживаемых функций
-- `Speed Range` (0x2AD4) — min/max/increment скорость
-- `Incline Range` (0x2AD5) — min/max/increment наклон
+`ui/components/CapabilitiesDialog.kt` — только по кнопке ℹ️ рядом с именем дорожки.
 
-`ui/components/CapabilitiesDialog.kt` — диалог, открывается **только по кнопке ℹ️**
-рядом с именем дорожки (авто-показ при подключении убран — раздражал).
+Если дорожка не поддерживает наклон — все слайдеры наклона скрываются.
 
-Если дорожка не поддерживает наклон — все слайдеры наклона скрываются
-(MainScreen, WorkoutScreen, ProgramEditor). Если Speed Range уже, чем
-настройки пользователя — используются меньшие значения.
+**v2.3.3**: шаблоны программ (`buildTemplates`) теперь clamp'ят свои скорости и наклоны
+по `effectiveMaxSpeed` / `effectiveMaxIncline`. Раньше шаблон «Интервалы» создавал
+сегменты со скоростью 15 км/ч, даже если в настройках max = 12.
 
 ---
 
 ## Настройки (AppSettings)
 
 - `themeMode`: SYSTEM / LIGHT / DARK
-- `keepScreenOn`: не гасить экран во время тренировки
-- **TTS**: `ttsEnabled` + 5 шаблонов фраз (дефолты из ресурсов)
-- **Профили**: `profiles: List<UserProfile>`, `activeProfileId`
-- **Скорость**: minSpeedKmh / maxSpeedKmh (1.0 / 20.0), speedStepKmh
-- **Наклон**: maxInclinePercent (15.0)
-- **Автопульс**: `hrEnabled` / `hrMode` / `targetHr` / `zoneMin` / `zoneMax` /
-  `stepKmh` / `intervalSec` / `thresholdHigh` / `thresholdLow`
-- **Max HR**: `autoMaxHr` (Tanaka/Gulati) / `maxHr` (ручной)
+- `keepScreenOn`, `ttsEnabled` + 5 шаблонов, `profiles` + `activeProfileId`
+- `minSpeedKmh` / `maxSpeedKmh` / `speedStepKmh` / `maxInclinePercent`
+- `hrEnabled` / `hrMode` / `targetHr` / `zoneMin` / `zoneMax` / `stepKmh` / `intervalSec`
+- `thresholdHigh` / `thresholdLow`, `autoMaxHr` / `maxHr`
 
-Настройки хранятся в `SharedPreferences` под именем `treadmill_settings`
-(ключ `settings_json`, значение — сериализованный `AppSettings`).
-Файл prefs-а тоже попадает в резервную копию.
+Prefs-файл: `treadmill_settings` (ключ `settings_json`).
+
+**v2.3.3**: если JSON повреждён — сохраняется в `settings_json_broken_<timestamp>`,
+пользователь не теряет профили молча.
 
 ---
 
 ## Импорт / экспорт JSON-программ
 
-**Формат — snake_case.** Это проверено на реальном экспорте из приложения
-(файл `Скорость 60м.json`, октябрь 2026). README до v2.3.2 ошибочно
-документировал camelCase.
-
-### Схема (эталон)
+**Формат — snake_case** (проверено на реальном экспорте):
 
     {
-        "name": "Интервальная тренировка",
-        "description": "5 интервалов высокой интенсивности",
+        "name": "Интервальная тренировка 5×2 мин",
+        "description": "5 интервалов по 2 минуты с отдыхом 1 минута",
         "segments": [
-            { "duration_sec": 300, "speed_kmh": 5.0, "incline_percent": 0.0, "name": "Разминка" },
-            { "duration_sec": 120, "speed_kmh": 10.0, "incline_percent": 0.0, "name": "Интервал 1" }
+            { "duration_sec": 300, "speed_kmh": 5.0,  "incline_percent": 0.0, "name": "Разминка" },
+            { "duration_sec": 120, "speed_kmh": 10.0, "incline_percent": 0.0, "name": "Интервал 1" },
+            { "duration_sec": 60,  "speed_kmh": 6.0,  "incline_percent": 0.0, "name": "Отдых 1" },
+            { "duration_sec": 120, "speed_kmh": 10.0, "incline_percent": 0.0, "name": "Интервал 2" },
+            { "duration_sec": 60,  "speed_kmh": 6.0,  "incline_percent": 0.0, "name": "Отдых 2" },
+            { "duration_sec": 120, "speed_kmh": 10.0, "incline_percent": 0.0, "name": "Интервал 3" },
+            { "duration_sec": 60,  "speed_kmh": 6.0,  "incline_percent": 0.0, "name": "Отдых 3" },
+            { "duration_sec": 120, "speed_kmh": 10.0, "incline_percent": 0.0, "name": "Интервал 4" },
+            { "duration_sec": 60,  "speed_kmh": 6.0,  "incline_percent": 0.0, "name": "Отдых 4" },
+            { "duration_sec": 120, "speed_kmh": 10.0, "incline_percent": 0.0, "name": "Интервал 5" },
+            { "duration_sec": 300, "speed_kmh": 4.0,  "incline_percent": 0.0, "name": "Заминка" }
         ]
     }
 
-### Правила
+Правила:
 
-- `name` (String) — обязательно, не пустое.
-- `description` (String) — обязательно, может быть пустым.
-- `segments` (Array) — минимум 1.
-- `segments[].duration_sec` (Int) — секунды, **> 0**.
-- `segments[].speed_kmh` (Double) — км/ч, **> 0**. **Всегда с точкой** (`5.0`, `10.5`).
-- `segments[].incline_percent` (Double) — %. **Всегда с точкой** (`0.0`, `1.0`, `1.87`).
-  Никогда `0`, `1` без точки — парсер может упасть.
-- `segments[].name` (String) — обязательно.
+- `duration_sec` (Int) > 0, `speed_kmh` (Double) > 0, `incline_percent` (Double)
+- **Double всегда с точкой** (`5.0`, `0.0`), никогда `5`, `0`
+- `segments[].name` — обязателен, если пусто — подставится дефолт
 
-### Как работает импорт
+Парсер: `Json { ignoreUnknownKeys = true; encodeDefaults = true }` в `ProgramRepository.importJson()`.
+MIME-фильтр в SAF: `arrayOf("application/json", "text/plain", "*/*")`.
 
-`ProgramRepository.importJson()` → `json.decodeFromString(ProgramData.serializer(), text)`.
+**v2.3.3**: если в импортированном файле `speed_kmh` или `incline_percent` превышают
+`effectiveMaxSpeed` / `effectiveMaxIncline` — импорт проходит, но показывается
+warning `programs_import_overflow`. Импорт **не блокируется**.
 
-Парсер: `Json { prettyPrint = true; ignoreUnknownKeys = true; encodeDefaults = true }`.
-
-- `ignoreUnknownKeys = true` → лишние поля не ломают импорт (но и не сохраняются).
-- Обязательные поля **без дефолтов** в `ProgramData` / `ProgramSegment` →
-  отсутствие поля = `MissingFieldException`.
-- Валидация после парсинга в `ProgramsScreen.kt`:
-  `name.isNotBlank() && segments.isNotEmpty() && all(duration_sec > 0 && speed_kmh > 0)`.
-
-### MIME-фильтр SAF
-
-В `ProgramsScreen.kt` лончер импорта:
-
-    importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
-
-Файл с любым расширением будет виден в пикере. Проблема — только в содержимом.
-
-### Как получить эталон
-
-Приложение → Программы → любая программа → ⋮ → «Экспорт JSON».
-Файл гарантированно валиден.
-
-### Частые ошибки
-
-- `durationSec` / `speedKmh` / `inclinePercent` (camelCase) → **не импортируется**.
-- `"incline_percent": 1` (Int) → может упасть, пиши `1.0`.
-- Smart quotes (`"…"`) → парсер не понимает.
-- BOM (`EF BB BF`) в начале файла → парсер видит `\uFEFF{` вместо `{`.
-- Комментарии `//` или `#` → JSON не поддерживает, парсер упадёт.
+Эталон: «Программы → ⋮ → Экспорт JSON».
 
 ---
 
-## Резервное копирование (v2.3.1)
+## Резервное копирование (v2.3.1 + v2.3.3)
 
-`logic/BackupManager.kt` — экспорт/импорт ZIP через SAF (`CreateDocument` /
-`OpenDocument`). Новых зависимостей нет: `java.util.zip` + `kotlinx.serialization`.
+`logic/BackupManager.kt` — экспорт/импорт ZIP через SAF.
 
-### Формат ZIP
+Формат ZIP:
 
     manifest.json
     database/treadmill.db
@@ -379,203 +297,125 @@ Bowflex, Sole, NordicTrack и т.д.
     database/treadmill.db-shm   (если есть)
     shared_prefs/treadmill_settings.xml
 
-### Поля manifest.json
-
-    version         Int    — версия формата архива, сейчас 1
-    appVersionName  String — versionName приложения на момент экспорта
-    dbVersion       Int    — версия схемы Room (2)
-    createdAt       Long   — миллисекунды Unix
-    programCount    Int    — количество программ
-    workoutCount    Int    — количество тренировок в журнале
-    profileCount    Int    — количество профилей спортсменов
-
-Пример содержимого (для наглядности, в самом файле — компактный JSON):
-
-    {
-      "version": 1,
-      "appVersionName": "2.3.1",
-      "dbVersion": 2,
-      "createdAt": 1700000000000,
-      "programCount": 5,
-      "workoutCount": 42,
-      "profileCount": 2
-    }
+`manifest.json`: `version` (1), `appVersionName`, `dbVersion` (2), `createdAt`,
+`programCount`, `workoutCount`, `profileCount`.
 
 ### Экспорт
+1. `PRAGMA wal_checkpoint(TRUNCATE)`.
+2. Сборка `manifest.json` (COUNT(*) через raw SQL).
+3. Запись ZIP в URI из SAF `CreateDocument`.
 
-1. `PRAGMA wal_checkpoint(TRUNCATE)` — склеивает WAL в основной `.db`.
-2. Сборка `manifest.json` (количество программ/логов через `COUNT(*)`, чтобы
-   не зависеть от DAO).
-3. Запись ZIP в URI, выбранный пользователем. Имя по умолчанию —
-   `treadmill-backup-YYYY-MM-DD-HHmmss.zip`.
+Экспорт не блокирует тренировку.
 
-Экспорт **не блокируется** во время тренировки — просто снимает консистентный
-снимок. Если checkpoint не удался (БД занята) — в ZIP попадут `.db` + `.db-wal`
-+ `.db-shm`, что тоже валидно.
-
-### Восстановление
-
-1. `readManifest(uri)` — читает **только** `manifest.json`, не распаковывая
-   остальное. Показывает диалог с превью (дата, кол-во программ/логов/профилей).
-2. **Блокировка:** если запущен `TreadmillService` (значит, идёт тренировка
-   или просто подключена дорожка) — показывается диалог «Сейчас нельзя
-   восстановить». Сделано через `ActivityManager.getRunningServices()`
-   (для собственных сервисов работает и на Android 12+).
-3. После подтверждения:
-   - `AppDatabase.closeAndReset()` — закрывает Room и обнуляет singleton.
-   - Распаковка ZIP во временную папку → валидация (`manifest.json` + `.db`).
-   - Замена `.db`, `.db-wal`, `.db-shm`, `treadmill_settings.xml` на диске.
-   - `AppDatabase.get(context)` — переоткрытие (sanity check).
-4. **Авто-перезапуск** процесса: `AlarmManager.set(RTC, now+150ms, pendingIntent)`
-   + `Process.killProcess(myPid())` через 100 мс. Так новые данные гарантированно
-   прочитаются в `Application.onCreate`. Если `AlarmManager` недоступен —
-   fallback на `startActivity + finishAffinity()`.
-
-### Важно
-
-- `AppDatabase.closeAndReset()` вызывать **только** из `BackupManager.restoreFrom()`.
-- После восстановления все in-memory синглтоны (`TreadmillApp.instance.session`,
-  `settingsStore`, `programRepository`, `ttsManager`) **устаревают** — именно
-  поэтому нужен полный перезапуск, а не «горячее» применение.
-- SAF-пикер не требует `WRITE_EXTERNAL_STORAGE` и работает на API 21+.
-- Восстановление во время активного сервиса запрещено.
+### Восстановление (v2.3.3 — атомарное)
+1. `readManifest(uri)` — читает только `manifest.json`, показывает превью.
+2. **Блокировка**, если запущен `TreadmillService` (тренировка активна).
+3. Распаковка во временную папку → валидация.
+4. `AppDatabase.closeAndReset()`.
+5. **Текущие `.db/.db-wal/.db-shm/prefs.xml` переименовываются в `.bak`** (не удаляются).
+6. Новые копируются поверх.
+7. При ошибке любого шага — `.bak` возвращаются на место (откат).
+8. При успехе — `.bak` удаляются, `AppDatabase.get()` для sanity.
+9. Авто-перезапуск через `AlarmManager` + `Process.killProcess`.
 
 ---
 
 ## UI — визуальная структура
 
 ### Общая навигация
-
-- **Нижняя панель** (NavigationBar) на 4 вкладки: **Главная**, **Программы**, **Журнал**, **Настройки**.
-- **Свайп** между вкладками через `HorizontalPager`.
-- **FAB с жучком** (Debug) — **удалён** из навигации. Доступ через «Настройки → О приложении → Debug».
-- **Локализация**: все тексты через `stringResource()`. Язык берётся из системных настроек Android.
+- Нижняя панель на 4 вкладки: Главная, Программы, Журнал, Настройки.
+- Свайп через `HorizontalPager`.
+- Локализация RU + EN через `stringResource`.
 
 ### Главный экран (MainScreen)
+1. Заголовок + имя дорожки + ℹ️ (Capabilities).
+2. Две карточки статуса: Дорожка | Пульсометр.
+3. `SegmentLine` (сегмент/всего · название · ПАУЗА).
+4. Две плитки: Скорость | Наклон.
+5. Карточка метрик 2×2: Пульс | Время | Дистанция | Калории.
+6. Автопульс: Switch + Настроить.
+7. Кнопки: Старт | Пауза/Продолжить | Стоп (HoldToConfirm 0.8 сек).
 
-Вертикальная колонка сверху вниз (без прокрутки):
+**v2.3.3**: BLE-разрешения запрашиваются **при тапе «Подкл.»**, а не на старте.
+Сначала показывается POST_NOTIFICATIONS (из MainActivity), потом при первом
+подключении — BLE. Не блокирует первый запуск. При отказе — `ble_permission_denied`.
 
-1. **Заголовок** «Treadmill Control».
-2. **Имя дорожки** + кнопка **ℹ️** (при подключении) → диалог возможностей.
-3. **Две карточки статуса** в ряд: **Дорожка** | **Пульсометр**.
-4. **Строка текущего сегмента** (высота 22dp) — `Сегмент 4/12 · Подъём · ПАУЗА`.
-5. **Две плитки управления**: **Скорость** | **Наклон**.
-6. **Карточка метрик** (2×2): Пульс | Время | Дистанция | Калории.
-7. **Автопульс**: Switch + «Настроить».
-8. **Нижняя панель управления**: Старт | Пауза/Продолжить | Стоп (HoldToConfirm 0.8 сек).
+### Экран тренировки
+Прогресс, плитки скорости/наклона, график пульса (weight 1f), метрики, кнопки
+Пауза/Пропустить/Стоп (или Готово), диалог выхода.
 
-### Экран тренировки (WorkoutScreen)
+### Экран программ
+Scaffold + FAB «Создать». Поиск + сортировка. Карточки раскрывающиеся
+(мини-график, чипы, список сегментов). Диалоги: Templates, Generator, Editor.
 
-1. **Заголовок** «← Назад | Тренировка [имя] | 🐛».
-2. **Карточка прогресса** (сегмент, бейдж ПАУЗА, LinearProgressIndicator).
-3. **Две плитки управления**: Скорость | Наклон.
-4. **Карточка графика пульса** (weight 1f).
-5. **Карточка метрик** (3 колонки).
-6. **Кнопки**: Пауза/Продолжить | Пропустить | Стоп. На финише — «Готово».
-7. **Диалог подтверждения выхода**.
+**v2.3.3**: шаблоны clamp'ятся по `effectiveMaxSpeed`/`effectiveMaxIncline`.
+Импорт с превышением — warning, но не блок.
 
-### Экран Программ (ProgramsScreen)
+### Экран журнала
+Табы «Список» | «Статистика» + ℹ️. Раскрывающиеся карточки, sparkline, зоны
+пульса (с пометкой «≈» для старых записей).
 
-- **Scaffold** с `ExtendedFloatingActionButton` «Создать».
-- **Заголовок** + иконки: ✨ (генератор), 📤 (импорт JSON), ◀️ (назад).
-- **Поиск** + **Сортировка** (меню).
-- **LazyColumn карточек**: название, описание, ▶️ и ⋮ (Изменить, Дублировать, Экспорт JSON, Удалить), мини-график, чипы `N сегм.` + `X мин`, раскрытие со списком сегментов.
-- **Диалоги**: TemplatesDialog, WorkoutGeneratorDialog, ProgramEditorScreen (полноэкранный).
+**v2.3.3**: пункт «Загрузить демо» — добавлен диалог подтверждения. Сами демо-записи
+**больше не стирают историю**, а добавляются с префиксом `(demo)` в названии.
 
-### Экран Журнала (HistoryScreen)
+### Экран настроек
+Спортсмены (→Профили), Внешний вид и звук (тема, keepScreenOn, TTS),
+Скорость и наклон (min/max, шаг, max incline), Автопульс (режим, цель/зона,
+пороги, интервал, шаг, max HR), Данные (экспорт/восстановление), О приложении.
 
-- **Заголовок** + ⋮ (демо, очистить).
-- **Таб-чипы**: «Список» | «Статистика» + ℹ️.
+### Экран профилей
+Список `ProfileCard`: радио выбора, имя/вес/рост/возраст/пол, Edit/Delete, зоны Z1–Z5.
 
-**Список:** `CompactLogCard` с датой, программой, метриками; раскрытие — sparkline пульса, зоны (с пометкой «≈» для старых записей).
+### TTS-настройки
+Справка по тегам, 5 полей с «Прослушать», сброс на дефолт.
 
-**Статистика:** сводка, пульс (средний/макс/лучший + тренд), время в зонах (бар + легенда), график среднего пульса (Безье), Info-диалог.
+### About (v2.3.3)
+Карточка с версией, описанием, офлайн. Совместимость, Возможности, Стек.
+**Карточка «Создать свою тренировку»**: короткая подсказка (`about_custom_workout_hint`).
+Кнопки «Шаблон» и «Инструкция» **удалены** — не имели практического смысла,
+плюс шаблон был в старом формате. Текст инструкции (`about_instructions`)
+остался в ресурсах, но не отображается.
 
-### Экран Настроек (SettingsScreen)
+### Debug (v2.3.3)
+3 таба: Лог | Справочник | Конструктор. В шапке лога — **два switch**:
+- **FTMS** — скрыть кадры 2ACD (по умолчанию скрыто).
+- **UI** — скрыть `[UI]` события тапов/свайпов (по умолчанию скрыто, но **в файл пишутся всегда**).
 
-- **Спортсмены** (Person): «Профили тренировок» → ProfilesScreen.
-- **Внешний вид и звук** (Palette): тема, «Не гасить экран», TTS + «Настроить фразы».
-- **Скорость и наклон** (Speed): min/max скорость, шаг, max наклон.
-- **Автопульс** (FavoriteBorder): режим, цель/зона, пороги, интервал, шаг, max HR (авто/ручной).
-- **Данные** (Storage): экспорт/восстановление.
-- **О приложении** (Info): Debug, О программе.
-
-### Экран Профилей (ProfilesScreen)
-
-- **FAB** «Добавить».
-- Карточки `ProfileCard`: радио выбора, имя/вес/рост/возраст/пол, Edit/Delete, зоны Z1–Z5.
-- **Диалог**: имя, вес, рост, возраст, пульс покоя, пол, уровень.
-
-### TTS-настройки (TtsSettingsScreen)
-
-- Карточка-справка с тегами.
-- 5 полей (старт, сегмент, финиш, пауза, продолжение) + «Прослушать».
-- «Сбросить настройки по умолчанию».
-
-### About (AboutScreen)
-
-- Версия, описание, офлайн-принцип.
-- Совместимость, Возможности, Стек.
-- Инструкция «Как создать тренировку» + копирование шаблона/инструкции.
-
-### Debug (DebugScreen)
-
-- Карточка статуса.
-- Ввод hex.
-- Три таба: Лог | Справочник | Конструктор.
-- Кнопки: Очистить, Сохранить, Поделиться.
+Компактные switch реализованы через `Box(Modifier.size(34.dp, 24.dp)) { Switch(Modifier.scale(0.7f)) }`,
+потому что `Modifier.size` на Switch в Material3 не работает корректно.
 
 ---
 
 ## Компоненты (ui/components/)
 
-### HeartRateChart
-
-Чистый Canvas. Ось Y слева, даты X снизу. 5 полупрозрачных зон (если `zoneBounds`). Сглаженная кривая Безье. Градиент под линией. Точки (если 2–20). Опциональная линия цели.
-
-### HrSparkline
-
-Мини-график для одной тренировки. Без осей и зон. Использует `durationSec` для нормализации X.
-
-### ZoneLegend
-
-Компактная легенда Z1–Z5. Формат: `Z1 <123`, `Z2 123-134`.
-
-### CapabilitiesDialog
-
-Только по кнопке ℹ️. Список с ✓ / ✗. Форматированные диапазоны.
-
-### RollingText
-
-Плавная анимация смены чисел.
+- **HeartRateChart** — Canvas, зоны, градиент, Безье, точки (2–20), опциональная цель.
+- **HrSparkline** — мини-график пульса для одной тренировки.
+- **ZoneLegend** — легенда Z1–Z5.
+- **CapabilitiesDialog** — возможности дорожки.
+- **RollingText** — плавная анимация смены чисел.
 
 ---
 
 ## Сборка
 
 ### .github/workflows/build.yml
-
-- Сборка APK при каждом push.
-- `versionCode` из `github.run_number` (+10000).
-- Шаги `Verify keystore` и `Show APK signature`.
+- Триггер: push в main/master + `workflow_dispatch`.
+- `versionCode` из `github.run_number` (+10000), `versionName` из run_number.
+- Шаги: Checkout → JDK 17 → Gradle 8.6 → Verify keystore → Inject version → Build → Show signature → Rename → Upload artifact (**retention-days: 1, compression-level: 0**) → GitHub Release.
+- Основное место раздачи APK — **Releases** (бесплатно, бессрочно). Artifacts — только для удобства на 1 день.
+- **Публичный репо**: нет лимитов на минуты/хранилище.
 
 ### 🔑 Подпись APK
 
-**Проблема:** каждый билд подписывался новым случайным ключом → «Конфликт пакетов» при установке поверх старого APK.
-
-**Решение:**
-
-- Постоянный файл `app/keystore/treadmill.keystore` в репо (пароли `treadmill123`, alias `treadmill`).
-- В `app/build.gradle.kts` — явный `signingConfigs.create("stable")`.
-- В CI — `Verify keystore` (падает при отсутствии) + `Show APK signature`.
+Постоянный keystore `app/keystore/treadmill.keystore` (пароли `treadmill123`,
+alias `treadmill`) — **закоммичен в публичный репо**. Это потенциальная
+уязвимость: любой может подписать этим ключом поддельное «обновление».
+Решение принимается пользователем — пока оставляем.
 
 **⚠️ Нельзя:**
-
-- Удалять/заменять `app/keystore/treadmill.keystore`.
+- Удалять/заменять keystore.
 - Менять пароли/alias в `build.gradle.kts`.
 - Полагаться на `~/.android/debug.keystore`.
-
-**Резервная копия keystore** хранится вне GitHub. Потеря = разовая переустановка с потерей данных.
 
 ---
 
@@ -586,231 +426,224 @@ Bowflex, Sole, NordicTrack и т.д.
 3. **Configuration cache** отключён.
 4. **Wake-up**: если дорожка спит, нужно нажать физическую кнопку.
 5. **`stop()`** использует `08 01`, а не `02 00 00`.
-6. В `TreadmillSession` **нельзя** вызывать `viewModelScope`. Используется `scope = CoroutineScope(Dispatchers.IO + SupervisorJob())`.
-7. **`BleConnection.write()`** — старая версия, не ждёт ACK. Везде — `writeSuspend()`.
-8. При переходе на новый сегмент всё обновляется **ОДНИМ** `copy()` в `WorkoutManager.launchLoop`.
-9. **`startJob` / `autoReconnectJob`** ДОЛЖНЫ отменяться при Stop/Pause/ручном подключении.
-10. **Кулдаун сканирования** (`BleManager.setScanCooldown`) блокирует `startScan` на уровне BLE.
-11. **`%.Nf` в strings.xml**: нельзя `"$str %.1f".format(...)`, если в `str` есть `%`. Разделяй форматирование чисел и конкатенацию строк.
-12. **`stringResource` в Canvas**: нельзя @Composable внутри `Canvas`. Вычисляй строки **до** `Canvas { ... }`.
-13. **Android 14+**: требуется `android:foregroundServiceType="connectedDevice"` у `TreadmillService` + разрешение `FOREGROUND_SERVICE_CONNECTED_DEVICE`.
-14. **Ручная тренировка** сохраняется как `programName = ""`. При отображении подставляется `stringResource(R.string.manual_workout)`.
-15. **`WorkoutMiniChart`**: `stringResource` нельзя звать внутри `Canvas {}`. Вычисляй `hourSuffix` до `Canvas`.
-16. **`AppDatabase.closeAndReset()`** — вызывать **только** из `BackupManager.restoreFrom()`, иначе Room потеряет соединение и DAO начнут падать.
-17. **Формат JSON-программ — snake_case**: `duration_sec`, `speed_kmh`, `incline_percent`. НЕ camelCase. README до v2.3.2 врал. Все double-поля только с точкой (`1.0`, `0.0`, `7.5`), иначе парсер может упасть на `incline_percent: 1`. Формат проверен на реальном экспорте из приложения (файл `Скорость 60м.json`). Импорт: `ProgramRepository.importJson()` → `json.decodeFromString(ProgramData.serializer(), text)` с `Json { ignoreUnknownKeys = true }`. MIME-фильтр в `ProgramsScreen.kt`: `arrayOf("application/json", "text/plain", "*/*")`. Самый надёжный способ получить эталон — «Программы → ⋮ → Экспорт JSON».
+6. В `TreadmillSession` **нельзя** `viewModelScope` — только свой scope.
+7. **`BleConnection.write()`** — старая версия без ACK. Везде `writeSuspend()`.
+8. При переходе на новый сегмент — **ОДИН** `copy()` в `WorkoutManager.launchLoop`.
+9. **`startJob` / `autoReconnectJob`** отменяются при Stop/Pause/ручном подключении.
+10. **Кулдаун сканирования** — 5 сек после ручного отключения.
+11. **`%.Nf` в strings.xml**: нельзя `"$str %.1f".format(...)`, если в `str` есть `%`.
+12. **`stringResource` в Canvas**: нельзя @Composable внутри `Canvas`. Вычисляй до.
+13. **Android 14+**: `foregroundServiceType="connectedDevice"` + `FOREGROUND_SERVICE_CONNECTED_DEVICE`.
+14. **Ручная тренировка** сохраняется как `programName = ""`, отображается через `manual_workout`.
+15. **`WorkoutMiniChart`**: `stringResource` нельзя звать внутри `Canvas {}`.
+16. **`AppDatabase.closeAndReset()`** — только из `BackupManager.restoreFrom()`.
+17. **JSON-программы — snake_case**, double всегда с точкой.
+18. **FTMS Control Point Alt (0x2A66)** — это **Cycling Power Control Point**, не FTMS. Сейчас используется как fallback, но если встретится велотренажёр с этим UUID, уйдут команды в чужой сервис. Кандидат на удаление.
+19. **`Switch` в Material3 не уважает `Modifier.size(width, height)`** — использовать `Box + scale(0.7f)`.
+20. **`CompletableDeferred<Boolean>` не совместим с `CompletableDeferred<Any?>`** — использовать `CompletableDeferred<Any?>` и приводить результат через `as? Boolean ?: false`.
+21. **`setNotify` в `BleConnection`** — старая синхронная версия остаётся для `HeartRateService`, новая `setNotifySuspend` ждёт ACK дескриптора.
+22. **Публичный репо + keystore в нём** — любой может подписать поддельный APK. При переходе в Play — переделать на Secrets.
 
 ---
 
 ## Тесты — статус
 
-### Пройдено (актуально на v2.3.2)
-
-- A1, A2, B1-B7 (базовые команды, кроме наклона — принимается, но не двигается).
-- C1-C6 (программы, пауза, стоп).
-- D1-D2 (метрики).
-- B6 (пауза/продолжить восстанавливает 1.0 км/ч).
-- C4 (пауза в программе).
-- Работа в фоне: связь не рвётся, метрики идут, уведомление висит.
-- Автопереподключение: логи показывают цикл реконнекта.
-- **Подпись APK**: keystore в репо, SHA-256 стабилен между билдами.
-- **Обновление поверх**: новый APK ставится без удаления, данные сохраняются.
-- **TTS**: все 5 шаблонов работают, кнопка «Прослушать» озвучивает фразу.
-- **Автопульс**: скорость меняется при выходе пульса за границы.
-- **Профили**: переключение активного профиля влияет на зоны/калории.
-- **Генератор**: разница между новичком и профи — колоссальная. Названия локализованы (RU/EN).
-- **Capabilities**: UNixFit отдаёт 1.0-20.0 км/ч, 0-15% наклон.
-- **SOS-защита**: Stop во время startJob мгновенно прекращает команды.
-- **HoldToConfirmButton**: удержание 0.8 сек с прогрессом и haptic.
-- **Показ сегмента на главном**: `SegmentLine` отображается корректно.
-- **Уведомление в шторке**: заголовок с сегментом, кнопки Пауза/Стоп работают.
-- **Обработка потери связи**: тренировка ставится на паузу, после реконнекта — сообщение.
-- **Кривая пульса в БД**: сохраняется, sparkline рисуется, зоны точные.
-- **Локализация RU/EN**: экраны, шаблоны, кнопки, диалоги переключаются по системе.
-- **Connect→disconnect→connect**: дорожка снова находится в сканере.
-- **AndroidManifest**: `foregroundServiceType="connectedDevice"` + `FOREGROUND_SERVICE_CONNECTED_DEVICE` присутствуют. `BLUETOOTH_ADVERTISE` удалён.
-- **Резервная копия**: экспорт в ZIP, восстановление с превью манифеста, блокировка при активном сервисе, авто-перезапуск. SAF без разрешений.
-- **Импорт JSON-программ**: формат snake_case подтверждён на реальном экспорте. `Probe 3 seg` (3 сегмента) и `Test 60 min` (27 сегментов) импортируются.
+### Пройдено (актуально на v2.3.3)
+- Все базовые команды BLE, кроме наклона (принимается, но на FS-E629DD мотор не двигается).
+- Программы, пауза, стоп, метрики.
+- Подпись APK, обновление поверх.
+- TTS, AutoHR, профили, генератор, Capabilities.
+- HoldToConfirmButton, SegmentLine, уведомление в шторке.
+- Обработка потери связи, кривая пульса в БД.
+- Локализация RU/EN.
+- Connect→disconnect→connect (GATT не залипает).
+- AndroidManifest: `foregroundServiceType` на месте.
+- Резервная копия: экспорт/восстановление, блокировка при активном сервисе, авто-перезапуск.
+- **Импорт JSON-программ**: probe + Test 60 min проходят с snake_case.
+- **Сборка через публичный репо**: скомпилировалось без quota error.
+- **BLE-разрешения на тапе «Подкл.»**: не блокируют первый запуск, диалог при первом подключении.
+- **Debug с двумя switch**: FTMS + UI, оба фильтра работают.
+- **About без шаблона**: карточка-подсказка вместо кнопок.
+- **Демо не стирает**: добавляет с префиксом (demo), диалог подтверждения.
+- **Атомарный restore**: старые `.bak` при сбое возвращаются.
 
 ### Не проверено / требует внимания
-
-- Android 12+ и `BLUETOOTH_SCAN` (манифест корректен, поведение на конкретных прошивках не тестировалось).
-- Планшеты и складные устройства.
-- Часовая диагностическая тренировка (в процессе — фазы 01–27, см. отдельный JSON).
+- Android 12+ и `BLUETOOTH_SCAN` на конкретных прошивках.
+- Планшеты и складные.
+- Часовая диагностическая тренировка (JSON готов, но ещё не проводилась).
 
 ---
 
 ## Backlog
 
-- [x] Автопереподключение BLE.
-- [x] Починить CI (Keystore).
-- [x] TTS голосовые подсказки (с настройкой фраз).
-- [x] Автопульс (AutoHR).
-- [x] Профили пользователей.
-- [x] Генератор тренировок.
-- [x] Автоопределение возможностей дорожки (FTMS Capabilities).
-- [x] Локализация RU/EN.
-- [x] HoldToConfirmButton.
-- [x] Показ текущего сегмента на главном.
-- [x] Уведомление в шторке с кнопками.
-- [x] Обработка потери связи во время тренировки.
-- [x] Кривая пульса в БД.
-- [x] Исправление «залипания» GATT-подключения.
-- [x] Локализация названий программ в `ProgramGenerator.kt`.
-- [x] Проверка `AndroidManifest.xml` на `foregroundServiceType`.
-- [x] Резервное копирование БД (ZIP) с SAF-экспортом.
-- [x] Фикс формата JSON в README (snake_case, v2.3.2).
-- [ ] Экспорт в TCX (для Strava/Garmin) — следующий приоритет.
-- [ ] Экспорт в FIT (требует сторонней библиотеки, отложено).
+### Сделано
+- [x] Автопереподключение BLE, TTS, AutoHR, профили, генератор, Capabilities.
+- [x] Локализация RU/EN, HoldToConfirm, SegmentLine, уведомление в шторке.
+- [x] Кривая пульса в БД, GATT-фикс, Manifest `foregroundServiceType`.
+- [x] Резервная копия (SAF), фикс README (snake_case).
+- [x] **Батч 1**: демо не стирает, атомарный restore, битый JSON в settings.
+- [x] **Батч 1.5**: clamp шаблонов по лимитам, warning на импорт, About без шаблона, Debug UI-фильтр, BLE-разрешения на «Подкл.».
+- [x] **FTMS-парсер**: incline 4 байта, elevation gain 4 байта, строгие проверки, prev.inclinePercent.
+- [x] **BleConnection**: gattMutex, setNotifySuspend с ожиданием ACK.
+- [x] **WorkoutManager**: safeSetSpeed/safeSetIncline (try/catch, но пока без CancellationException).
+
+### В работе / следующий батч
+- [ ] **WorkoutManager**: `catch (e: CancellationException) { throw e }` перед общим catch.
+- [ ] **Uuids**: убрать или ограничить `FTMS_CONTROL_POINT_ALT = 0x2A66` проверкой сервиса 0x1826.
+- [ ] **TreadmillSession**: средний пульс и средняя скорость — по таймеру (1 Гц), а не по StateFlow.
+- [ ] **TreadmillSession**: `speedBeforePause` сбрасывать при старте новой программы.
+- [ ] **TreadmillSession**: `_hrHistory` не обрезать до 30 минут (для тренировок > 30 мин теряется начало).
+- [ ] **TreadmillSession**: `coerceIn(minS, maxS)` — проверить `minS <= maxS` перед вызовом.
+- [ ] **Автопереподключение после первого реконнекта** — проверить код, есть подозрение, что второй обрыв не обрабатывается.
+
+### Отложено / идеи
+- [ ] Экспорт TCX (для Strava/Garmin) — приоритет.
+- [ ] Экспорт FIT (нужна сторонняя библиотека).
 - [ ] Onboarding при первом запуске.
 - [ ] Виджет на рабочий стол.
 - [ ] Достижения / медали.
-- [ ] Плавный разгон скорости (S-curve ramp).
+- [ ] S-curve ramp (плавный разгон скорости).
+- [ ] Единый актор/канал команд к дорожке (`TreadmillSession` — командный контроллер).
+- [ ] Отрицательный наклон (для дорожек с уклоном вниз).
+- [ ] Дистанция с дорожки (`FTMS Treadmill Data`) вместо интегрирования.
+- [ ] Подписка на `FTMS_STATUS (0x2ADA)` для событий остановки/ошибки.
+- [ ] Логирование в release: уровни, маска MAC, ограничение размера файла.
+- [ ] Keystore → GitHub Secrets (при публикации в Play).
+- [ ] Тесты: `FTMSProtocol.parseTreadmillData`, `ProgramGenerator`, `BackupManager`, `HrSamplesCodec`, `SettingsStore`.
+- [ ] Локализация русского текста в `TreadmillService` и логах BLE.
+- [ ] `ProgramRepository.toData()` — валидация при парсинге.
+- [ ] `importJson()` — валидация сегментов (отрицательная длительность, пустой список).
+- [ ] `ProgramGenerator`: `durationMin < 6` даёт отрицательный `mainMin`; `heightCm == 0` даёт деление на 0.
 - [ ] Адаптация под планшеты и складные.
+- [ ] Actions pinned to SHA (supply chain).
+- [ ] Отдельный release workflow (не на каждый push в main).
 
 ---
 
 ## Changelog
 
-### v2.3.2 (формат JSON программ — исправление доков)
+### v2.3.3 (баг-фиксы + UX)
 
-- **README.md / NOTES.md**: исправлен формат JSON-программ. Ошибочно документировался camelCase (`durationSec`, `speedKmh`, `inclinePercent`), реальный парсер ждёт **snake_case** (`duration_sec`, `speed_kmh`, `incline_percent`). Проверено на реальном экспорте из приложения (файл `Скорость 60м.json`).
-- **Добавлен раздел «Импорт / экспорт JSON-программ»** в NOTES.md с полной схемой, правилами, MIME-фильтром и частыми ошибками.
-- **Пункт 17** в «Известных подводных камнях»: snake_case + double с точкой + эталон через экспорт.
-- **Раздел «Для ИИ-ассистента»**: краткая шпаргалка для следующего ИИ-сеанса (запреты, формат, что сделано, что в бэклоге, как получить эталон).
-- Код приложения **не менялся** — только документация. Парсер `ProgramRepository` работал корректно всё время; врал README.
+**Батч 1 (безопасность данных)**
+- `ProgramRepository.addDemoLogs()`: больше **не стирает** существующие логи, а добавляет с префиксом `(demo)`.
+- `ProgramViewModel.seedDemoLogs()` → `addDemoLogs()`.
+- `HistoryScreen`: диалог подтверждения перед загрузкой демо.
+- `BackupManager.restoreFrom()`: атомарное восстановление через `rename` в `.bak` + откат при ошибке.
+- `SettingsStore.load()`: битый JSON сохраняется в `settings_json_broken_<ts>`, профили не теряются.
 
-### v2.3.1 (резервное копирование + синхронизация docs)
+**Батч 1.5 (UX)**
+- `ProgramsScreen.buildTemplates`: clamp по `effectiveMaxSpeed` / `effectiveMaxIncline`. Раньше шаблон «Интервалы» создавал сегменты 15.0 км/ч при max = 12.
+- `ProgramsScreen.tryImportText`: warning `programs_import_overflow`, если импорт превышает лимиты (не блокирует).
+- `AboutScreen`: убраны кнопки «Шаблон» / «Инструкция», карточка сокращена до подсказки.
+- `DebugScreen`: второй switch «UI», компактный (`Box + scale(0.7f)`), `import androidx.compose.ui.draw.scale`.
+- `MainScreen`: BLE-разрешения запрашиваются **при тапе «Подкл.»**, а не на старте. Добавлен `ble_permission_denied`.
 
-- **BackupManager** (`logic/BackupManager.kt`):
-  - SAF-экспорт `CreateDocument("application/zip")`.
-  - SAF-импорт `OpenDocument()` — выбор ZIP + превью манифеста.
-  - Формат архива: `manifest.json` + `database/treadmill.db{,-wal,-shm}` + `shared_prefs/treadmill_settings.xml`.
-  - `PRAGMA wal_checkpoint(TRUNCATE)` перед экспортом.
-  - Блокировка восстановления при запущенном `TreadmillService`.
-  - Авто-перезапуск через `AlarmManager` + `Process.killProcess`.
-- **AppDatabase.closeAndReset()** — закрытие Room и сброс singleton для restore.
-- **SettingsScreen**: секция «Данные» с кнопками экспорта/импорта.
-- **AndroidManifest**: удалён `BLUETOOTH_ADVERTISE`.
-- **Docs**: NOTES.md и README.md синхронизированы; исправлено противоречие про `08 01` vs `02 00 00` и про NordicTrack/iFit.
+**BLE-парсер**
+- `FTMSProtocol.parseTreadmillData`: `Inclination` = 4 байта (Inclination + Ramp Angle), `Elevation Gain` = 4 байта, все чтения защищены `o + size <= b.size` с `return` при нехватке. При отсутствии флага incline — сохраняется `prev.inclinePercent`, а не 0.0.
+
+**BleConnection**
+- `gattMutex: Mutex` для сериализации всех GATT-операций.
+- Один `activeDeferred: CompletableDeferred<Any?>` вместо Map по UUID.
+- Новая `setNotifySuspend()` ждёт `onDescriptorWrite` с таймаутом 2 сек.
+- Старая `setNotify(): Boolean` оставлена для `HeartRateService` (fire-and-forget, но возвращает `true`).
+
+**WorkoutManager**
+- `safeSetSpeed` / `safeSetIncline` с try/catch — исключение команды не убивает `launchLoop`, тренировка ставится на паузу.
+
+**Сборка**
+- Публичный репо → без лимитов Actions.
+- `upload-artifact`: `retention-days: 1`, `compression-level: 0`.
+- Основное место раздачи APK — GitHub Releases.
+
+### v2.3.2 (формат JSON)
+- README/NOTES исправлены на snake_case.
+- `FTMS_CONTROL_POINT_ALT` задокументирован как Cycling Power Control Point.
+
+### v2.3.1 (резервное копирование)
+- BackupManager: экспорт/импорт ZIP через SAF.
+- AppDatabase.closeAndReset().
+- SettingsScreen: секция «Данные».
+- Manifest: удалён `BLUETOOTH_ADVERTISE`.
 
 ### v2.3 (локализация + итерации 1–5)
-
-- **Локализация RU + EN**:
-  - `values/strings.xml` (EN, дефолт) + `values-ru/strings.xml` (RU).
-  - Все экраны на `stringResource`.
-  - Шаблоны тренировок локализованы.
-  - TTS-шаблоны по умолчанию — из ресурсов.
-  - `Belt` → «дорожка» в интерфейсе.
-- **Точка 1** — **HoldToConfirmButton**: удержание 0.8 сек с прогрессом и haptic.
-- **Точка 2** — **SegmentLine**: показ текущего сегмента на главном.
-- **Точка 3** — **Кривая пульса в БД**:
-  - Миграция Room 1→2: `hrSamples`.
-  - `HrSamplesCodec` — формат `"0:120,5:125"`.
-  - `HrSparkline` — мини-график.
-  - Зоны в истории — точные (с пометкой «≈» для старых).
-- **Точка 4** — **Уведомление в шторке**: сегмент, скорость, пульс, время, `ПАУЗА`; кнопки Пауза/Стоп.
-- **Точка 5** — **Обработка потери связи**: автопауза, после реконнекта — сообщение.
-- **Дизайн**: убрана карточка-подсказка statusMessage; кнопки не «плывут» при подключении; ℹ️ — `FilledIconButton` 28dp; авто-показ CapabilitiesDialog убран; FAB с жучком убран; график максимального пульса убран; график среднего — Безье без зон; Info-кнопка в статистике.
-- **BLE-фикс**: корректный `disconnect → wait DISCONNECTED callback → refresh() → close()` с таймаутом 3 сек; `isDisconnecting`; `hasBeenReady` в stateJob.
+- Полная локализация RU/EN.
+- HoldToConfirmButton, SegmentLine, кривая пульса в БД, уведомление в шторке, обработка потери связи, GATT-фикс.
 
 ### v2.2 (TTS / AutoHR / Профили / Генератор / Capabilities)
-
-- **TTS**: `TtsManager`, `TtsSettingsScreen` с 5 шаблонами, теги `{name}`, `{segName}`, `{speed}`, `{speed_text}`, `{angle}`, `{angle_text}`, `{i}`, `{n}`, `{dist}`, `{hr}`.
-- **AutoHR**: цикл в `TreadmillSession` каждые `intervalSec` секунд.
-- **Профили**: `UserProfile`, `ProfilesScreen` CRUD.
-- **Генератор**: `ProgramGenerator.generate()` с параметрами цель/длительность/интенсивность.
-- **Capabilities**: `TreadmillCapabilities` парсит FTMS Feature / Speed Range / Incline Range.
-- **Графики пульса**: `HeartRateChart` на чистом Canvas, `ZoneLegend`, `ZoneStatsCard`.
-- **SOS/стабильность BLE**: `startJob`/`autoReconnectJob` отменяются, `BleConnection.disconnect() → refresh() → close()`, `BleManager.setScanCooldown(5s)`.
+- TTS с редактируемыми шаблонами.
+- AutoHR (цикл в TreadmillSession).
+- Профили пользователей.
+- Генератор тренировок.
+- TreadmillCapabilities.
+- Графики пульса на Canvas.
+- SOS-защита BLE.
 
 ### v2.1 (UI & BLE Fixes)
-
-- **UI Редизайн**: Программы и Редактор переработаны. Карточки раскрывающиеся, +/- с авто-повтором, TimePicker (Wheel Picker). Debug сжат. About обновлён.
-- **BLE Фиксы**: `write()` → `writeSuspend()`; `sendRaw` + логирование в `FTMSProtocol`.
-- **Тренировки**: прогресс по сегментам, автосохранение в журнал, кнопка «Стоп» → «Готово».
-- **DebugLog**: единый хаб логирования.
+- UI-редизайн Программ и Редактора.
+- write() → writeSuspend().
+- DebugLog.
 
 ### v2.0+ (CI fix)
-
-- **Подпись**: keystore в репо, `signingConfigs.create("stable")`, `Verify keystore` + `Show APK signature` в CI.
-- `.gitignore` добавлен.
+- Keystore в репо, signingConfigs.create("stable").
+- .gitignore.
 
 ### v2.0+
-
-- **Архитектура**: `TreadmillSession` + `TreadmillService`.
-- **Протокол**: `08 01` для остановки.
-- **Автопульс и зоны**: профиль спортсмена, зоны Карвонена.
-- **Баги**: сохранение ручных тренировок, пропуск сегментов, скорость после паузы, утечка GATT.
-- **UI**: без прокрутки главного, подтверждение выхода, Material 3.
+- TreadmillSession + TreadmillService.
+- `08 01` для остановки.
+- Автопульс и зоны Карвонена.
+- Исправления: сохранение ручных тренировок, пропуск сегментов, скорость после паузы, утечка GATT.
 
 ---
 
 ## Для ИИ-ассистента (краткая шпаргалка)
 
-Этот раздел — для следующего ИИ, который откроет NOTES.md в новом чате.
-Прочитай до того, как что-то предлагать. Здесь — грабли, на которые уже
-наступали.
+Раздел для следующего ИИ в новом чате. Прочитай **до** любых предложений.
 
 ### Стек и запреты
+- Kotlin 1.9.22, Compose BOM 2024.02.00 (MenuAnchorType **нет**, только `.menuAnchor()`), Room 2.6.1 (БД v2), Gradle 8.6 + AGP 8.2.2 (**Gradle 9.x нельзя**).
+- `TreadmillSession`: только свой `CoroutineScope`, `viewModelScope` **нельзя**.
+- `BleConnection.write()` — старая, без ACK. Везде `writeSuspend()`.
+- `stringResource` **нельзя** внутри `Canvas {}`.
+- `"%.Nf".format(...)` на строке с `%` в конце — опасно.
+- Keystore `app/keystore/treadmill.keystore` — **не трогать** (в публичном репо — см. риск в подводных камнях).
+- `Switch` в Material3 не уважает `Modifier.size(width, height)` — использовать `Box + Modifier.scale(0.7f)`.
+- `CompletableDeferred<T1>` не совместим с `CompletableDeferred<Any?>` — использовать `CompletableDeferred<Any?>` + `as? T ?: fallback`.
 
-- Kotlin 1.9.22, Compose BOM 2024.02.00, Material 3 **без** `MenuAnchorType`
-  (только `.menuAnchor()`), Room 2.6.1 (БД v2), Gradle 8.6 + AGP 8.2.2
-  (Gradle 9.x **нельзя**).
-- В `TreadmillSession` **нельзя** `viewModelScope` — только свой
-  `CoroutineScope(Dispatchers.IO + SupervisorJob())`.
-- `BleConnection.write()` — старая версия без ACK. Везде в протоколе —
-  `writeSuspend()`.
-- `stringResource` **нельзя** звать внутри `Canvas {}` — вычисляй до.
-- `"%.Nf".format(...)` на строке с `%` в конце — опасная комбинация, см. п.11.
-- Keystore `app/keystore/treadmill.keystore` — **не трогать**.
-
-### Формат JSON-программ — snake_case (частый источник ошибок)
-
-Поля: `duration_sec`, `speed_kmh`, `incline_percent`.
-
-**Не** `durationSec` / `speedKmh` / `inclinePercent`. Все double — **с точкой**
-(`1.0`, `0.0`), никогда `1`, `0`. Подробнее — раздел «Импорт / экспорт
-JSON-программ». Эталон — «Программы → ⋮ → Экспорт JSON».
+### Формат JSON-программ — snake_case
+`duration_sec`, `speed_kmh`, `incline_percent`. НЕ camelCase.
+Double **всегда с точкой** (`5.0`, `0.0`). Эталон: «Программы → ⋮ → Экспорт JSON».
 
 ### BLE-протокол belt'а (коротко)
-
-- Старт: `00` → 200 мс паузы → `07` → `02 XX XX` (скорость, LE, км/ч × 100).
-- Скорость: только `02 XX XX`. Наклон: `03 XX XX` (% × 10 LE).
+- Старт: `00` → 200 мс → `07` → `02 XX XX`.
+- Скорость: `02 XX XX` (км/ч × 100 LE). Наклон: `03 XX XX` (% × 10 LE).
 - Стоп: **`08 01`** (сбрасывает таймер). `02 00 00` — не использовать.
-- Защиты: `startJob`/`autoReconnectJob` отменяются при Stop/Pause/ручном
-  подключении; `hasBeenReady` в stateJob; `isDisconnecting` в BleConnection;
-  кулдаун сканирования 5 сек.
+- FTMS Control Point Alt `0x2A66` — **Cycling Power Control Point**, не FTMS.
+- Inclination в Treadmill Data = **4 байта** (не 2). Elevation Gain = 4 байта. Total Energy = 5 байт.
 
-### Перед тем как предлагать код — спроси или проверь
-
-- **Не доверяй README/NOTES про формат JSON** — они уже врали. Проверь
-  `ProgramEntity.kt` (`@Serializable` / `@SerialName`) или попроси экспорт.
-- **Не давай «воздушные» интерфейсы** — дизайн плотный, без больших отступов.
-- **Полные файлы, не куски** — пользователь работает в веб-редакторе GitHub
-  (Ctrl+A → вставить). Если файл большой — предупреди и уточни.
-- **Кавычки в XML** — прямые `"`, не smart. **Markdown-файлы** — не оборачивай
-  в код-блок с ` ``` `, если внутри уже есть ` ``` ` — рассыпется. Используй
-  отступ в 4 пробела для внутренних блоков.
+### Перед предложением кода — проверь
+- **Не доверяй README/NOTES про формат JSON** — они уже врали. Проверь `ProgramEntity.kt` или попроси экспорт.
+- **Не давай «воздушные» интерфейсы** — дизайн плотный.
+- **Полные файлы, не куски** — пользователь работает в веб-редакторе GitHub (Ctrl+A → вставить).
+- **Кавычки в XML** — прямые `"`, не smart.
+- **Markdown-файлы** — не оборачивай в ` ``` `, если внутри уже есть ` ``` `. Используй отступ в 4 пробела.
 
 ### Что уже сделано (не предлагать заново)
-
-- TTS с редактируемыми шаблонами, AutoHR, профили, генератор тренировок,
-  FTMS Capabilities, точные пульсовые зоны (миграция Room 1→2), HoldToConfirm,
-  уведомление в шторке, локализация RU/EN, резервное копирование ZIP (SAF),
-  фикс GATT-залипания, `foregroundServiceType="connectedDevice"`.
+TTS, AutoHR, профили, генератор, Capabilities, точные зоны пульса (Room 1→2), HoldToConfirm, уведомление в шторке, локализация RU/EN, backup ZIP (SAF, атомарный), фикс GATT-залипания, `foregroundServiceType`, snake_case JSON, clamp шаблонов, warning на импорт, About без шаблона, Debug с двумя switch, BLE-разрешения на «Подкл.», FTMS-парсер (incline 4 байта), gattMutex + setNotifySuspend, safeSetSpeed/Incline.
 
 ### Что в бэклоге (приоритет сверху вниз)
+1. `WorkoutManager`: `catch (e: CancellationException) { throw e }`.
+2. `Uuids`: убрать/ограничить `FTMS_CONTROL_POINT_ALT = 0x2A66`.
+3. `TreadmillSession`: средний пульс/скорость — по таймеру (1 Гц), а не StateFlow.
+4. `TreadmillSession`: `speedBeforePause` сброс при старте.
+5. `TreadmillSession`: HR history не обрезать до 30 мин.
+6. `coerceIn(minS, maxS)` — проверка `minS <= maxS`.
+7. Автопереподключение после первого реконнекта.
+8. Экспорт TCX.
+9. Единый актор/канал команд.
+10. Дистанция с дорожки (Treadmill Data).
+11. FTMS_STATUS подписка.
 
-1. Экспорт TCX (для Strava/Garmin) — следующий.
-2. Экспорт FIT (требует сторонней библиотеки).
-3. Onboarding.
-4. Виджет на рабочий стол.
-5. Достижения / медали.
-6. S-curve ramp (плавный разгон скорости).
-7. Адаптация под планшеты.
-
-### Как получить эталон формата
-
-- JSON программы: «Программы → ⋮ → Экспорт JSON».
+### Как получить эталон
+- JSON-программа: «Программы → ⋮ → Экспорт JSON».
 - Backup ZIP: «Настройки → Данные → Экспорт резервной копии».
 - BLE-лог: «Debug → 💾 Сохранить».
