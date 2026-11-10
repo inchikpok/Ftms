@@ -21,9 +21,12 @@ android {
     signingConfigs {
         create("stable") {
             storeFile = file("keystore/treadmill.keystore")
-            storePassword = "treadmill123"
-            keyAlias = "treadmill"
-            keyPassword = "treadmill123"
+            // [ФИКС] Пароли берутся из переменных окружения (в CI — из GitHub Secrets).
+            // Fallback на старые значения — только для локальной сборки в Android Studio.
+            // В публичном коде паролей больше нет.
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "treadmill123"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "treadmill"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "treadmill123"
         }
     }
 
@@ -32,7 +35,10 @@ android {
             signingConfig = signingConfigs.getByName("stable")
         }
         release {
-            isMinifyEnabled = false
+            // [ФИКС] Минификация и сокращение ресурсов для release-сборки.
+            // Если APK из Releases начнёт вылетать при запуске — вернуть оба флага в false.
+            isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("stable")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
