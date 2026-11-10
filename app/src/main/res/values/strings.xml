@@ -264,6 +264,9 @@
     <string name="tts_default_pause">Paused</string>
     <string name="tts_default_resume">Resuming</string>
 
+    <!-- Test phrase for the "Listen" button in TTS settings -->
+    <string name="tts_test_workout_name">Test workout</string>
+
     <plurals name="tts_kmh_plural">
         <item quantity="one">%d kilometer per hour</item>
         <item quantity="other">%d kilometers per hour</item>
@@ -331,6 +334,7 @@
     <string name="debug_cmd_start_note">Only AFTER 00 + pause</string>
     <string name="debug_cmd_stop">Stop (our way)</string>
     <string name="debug_cmd_stop_note">Speed → 0</string>
+    <string name="debug_cmd_stop_hex_note">stop (%1$s)</string>
     <string name="debug_cmd_pause">Pause (FTMS standard)</string>
     <string name="debug_cmd_pause_note">Resets treadmill timer</string>
     <string name="debug_cmd_speed_label">%1$.1f km/h</string>
@@ -449,12 +453,12 @@
     <string name="history_duration_hms">%1$dh %2$dm %3$ds</string>
     <string name="history_duration_ms">%1$dm %2$ds</string>
     <string name="history_duration_s">%1$ds</string>
-    
+
     <!-- Heart rate chart / sparkline -->
     <string name="hr_waiting_for_data">Waiting for heart rate data…</string>
     <string name="hr_no_data">No heart rate data</string>
 
-        <!-- Chart -->
+    <!-- Chart -->
     <string name="chart_hours">%1$dh</string>
 
     <!-- Generator (ProgramGenerator.kt) -->
@@ -467,7 +471,7 @@
     <string name="gen_level_beginner">beginner</string>
     <string name="gen_level_intermediate">intermediate</string>
     <string name="gen_level_advanced">advanced</string>
-    
+
     <!-- Generator Segments -->
     <string name="gen_seg_warmup_walk">Warmup (Walk)</string>
     <string name="gen_seg_hill_walk">Hill walk %1$d</string>
@@ -479,7 +483,8 @@
     <string name="gen_seg_fast">Fast %1$d</string>
     <string name="gen_seg_slow">Slow %1$d</string>
     <string name="unit_hour">h</string>
-       <!-- Data / Backup -->
+
+    <!-- Data / Backup -->
     <string name="settings_group_data">Data</string>
     <string name="settings_backup_export_title">Export backup</string>
     <string name="settings_backup_export_subtitle">Save all programs, workouts and settings as a ZIP file</string>
@@ -498,7 +503,7 @@
     <string name="backup_restore_confirm">Restore and restart</string>
     <string name="backup_restore_in_progress">Restoring…</string>
     <string name="backup_restore_success_restart">Backup restored. Restarting…</string>
-    
+
     <!-- v2.3.3: warning на импорт с превышением лимитов -->
     <string name="programs_import_overflow">Program "%1$s" imported, but %2$d segment(s) exceed %3$.1f km/h — check your settings</string>
 
@@ -510,5 +515,5 @@
     <string name="scan_show_all">Show all BLE devices</string>
     <string name="scan_hide_non_matching">Hide non-matching</string>
     <string name="scan_nothing_matched">No matching devices. Try \"Show all BLE devices\".</string>
-    
+
 </resources>
