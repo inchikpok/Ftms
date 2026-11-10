@@ -8,6 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -108,7 +110,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
 
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { 
+    ) {
         val granted = hasBlePermissions(ctx)
         permsGranted = granted
         if (granted) {
@@ -361,18 +363,16 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     }
 
     if (scanMode != ScanMode.NONE) {
-        val filtered = remember(scanResults, scanMode) {
-            scanResults.filter {
-                if (scanMode == ScanMode.TREADMILL) ble.isTreadmillDevice(it)
-                else ble.isHeartRateDevice(it)
-            }
-        }
         ScanDialog(
             title = if (scanMode == ScanMode.TREADMILL)
                 stringResource(R.string.scan_title_treadmill)
             else
                 stringResource(R.string.scan_title_hr),
-            devices = filtered,
+            allDevices = scanResults,
+            isLikelyMatch = { r ->
+                if (scanMode == ScanMode.TREADMILL) ble.isTreadmillDevice(r)
+                else ble.isHeartRateDevice(r)
+            },
             nameProvider = { ble.safeName(it) },
             onSelect = { r ->
                 if (scanMode == ScanMode.TREADMILL) vm.connectTreadmill(r.device)
@@ -690,25 +690,106 @@ private fun MetricBlock(
     }
 }
 
+// [ФИКС] Полностью переработан диалог сканирования:
+//  - «Показать все BLE-устройства» — обход фильтра по имени/UUID;
+//  - сортировка по RSSI (сильный сигнал — выше);
+//  - звёздочка у «похожих»;
+//  - MAC-адрес рядом с именем;
+//  - счётчики «найдено/подходящих».
 @Composable
 private fun ScanDialog(
     title: String,
-    devices: List<ScanResult>,
+    allDevices: List<ScanResult>,
+    isLikelyMatch: (ScanResult) -> Boolean,
     nameProvider: (ScanResult) -> String,
     onSelect: (ScanResult) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var showAll by remember { mutableStateOf(false) }
+
+    val visibleDevices = remember(allDevices, showAll) {
+        val base = if (showAll) allDevices else allDevices.filter { isLikelyMatch(it) }
+        base.sortedWith(
+            compareByDescending<ScanResult> { isLikelyMatch(it) }
+                .thenByDescending { it.rssi }
+        )
+    }
+
+    val totalCount = allDevices.size
+    val visibleCount = visibleDevices.size
+    val likelyCount = allDevices.count { isLikelyMatch(it) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column {
-                if (devices.isEmpty()) {
-                    Text(stringResource(R.string.scan_searching))
-                } else devices.forEach { r ->
-                    TextButton(onClick = { onSelect(r) }) {
-                        Text("${nameProvider(r)}  [${r.rssi} dBm]")
+            Column(Modifier.fillMaxWidth()) {
+                Text(
+                    "Найдено: $totalCount · подходящих: $likelyCount",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+
+                if (visibleCount == 0) {
+                    Text(
+                        if (showAll) stringResource(R.string.scan_searching)
+                        else stringResource(R.string.scan_nothing_matched),
+                        fontSize = 13.sp
+                    )
+                } else {
+                    LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                        items(visibleDevices, key = { it.device.address }) { r ->
+                            val likely = isLikelyMatch(r)
+                            TextButton(
+                                onClick = { onSelect(r) },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (likely) {
+                                                Text(
+                                                    "★ ",
+                                                    fontSize = 13.sp,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            Text(
+                                                nameProvider(r),
+                                                fontSize = 13.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        Text(
+                                            r.device.address,
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        "${r.rssi} dBm",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                     }
+                }
+
+                Spacer(Modifier.height(6.dp))
+                TextButton(
+                    onClick = { showAll = !showAll },
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        if (showAll) stringResource(R.string.scan_hide_non_matching)
+                        else stringResource(R.string.scan_show_all),
+                        fontSize = 12.sp
+                    )
                 }
             }
         },
