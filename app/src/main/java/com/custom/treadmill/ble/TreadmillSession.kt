@@ -11,6 +11,7 @@ import com.custom.treadmill.data.database.HrSamplesCodec
 import com.custom.treadmill.data.database.ProgramData
 import com.custom.treadmill.data.database.WorkoutLogEntity
 import com.custom.treadmill.logic.HeartRateController
+import com.custom.treadmill.logic.SpeedFormatter
 import com.custom.treadmill.logic.TtsManager
 import com.custom.treadmill.logic.WorkoutManager
 import com.custom.treadmill.service.TreadmillService
@@ -223,12 +224,15 @@ class TreadmillSession(private val appContext: Context) {
             val spd = _targetSpeed.value
             val inc = _targetIncline.value
             val template = settingsStore.settings.value.ttsSegmentTemplate
+            // [ФИКС] Добавлены {pace} и {pace_text} — темп цифрой и словами.
             val text = template
                 .replace("{i}", n.toString())
                 .replace("{n}", total.toString())
                 .replace("{segName}", name.ifBlank { appContext.getString(R.string.programs_segment_default, n) })
                 .replace("{speed}", "%.1f".format(spd))
                 .replace("{speed_text}", fmtSpeed(spd))
+                .replace("{pace}", SpeedFormatter.formatPace(spd))
+                .replace("{pace_text}", SpeedFormatter.formatPaceText(spd, appContext))
                 .replace("{angle}", inc.roundToInt().toString())
                 .replace("{angle_text}", fmtAngle(inc))
             speak(text)
@@ -310,8 +314,6 @@ class TreadmillSession(private val appContext: Context) {
                 totalCaloriesDouble += kcalPerMin / 60.0
                 _uiCalories.value = totalCaloriesDouble.toInt()
 
-                // [ФИКС] Heartbeat раз в 60 активных секунд. Помогает в логе
-                // понять, шла ли дорожка и менялись ли данные BLE.
                 if (_uiElapsedSec.value % 60 == 0) {
                     addLog(
                         "Tick t=${_uiElapsedSec.value}s spd=${"%.1f".format(d.speedKmh)} " +
@@ -602,7 +604,6 @@ class TreadmillSession(private val appContext: Context) {
         isStartingBelt = true
         startJob?.cancel()
 
-        // [ФИКС] Явный маркер старта для анализа лога.
         val startSpeed = if (resumeSpeed >= 1.0) resumeSpeed else 1.0
         addLog("=== MANUAL START === resume=$isResume targetSpeed=$startSpeed")
 
@@ -702,6 +703,7 @@ class TreadmillSession(private val appContext: Context) {
                         },
                         onFinish = {
                             val avgHr = if (hrCount > 0) (hrSum / hrCount).toInt() else 0
+                            val avgSpd = if (speedCount > 0) speedSum / speedCount else 0.0
                             val dist = _uiDistanceKm.value
                             addLog("=== WORKOUT FINISH === dist=${"%.2f".format(dist)}km elapsed=${_uiElapsedSec.value}s hr_avg=$avgHr hr_max=$hrMax")
                             protocol?.stop()
@@ -710,7 +712,12 @@ class TreadmillSession(private val appContext: Context) {
                             showMessage(appContext.getString(R.string.workout_finished))
                             val distStr = "%.1f".format(dist).replace(".", ",")
                             val template = settingsStore.settings.value.ttsFinishTemplate
-                            val text = template.replace("{dist}", distStr).replace("{hr}", avgHr.toString())
+                            // [ФИКС] {pace}/{pace_text} на финише — от средней скорости.
+                            val text = template
+                                .replace("{dist}", distStr)
+                                .replace("{hr}", avgHr.toString())
+                                .replace("{pace}", SpeedFormatter.formatPace(avgSpd))
+                                .replace("{pace_text}", SpeedFormatter.formatPaceText(avgSpd, appContext))
                             speak(text)
                         },
                         onError = { msg ->
@@ -726,11 +733,14 @@ class TreadmillSession(private val appContext: Context) {
                         val hi = maxOf(s.minSpeedKmh, s.maxSpeedKmh)
                         val safeSpeed = first.speedKmh.coerceIn(lo, hi)
                         val template = s.ttsStartTemplate
+                        // [ФИКС] {pace}/{pace_text} на старте — от скорости первого сегмента.
                         val text = template
                             .replace("{name}", program.name)
                             .replace("{segName}", first.name.ifBlank { appContext.getString(R.string.programs_segment_default, 1) })
                             .replace("{speed}", "%.1f".format(safeSpeed))
                             .replace("{speed_text}", fmtSpeed(safeSpeed))
+                            .replace("{pace}", SpeedFormatter.formatPace(safeSpeed))
+                            .replace("{pace_text}", SpeedFormatter.formatPaceText(safeSpeed, appContext))
                         speak(text)
                     }
                 } else {
