@@ -58,6 +58,7 @@ import com.custom.treadmill.data.database.ProgramEntity
 import com.custom.treadmill.data.database.ProgramSegment
 import com.custom.treadmill.logic.ProgramGenerator
 import com.custom.treadmill.logic.WorkoutGoal
+import com.custom.treadmill.ui.LocalTreadmillColors
 import com.custom.treadmill.ui.viewmodels.MainViewModel
 import com.custom.treadmill.ui.viewmodels.ProgramViewModel
 import kotlinx.coroutines.delay
@@ -116,8 +117,6 @@ fun ProgramsScreen(
             }
             programVm.save(data)
 
-            // Warning при превышении лимитов скорости/наклона. Импорт НЕ блокируется —
-            // пользователь сам выбрал файл, но предупреждение показываем.
             val overflow = data.segments.count {
                 it.speedKmh > effectiveMaxSpeed ||
                 (showIncline && it.inclinePercent > effectiveMaxIncline)
@@ -480,10 +479,16 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
     val maxIncline = 15.0
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-
-    // [ФИКС] Забираем строку из ресурсов ДО входа в Canvas.
-    // Внутри Canvas нельзя вызывать @Composable функции.
     val hourSuffix = stringResource(R.string.unit_hour)
+
+    // [ФИКС] Семантические цвета вне Canvas — Canvas не @Composable.
+    val tc = LocalTreadmillColors.current
+    val speedLow = tc.speedLow
+    val speedMid = tc.speedMid
+    val speedMidHigh = tc.speedMidHigh
+    val speedHigh = tc.speedHigh
+    val speedVeryHigh = tc.speedVeryHigh
+    val chartPurple = tc.chartPurple
 
     Canvas(modifier = modifier) {
         val w = size.width
@@ -503,11 +508,11 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
             val drawW = (segW - gap).coerceAtLeast(1f)
             val speedH = (seg.speedKmh.toFloat() / maxSpeed.toFloat()) * chartH * 0.9f
             val speedColor = when {
-                seg.speedKmh < 6.0 -> Color(0xFF29B6F6)
-                seg.speedKmh < 9.0 -> Color(0xFF66BB6A)
-                seg.speedKmh < 12.0 -> Color(0xFFFFCA28)
-                seg.speedKmh < 15.0 -> Color(0xFFFF7043)
-                else -> Color(0xFFE53935)
+                seg.speedKmh < 6.0 -> speedLow
+                seg.speedKmh < 9.0 -> speedMid
+                seg.speedKmh < 12.0 -> speedMidHigh
+                seg.speedKmh < 15.0 -> speedHigh
+                else -> speedVeryHigh
             }
             drawRoundRect(color = speedColor, topLeft = Offset(currentX + gap/2, chartH - speedH), size = Size(drawW, speedH), cornerRadius = CornerRadius(2f, 2f))
 
@@ -515,7 +520,7 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
                 val inclineH = (seg.inclinePercent.toFloat() / maxIncline.toFloat()) * chartH * 0.9f
                 val y = chartH - inclineH
                 val linePath = Path().apply { moveTo(currentX + gap/2, y); lineTo(currentX + segW - gap/2, y) }
-                drawPath(path = linePath, color = Color(0xFFAB47BC), style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()), 0f)))
+                drawPath(path = linePath, color = chartPurple, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()), 0f)))
             }
             currentX += segW
         }
@@ -611,7 +616,6 @@ private fun ProgramCardModern(
                                 else
                                     stringResource(R.string.programs_seconds_short, s)
 
-                                // [ФИКС] Безопасное форматирование: числа отдельно, строки отдельно
                                 val unitKmh = stringResource(R.string.unit_kmh)
                                 val unitPercent = stringResource(R.string.unit_percent)
                                 val speedStr = "%.1f".format(seg.speedKmh)
@@ -966,7 +970,10 @@ private fun HoldableStepButton(icon: androidx.compose.ui.graphics.vector.ImageVe
         }
     }
 
-    val activeBgColor = if (isPlus) Color(0xFF4CAF50) else Color(0xFFE53935)
+    // [ФИКС] Цвета из LocalTreadmillColors. Значения одинаковы в обеих темах
+    // (это filled-фоны с белым текстом), но могут быть переопределены централизованно.
+    val tc = LocalTreadmillColors.current
+    val activeBgColor = if (isPlus) tc.successGreen else tc.exerciseRed
     val disabledBgColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     val iconTint = if (enabled) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
 
