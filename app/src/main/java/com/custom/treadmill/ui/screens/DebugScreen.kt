@@ -110,6 +110,14 @@ fun DebugScreen(vm: MainViewModel, onBack: () -> Unit) {
                     }
                     IconButton(onClick = {
                         val content = DebugLog.exportText()
+                        // [ФИКС] Intent.EXTRA_TEXT имеет лимит ~1MB через Binder.
+                        // Для больших логов открываем Save — файл потом можно переслать как вложение.
+                        if (content.length > 400_000) {
+                            savedMessage = ctx.getString(R.string.debug_share_too_large)
+                            val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
+                            saveLauncher.launch("treadmill_log_$ts.txt")
+                            return@IconButton
+                        }
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_SUBJECT, ctx.getString(R.string.debug_share_subject))
@@ -232,7 +240,6 @@ private fun LogView(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("FTMS", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                    // Компактный Switch для FTMS
                     Box(Modifier.size(34.dp, 24.dp), contentAlignment = Alignment.Center) {
                         Switch(
                             checked = !hideTreadmillFrames,
@@ -244,7 +251,6 @@ private fun LogView(
                     Spacer(Modifier.width(4.dp))
                     Text("UI", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                    // Компактный Switch для UI
                     Box(Modifier.size(34.dp, 24.dp), contentAlignment = Alignment.Center) {
                         Switch(
                             checked = !hideUiEvents,
@@ -298,7 +304,6 @@ private fun buildCommandReference(ctx: Context): List<Pair<String, List<CmdEntry
     }
     return listOf(
         ctx.getString(R.string.debug_cmd_group_control) to listOf(
-            // [ФИКС] Названия FTMS-команд оставлены на английском — это термины из спецификации.
             CmdEntry("Request Control", "00", ctx.getString(R.string.debug_cmd_request_control_note)),
             CmdEntry("Reset", "01", ctx.getString(R.string.debug_cmd_reset_note)),
             CmdEntry("Start / Resume", "07", ctx.getString(R.string.debug_cmd_start_note)),
@@ -392,7 +397,6 @@ private fun CommandConstructor(treadmillReady: Boolean, onSend: (String) -> Unit
                     OutlinedButton(
                         onClick = {
                             onSend("02 00 00")
-                            // [ФИКС] Локализованная метка вместо хардкода «стоп (02 00 00)».
                             lastSent = ctx.getString(R.string.debug_cmd_stop_hex_note, "02 00 00")
                         },
                         enabled = treadmillReady,
