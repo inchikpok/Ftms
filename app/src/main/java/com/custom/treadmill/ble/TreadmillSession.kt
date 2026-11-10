@@ -126,24 +126,24 @@ class TreadmillSession(private val appContext: Context) {
         DebugLog.init(appContext)
         scope.launch { ble.scanLog.collect { addLog(it) } }
 
+        // [ФИКС] Здесь только копим hrHistory (без обрезки по 30 мин).
+        // Средние считает startMetricsLoop ровно на 1 Гц.
         scope.launch {
             _heartRate.collect { hr ->
                 if (hr > 0 && _uiElapsedSec.value > 0) {
-                    hrSum += hr; hrCount++
-                    if (hr > hrMax) hrMax = hr
                     val now = System.currentTimeMillis()
                     val list = _hrHistory.value
                     val last = list.lastOrNull()
                     if (last == null || now - last.timestamp >= 900L) {
-                        val cutoff = now - 30 * 60 * 1000L
-                        _hrHistory.value = (list + HrPoint(now, hr)).filter { it.timestamp >= cutoff }
+                        _hrHistory.value = list + HrPoint(now, hr)
                     }
                 }
             }
         }
+
+        // [ФИКС] speedSum/speedCount больше не накапливаются здесь — только в 1 Гц-цикле.
         scope.launch {
             _treadmillData.collect { d ->
-                if (d.speedKmh > 0.05) { speedSum += d.speedKmh; speedCount++ }
                 val now = System.currentTimeMillis()
                 val isWorkoutRunning = workoutManager.state.value.running
                 if (!isStartingBelt && !isWorkoutRunning && now - lastSpeedCmdTime > 3500 && abs(_targetSpeed.value - d.speedKmh) > 0.1) {
@@ -154,6 +154,7 @@ class TreadmillSession(private val appContext: Context) {
                 }
             }
         }
+
         scope.launch {
             settingsStore.settings.collect { s ->
                 if (s.hrEnabled != lastAutoHrEnabled) {
@@ -162,6 +163,7 @@ class TreadmillSession(private val appContext: Context) {
                 }
             }
         }
+
         scope.launch {
             workoutManager.state.collect { ws ->
                 if (!ws.running) { lastSpokenSegmentIndex = -1; return@collect }
@@ -173,6 +175,7 @@ class TreadmillSession(private val appContext: Context) {
                 speakSegmentChange(idx, ws.totalSegments, ws.currentSegmentName)
             }
         }
+
         startMetricsLoop()
     }
 
@@ -250,13 +253,32 @@ class TreadmillSession(private val appContext: Context) {
 
     fun showMessage(msg: String) { _statusMessage.value = msg }
 
+    // [ФИКС] Средние пульс/скорость и прочие метрики — строго 1 Гц.
     private fun startMetricsLoop() {
         scope.launch {
             while (isActive) {
                 delay(1000L)
                 if (_treadmillState.value != BleConnectionState.READY) continue
+
+                // Пульс: 1 Гц, только если тренировка уже началась.
+                val hr = _heartRate.value
+                if (hr > 0 && _uiElapsedSec.value > 0) {
+                    hrSum += hr
+                    hrCount++
+                    if (hr > hrMax) hrMax = hr
+                }
+
                 val d = _treadmillData.value
+
+                // Скорость: 1 Гц, только при движении ленты (порог как раньше).
+                if (d.speedKmh > 0.05) {
+                    speedSum += d.speedKmh
+                    speedCount++
+                }
+
+                // Остальные метрики — только если лента реально бежит.
                 if (d.speedKmh < 0.3) continue
+
                 val weight = settingsStore.settings.value.activeProfile.weightKg
                 val met = if (d.speedKmh < 6.0) 1.0 + (d.speedKmh * 0.5) + (d.inclinePercent * 0.1)
                 else 1.0 + (d.speedKmh * 0.9) + (d.inclinePercent * 0.15)
@@ -488,9 +510,12 @@ class TreadmillSession(private val appContext: Context) {
     fun setSpeed(kmh: Double) {
         val s = settingsStore.settings.value
         val caps = _capabilities.value
-        val minS = if (caps.isLoaded) maxOf(s.minSpeedKmh, caps.minSpeedKmh) else s.minSpeedKmh
-        val maxS = if (caps.isLoaded) minOf(s.maxSpeedKmh, caps.maxSpeedKmh) else s.maxSpeedKmh
-        val safe = kmh.coerceIn(minS, maxS)
+        val rawMin = if (caps.isLoaded) maxOf(s.minSpeedKmh, caps.minSpeedKmh) else s.minSpeedKmh
+        val rawMax = if (caps.isLoaded) minOf(s.maxSpeedKmh, caps.maxSpeedKmh) else s.maxSpeedKmh
+        // [ФИКС] coerceIn падает, если min > max — берём гарантированно корректный диапазон.
+        val lo = minOf(rawMin, rawMax)
+        val hi = maxOf(rawMin, rawMax)
+        val safe = kmh.coerceIn(lo, hi)
         _targetSpeed.value = safe
         lastSpeedCmdTime = System.currentTimeMillis()
         scope.launch { protocol?.setSpeed(safe) }
@@ -500,8 +525,10 @@ class TreadmillSession(private val appContext: Context) {
         val s = settingsStore.settings.value
         val caps = _capabilities.value
         if (caps.isLoaded && !caps.supportsIncline) { _targetIncline.value = 0.0; return }
-        val maxI = if (caps.isLoaded) minOf(s.maxInclinePercent, caps.maxInclinePercent) else s.maxInclinePercent
-        val safe = percent.coerceIn(0.0, maxI)
+        val rawMax = if (caps.isLoaded) minOf(s.maxInclinePercent, caps.maxInclinePercent) else s.maxInclinePercent
+        // [ФИКС] защита от отрицательного верхнего предела.
+        val hi = rawMax.coerceAtLeast(0.0)
+        val safe = percent.coerceIn(0.0, hi)
         _targetIncline.value = safe
         lastInclineCmdTime = System.currentTimeMillis()
         scope.launch { protocol?.setIncline(safe) }
@@ -528,7 +555,14 @@ class TreadmillSession(private val appContext: Context) {
         if (_treadmillState.value != BleConnectionState.READY) return
         val isResume = _isPaused.value
         if (isResume) speak(settingsStore.settings.value.ttsResumeText)
-        if (!isResume) { workoutManager.stop(); resetMetrics(); resetStats(); workoutLogSaved = false }
+        if (!isResume) {
+            workoutManager.stop()
+            resetMetrics()
+            resetStats()
+            workoutLogSaved = false
+            // [ФИКС] новая сессия — сбрасываем точку возврата.
+            speedBeforePause = 0.0
+        }
         val resumeSpeed = if (isResume) speedBeforePause else 0.0
         if (isResume && resumeSpeed > 0.5) _targetSpeed.value = resumeSpeed
         _isPaused.value = false
@@ -581,7 +615,11 @@ class TreadmillSession(private val appContext: Context) {
     }
 
     fun startWorkout(program: ProgramData) {
-        resetStats(); resetMetrics(); workoutLogSaved = false
+        resetStats()
+        resetMetrics()
+        workoutLogSaved = false
+        // [ФИКС] новая программа — точка возврата не должна тащиться с прошлой сессии.
+        speedBeforePause = 0.0
         _isPaused.value = false
         lastSpokenSegmentIndex = 0
         isStartingBelt = true
@@ -596,9 +634,11 @@ class TreadmillSession(private val appContext: Context) {
                         onSetSpeed = {
                             val s = settingsStore.settings.value
                             val caps = _capabilities.value
-                            val minS = if (caps.isLoaded) maxOf(s.minSpeedKmh, caps.minSpeedKmh) else s.minSpeedKmh
-                            val maxS = if (caps.isLoaded) minOf(s.maxSpeedKmh, caps.maxSpeedKmh) else s.maxSpeedKmh
-                            val safe = it.coerceIn(minS, maxS)
+                            val rawMin = if (caps.isLoaded) maxOf(s.minSpeedKmh, caps.minSpeedKmh) else s.minSpeedKmh
+                            val rawMax = if (caps.isLoaded) minOf(s.maxSpeedKmh, caps.maxSpeedKmh) else s.maxSpeedKmh
+                            val lo = minOf(rawMin, rawMax)
+                            val hi = maxOf(rawMin, rawMax)
+                            val safe = it.coerceIn(lo, hi)
                             _targetSpeed.value = safe
                             lastSpeedCmdTime = System.currentTimeMillis()
                             protocol?.setSpeed(safe)
@@ -607,8 +647,9 @@ class TreadmillSession(private val appContext: Context) {
                             val s = settingsStore.settings.value
                             val caps = _capabilities.value
                             if (!caps.isLoaded || caps.supportsIncline) {
-                                val maxI = if (caps.isLoaded) minOf(s.maxInclinePercent, caps.maxInclinePercent) else s.maxInclinePercent
-                                val safe = it.coerceIn(0.0, maxI)
+                                val rawMax = if (caps.isLoaded) minOf(s.maxInclinePercent, caps.maxInclinePercent) else s.maxInclinePercent
+                                val hi = rawMax.coerceAtLeast(0.0)
+                                val safe = it.coerceIn(0.0, hi)
                                 _targetIncline.value = safe
                                 lastInclineCmdTime = System.currentTimeMillis()
                                 protocol?.setIncline(safe)
@@ -632,7 +673,9 @@ class TreadmillSession(private val appContext: Context) {
                     val first = program.segments.firstOrNull()
                     if (first != null) {
                         val s = settingsStore.settings.value
-                        val safeSpeed = first.speedKmh.coerceIn(s.minSpeedKmh, s.maxSpeedKmh)
+                        val lo = minOf(s.minSpeedKmh, s.maxSpeedKmh)
+                        val hi = maxOf(s.minSpeedKmh, s.maxSpeedKmh)
+                        val safeSpeed = first.speedKmh.coerceIn(lo, hi)
                         val template = s.ttsStartTemplate
                         val text = template
                             .replace("{name}", program.name)
