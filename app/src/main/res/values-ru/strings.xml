@@ -25,6 +25,7 @@
     <string name="unit_min">мин</string>
     <string name="unit_calories">ккал</string>
     <string name="unit_km">км</string>
+    <string name="unit_pace">/км</string>
 
     <string name="tab_main">Главная</string>
     <string name="tab_programs">Программы</string>
@@ -44,6 +45,7 @@
     <string name="main_btn_disconnect">Откл.</string>
     <string name="main_btn_cooldown">Ждите %1$dс</string>
     <string name="main_speed">Скорость</string>
+    <string name="main_pace">Темп</string>
     <string name="main_incline">Наклон</string>
     <string name="main_reset">Сбросить</string>
     <string name="main_hr">Пульс</string>
@@ -367,12 +369,15 @@
     <string name="history_hr_zones">Пульсовые зоны</string>
     <string name="history_hr_zones_approx">≈ приближённо</string>
     <string name="history_avg_speed">ср. скорость</string>
+    <string name="history_avg_pace">ср. темп</string>
     <string name="history_max_hr">макс. пульс</string>
     <string name="history_summary_title">Общая сводка</string>
     <string name="history_summary_workouts">Тренировок</string>
     <string name="history_summary_time">Время</string>
     <string name="history_summary_distance">Дистанция</string>
     <string name="history_summary_calories">Калории</string>
+    <string name="history_summary_speed">Ср. скорость</string>
+    <string name="history_summary_pace">Ср. темп</string>
     <string name="history_hr_card_title">Пульс</string>
     <string name="history_hr_avg">Средний</string>
     <string name="history_hr_max">Максимум</string>
