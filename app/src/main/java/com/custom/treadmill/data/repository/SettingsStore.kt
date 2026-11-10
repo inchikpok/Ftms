@@ -32,7 +32,8 @@ data class AppSettings(
     val keepScreenOn: Boolean = true,
 
     val profiles: List<UserProfile> = listOf(UserProfile()),
-    val activeProfileId: String = profiles.first().id,
+    // [ФИКС] firstOrNull вместо first: защита от пустого profiles в JSON
+    val activeProfileId: String = profiles.firstOrNull()?.id ?: "",
 
     val minSpeedKmh: Double = 1.0,
     val maxSpeedKmh: Double = 20.0,
@@ -51,7 +52,9 @@ data class AppSettings(
     val autoMaxHr: Boolean = true,
     val maxHr: Int = 190,
 
-    // TTS — пустые по умолчанию, SettingsStore.load() заполнит из ресурсов
+    // [ФИКС] Пустая строка теперь означает "пользователь очистил", а не
+    // "не задано". Дефолты из ресурсов подставляются только при первом
+    // запуске (когда JSON в SharedPreferences ещё нет) и сразу сохраняются.
     val ttsEnabled: Boolean = true,
     val ttsStartTemplate: String = "",
     val ttsSegmentTemplate: String = "",
@@ -70,40 +73,49 @@ class SettingsStore(private val context: Context) {
     private val _settings = MutableStateFlow(load())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
+    // [ФИКС] Дефолтные настройки с заполненными из ресурсов TTS-шаблонами.
+    private fun defaultWithTts(): AppSettings = AppSettings().copy(
+        ttsStartTemplate = context.getString(R.string.tts_default_start),
+        ttsSegmentTemplate = context.getString(R.string.tts_default_segment),
+        ttsFinishTemplate = context.getString(R.string.tts_default_finish),
+        ttsPauseText = context.getString(R.string.tts_default_pause),
+        ttsResumeText = context.getString(R.string.tts_default_resume)
+    )
+
     /**
-     * [ФИКС] Если JSON повреждён, сохраняем битый оригинал в отдельный ключ
-     * (settings_json_broken_<timestamp>), а не теряем его молча. Так можно
-     * вручную восстановить настройки или профили, заглянув в SharedPreferences.
+     * [ФИКС] Логика "первый запуск vs последующие" изменилась:
+     *  - Если JSON ещё не было (raw == null) — берём дефолты с ресурсами TTS
+     *    И СРАЗУ СОХРАНЯЕМ. При следующем запуске это будет обычная загрузка.
+     *  - Если JSON есть — доверяем ему как есть, включая пустые строки TTS.
+     *    Пустая строка теперь означает "пользователь очистил" — не заполняем.
+     *  - Битый JSON — сохраняем в settings_json_broken_<timestamp> и берём дефолты.
      */
     private fun load(): AppSettings {
         val raw = prefs.getString(KEY, null)
-        val loaded = try {
-            raw?.let { json.decodeFromString<AppSettings>(it) } ?: AppSettings()
-        } catch (e: Exception) {
-            if (raw != null) {
-                try {
-                    val brokenKey = "${KEY}_broken_${System.currentTimeMillis()}"
-                    prefs.edit().putString(brokenKey, raw).apply()
-                } catch (_: Exception) {
-                    // Если и это не удалось — молча идём дальше с дефолтами
-                }
-            }
-            AppSettings()
+
+        if (raw == null) {
+            val defaults = defaultWithTts()
+            try {
+                prefs.edit().putString(KEY, json.encodeToString(defaults)).apply()
+            } catch (_: Exception) { }
+            return defaults
         }
 
-        // Заполняем TTS-шаблоны из ресурсов, если пусты
-        val withDefaults = loaded.copy(
-            ttsStartTemplate = loaded.ttsStartTemplate.ifBlank { context.getString(R.string.tts_default_start) },
-            ttsSegmentTemplate = loaded.ttsSegmentTemplate.ifBlank { context.getString(R.string.tts_default_segment) },
-            ttsFinishTemplate = loaded.ttsFinishTemplate.ifBlank { context.getString(R.string.tts_default_finish) },
-            ttsPauseText = loaded.ttsPauseText.ifBlank { context.getString(R.string.tts_default_pause) },
-            ttsResumeText = loaded.ttsResumeText.ifBlank { context.getString(R.string.tts_default_resume) }
-        )
+        val loaded = try {
+            json.decodeFromString<AppSettings>(raw)
+        } catch (e: Exception) {
+            try {
+                val brokenKey = "${KEY}_broken_${System.currentTimeMillis()}"
+                prefs.edit().putString(brokenKey, raw).apply()
+            } catch (_: Exception) { }
+            return defaultWithTts()
+        }
+
         // Миграция профиля с пустым именем
-        val fixedProfiles = withDefaults.profiles.map {
+        val fixedProfiles = loaded.profiles.map {
             if (it.name.isBlank()) it.copy(name = context.getString(R.string.profiles_name)) else it
         }
-        return withDefaults.copy(profiles = fixedProfiles)
+        return loaded.copy(profiles = fixedProfiles)
     }
 
     fun update(transform: (AppSettings) -> AppSettings) {
