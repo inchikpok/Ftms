@@ -486,5 +486,9 @@
     <string name="about_custom_workout_hint">Создать тренировку: Программы → Создать, или импортировать JSON-файл через 📤. Формат — в README.</string>
     
     <string name="ble_permission_denied">Для подключения дорожки нужны разрешения Bluetooth</string>
+
+    <string name="scan_show_all">Показать все BLE-устройства</string>
+    <string name="scan_hide_non_matching">Скрыть нерелевантные</string>
+    <string name="scan_nothing_matched">Подходящих устройств нет. Попробуйте «Показать все BLE-устройства».</string>
     
 </resources>
