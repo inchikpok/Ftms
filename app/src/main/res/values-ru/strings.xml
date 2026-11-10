@@ -164,6 +164,8 @@
     <string name="programs_import_error_save">Ошибка сохранения: %1$s</string>
     <string name="programs_import_error_read">Ошибка чтения: %1$s</string>
     <string name="programs_generated_toast">Программа сгенерирована и сохранена!</string>
+    <string name="programs_corrupted_title">Программа повреждена</string>
+    <string name="programs_corrupted_text">Данные сегментов не читаются. Удалите программу и создайте заново.</string>
 
     <string name="generator_title">Генератор тренировок</string>
     <string name="generator_profile_label">Профиль: %1$s (%2$.0f кг, %3$d лет)</string>
@@ -248,7 +250,6 @@
     <string name="tts_default_pause">Пауза</string>
     <string name="tts_default_resume">Продолжаем</string>
 
-    <!-- Тестовая фраза для кнопки "Прослушать" в настройках TTS -->
     <string name="tts_test_workout_name">Тестовая тренировка</string>
 
     <plurals name="tts_kmh_plural">
