@@ -276,17 +276,32 @@ fun ProgramsScreen(
                 ) {
                     items(visible, key = { it.id }) { p ->
                         val data = remember(p.id, p.segmentsJson) { programVm.toData(p) }
-                        ProgramCardModern(
-                            entity = p, data = data, canStart = treadmillReady,
-                            onEdit = { editingId = p.id; editingData = data },
-                            onDuplicate = { programVm.save(data.copy(name = ctx.getString(R.string.programs_copy_suffix, data.name)), 0L) },
-                            onDelete = {
-                                if (workoutState.running && workoutState.programName == p.name) mainVm.showMessage(ctx.getString(R.string.programs_cannot_delete_running))
-                                else deleteTarget = p
-                            },
-                            onExport = { exportTarget = data; exportLauncher.launch("${p.name}.json") },
-                            onStart = { if (treadmillReady) onStartWorkout(data) else showNotConnectedDialog = true }
-                        )
+                        // [ФИКС] Если сегменты не декодировались — показываем
+                        // предупреждение и кнопку «удалить», а не пустую программу.
+                        if (data.segments.isEmpty()) {
+                            CorruptedProgramCard(
+                                entity = p,
+                                onDelete = {
+                                    if (workoutState.running && workoutState.programName == p.name) {
+                                        mainVm.showMessage(ctx.getString(R.string.programs_cannot_delete_running))
+                                    } else {
+                                        deleteTarget = p
+                                    }
+                                }
+                            )
+                        } else {
+                            ProgramCardModern(
+                                entity = p, data = data, canStart = treadmillReady,
+                                onEdit = { editingId = p.id; editingData = data },
+                                onDuplicate = { programVm.save(data.copy(name = ctx.getString(R.string.programs_copy_suffix, data.name)), 0L) },
+                                onDelete = {
+                                    if (workoutState.running && workoutState.programName == p.name) mainVm.showMessage(ctx.getString(R.string.programs_cannot_delete_running))
+                                    else deleteTarget = p
+                                },
+                                onExport = { exportTarget = data; exportLauncher.launch("${p.name}.json") },
+                                onStart = { if (treadmillReady) onStartWorkout(data) else showNotConnectedDialog = true }
+                            )
+                        }
                     }
                 }
             }
@@ -379,6 +394,56 @@ fun ProgramsScreen(
             },
             onDismiss = { editingData = null; editingId = -1L }
         )
+    }
+}
+
+@Composable
+private fun CorruptedProgramCard(entity: ProgramEntity, onDelete: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f))
+    ) {
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        entity.name.ifBlank { stringResource(R.string.programs_title) },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        stringResource(R.string.programs_corrupted_title),
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.delete),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                stringResource(R.string.programs_corrupted_text),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -481,7 +546,6 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val hourSuffix = stringResource(R.string.unit_hour)
 
-    // [ФИКС] Семантические цвета вне Canvas — Canvas не @Composable.
     val tc = LocalTreadmillColors.current
     val speedLow = tc.speedLow
     val speedMid = tc.speedMid
@@ -970,8 +1034,6 @@ private fun HoldableStepButton(icon: androidx.compose.ui.graphics.vector.ImageVe
         }
     }
 
-    // [ФИКС] Цвета из LocalTreadmillColors. Значения одинаковы в обеих темах
-    // (это filled-фоны с белым текстом), но могут быть переопределены централизованно.
     val tc = LocalTreadmillColors.current
     val activeBgColor = if (isPlus) tc.successGreen else tc.exerciseRed
     val disabledBgColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
