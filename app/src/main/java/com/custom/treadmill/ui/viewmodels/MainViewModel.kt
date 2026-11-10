@@ -4,6 +4,7 @@ import android.app.Application
 import android.bluetooth.BluetoothDevice
 import androidx.lifecycle.AndroidViewModel
 import com.custom.treadmill.DebugLog
+import com.custom.treadmill.R
 import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.data.database.ProgramData
 import com.custom.treadmill.data.repository.AppSettings
@@ -12,6 +13,7 @@ import com.custom.treadmill.data.repository.UserProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.roundToInt
 
 enum class ScanMode { NONE, TREADMILL, HEART_RATE }
 
@@ -96,15 +98,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setActiveProfile(id: String) = settingsStore.setActiveProfile(id)
 
     fun testSpeak(template: String) {
+        val ctx = getApplication<Application>()
+        // [ФИКС] Тестовые значения для шаблона — берём из ресурсов и plurals,
+        // чтобы тест на локали X звучал бы так же, как боевая озвучка на локали X.
+        // fmtSpeed/fmtAngle в TreadmillSession тоже округляют до целого и берут plurals —
+        // здесь используем те же правила.
+        val speedNum = 8.5
+        val angleNum = 3.0
+        val speedInt = speedNum.roundToInt()
+        val angleInt = angleNum.roundToInt()
+        val speedText = ctx.resources.getQuantityString(R.plurals.tts_kmh_plural, speedInt, speedInt)
+        val angleText = ctx.resources.getQuantityString(R.plurals.tts_percent_plural, angleInt, angleInt)
+
         val text = template
-            .replace("{name}", "Тестовая тренировка")
-            .replace("{segName}", "Разминка")
+            .replace("{name}", ctx.getString(R.string.tts_test_workout_name))
+            .replace("{segName}", ctx.getString(R.string.gen_seg_warmup))
             .replace("{i}", "2")
             .replace("{n}", "5")
-            .replace("{speed}", "8.5")
-            .replace("{speed_text}", "8.5 километров в час")
-            .replace("{angle}", "3")
-            .replace("{angle_text}", "3 процента")
+            .replace("{speed}", "%.1f".format(speedNum))
+            .replace("{speed_text}", speedText)
+            .replace("{angle}", angleInt.toString())
+            .replace("{angle_text}", angleText)
             .replace("{dist}", "5.2")
             .replace("{hr}", "140")
         session.testSpeak(text)
