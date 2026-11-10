@@ -21,9 +21,8 @@ android {
     signingConfigs {
         create("stable") {
             storeFile = file("keystore/treadmill.keystore")
-            // [ФИКС] Пароли берутся из переменных окружения (в CI — из GitHub Secrets).
+            // Пароли берутся из переменных окружения (в CI — из GitHub Secrets).
             // Fallback на старые значения — только для локальной сборки в Android Studio.
-            // В публичном коде паролей больше нет.
             storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "treadmill123"
             keyAlias = System.getenv("KEY_ALIAS") ?: "treadmill"
             keyPassword = System.getenv("KEY_PASSWORD") ?: "treadmill123"
@@ -35,8 +34,6 @@ android {
             signingConfig = signingConfigs.getByName("stable")
         }
         release {
-            // [ФИКС] Минификация и сокращение ресурсов для release-сборки.
-            // Если APK из Releases начнёт вылетать при запуске — вернуть оба флага в false.
             isMinifyEnabled = true
             isShrinkResources = false
             signingConfig = signingConfigs.getByName("stable")
@@ -85,4 +82,6 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    // Пригодится для будущих тестов WorkoutManager (runTest + VirtualTime).
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 }
