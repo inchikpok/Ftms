@@ -238,10 +238,10 @@
 
     <string name="tts_title">Voice phrases</string>
     <string name="tts_variables_title">Available variables (tags):</string>
-    <string name="tts_variables_start">Start: {name}, {segName}, {speed}, {speed_text}</string>
-    <string name="tts_variables_segment">Segment: {i}, {n}, {segName}, {speed}, {speed_text}, {angle}, {angle_text}</string>
-    <string name="tts_variables_finish">Finish: {dist}, {hr}</string>
-    <string name="tts_variables_note">Note: {speed} gives a number (8.5), {speed_text} gives words (8.5 kilometers per hour).</string>
+    <string name="tts_variables_start">Start: {name}, {segName}, {speed}, {speed_text}, {pace}, {pace_text}</string>
+    <string name="tts_variables_segment">Segment: {i}, {n}, {segName}, {speed}, {speed_text}, {pace}, {pace_text}, {angle}, {angle_text}</string>
+    <string name="tts_variables_finish">Finish: {dist}, {pace}, {pace_text}, {hr}</string>
+    <string name="tts_variables_note">Note: {speed} and {pace} give numbers (8.5 and 7:03); {speed_text} and {pace_text} give words (8.5 kilometers per hour, 7 minutes 3 seconds).</string>
     <string name="tts_start_label">Workout start</string>
     <string name="tts_segment_label">Segment change</string>
     <string name="tts_finish_label">Workout finish</string>
@@ -249,9 +249,9 @@
     <string name="tts_resume_label">Resume</string>
     <string name="tts_reset_defaults">Reset to defaults</string>
 
-    <string name="tts_default_start">Workout "{name}" started. Segment 1: {segName}, speed {speed_text}</string>
-    <string name="tts_default_segment">Segment {i} of {n}: {segName}, speed {speed_text}, incline {angle_text}</string>
-    <string name="tts_default_finish">Workout complete. Distance {dist} km, average heart rate {hr}</string>
+    <string name="tts_default_start">Workout "{name}" started. Segment 1: {segName}, pace {pace_text}</string>
+    <string name="tts_default_segment">Segment {i} of {n}: {segName}, pace {pace_text}, incline {angle_text}</string>
+    <string name="tts_default_finish">Workout complete. Distance {dist} km, average pace {pace_text}, average heart rate {hr}</string>
     <string name="tts_default_pause">Paused</string>
     <string name="tts_default_resume">Resuming</string>
 
@@ -264,6 +264,14 @@
     <plurals name="tts_percent_plural">
         <item quantity="one">%d percent</item>
         <item quantity="other">%d percent</item>
+    </plurals>
+    <plurals name="tts_pace_min_plural">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+    <plurals name="tts_pace_sec_plural">
+        <item quantity="one">%d second</item>
+        <item quantity="other">%d seconds</item>
     </plurals>
 
     <string name="about_title">About</string>
