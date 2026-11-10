@@ -278,7 +278,6 @@ private fun CompactLogCard(log: WorkoutLogEntity, isExpanded: Boolean, onToggle:
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                     Spacer(Modifier.height(10.dp))
 
-                    // [ФИКС] Три колонки: скорость, темп, макс. пульс.
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         CompactMetric(
                             Icons.Default.Speed,
@@ -411,7 +410,6 @@ private fun SummaryCard(logs: List<WorkoutLogEntity>) {
     val totalKm = logs.sumOf { it.distanceKm }
     val totalKcal = logs.sumOf { it.calories }
 
-    // [ФИКС] Средние скорость и темп по всем записям.
     val avgSpeed = if (logs.isNotEmpty()) logs.sumOf { it.avgSpeedKmh } / logs.size else 0.0
     val unitKmh = stringResource(R.string.unit_kmh)
     val unitPace = stringResource(R.string.unit_pace)
@@ -598,14 +596,6 @@ private fun computeZoneDurations(log: WorkoutLogEntity, zoneBounds: List<Int>): 
     val samples = HrSamplesCodec.decode(log.hrSamples)
     if (samples.isEmpty()) return estimateZoneDurations(log.durationSec, log.avgHeartRate, log.maxHeartRate, zoneBounds)
 
-    fun zoneOf(bpm: Int): Int = when {
-        bpm < zoneBounds[0] -> 0
-        bpm < zoneBounds[1] -> 1
-        bpm < zoneBounds[2] -> 2
-        bpm < zoneBounds[3] -> 3
-        else -> 4
-    }
-
     val durations = LongArray(5)
     val endT = log.durationSec
 
@@ -616,12 +606,14 @@ private fun computeZoneDurations(log: WorkoutLogEntity, zoneBounds: List<Int>): 
         if (t0 >= endT) break
         val dt = (t1 - t0).coerceAtLeast(0)
         if (dt <= 0) continue
-        durations[zoneOf(bpm0)] += dt.coerceAtMost(10).toLong()
+        // [ФИКС] Единый zoneOf из HeartRateZoneCalculator — та же схема,
+        // что в ProfilesScreen и в графике пульса.
+        durations[HeartRateZoneCalculator.zoneOf(bpm0, zoneBounds)] += dt.coerceAtMost(10).toLong()
     }
     val lastT = samples.last().first
     val lastBpm = samples.last().second
     val tail = (endT - lastT.coerceAtLeast(0)).coerceAtLeast(0).coerceAtMost(10)
-    if (tail > 0) durations[zoneOf(lastBpm)] += tail.toLong()
+    if (tail > 0) durations[HeartRateZoneCalculator.zoneOf(lastBpm, zoneBounds)] += tail.toLong()
 
     return durations
 }
@@ -629,16 +621,25 @@ private fun computeZoneDurations(log: WorkoutLogEntity, zoneBounds: List<Int>): 
 private fun estimateZoneDurations(durationSec: Int, avgHr: Int, maxHr: Int, zoneBounds: List<Int>): LongArray {
     if (avgHr <= 0 || durationSec <= 0 || zoneBounds.size != 5) return LongArray(5)
     val safeMax = maxHr.coerceAtLeast(avgHr)
+    // [ФИКС] Центры зон по новой схеме: Z1 = <zones[1] (60%),
+    // Z2..Z4 = между соседними границами 1..4, Z5 = >zones[4] (90%).
     val centers = doubleArrayOf(
-        (70.0 + zoneBounds[0]) / 2.0, (zoneBounds[0] + zoneBounds[1]) / 2.0, (zoneBounds[1] + zoneBounds[2]) / 2.0,
-        (zoneBounds[2] + zoneBounds[3]) / 2.0, (zoneBounds[3] + 200.0) / 2.0
+        (40.0 + zoneBounds[1]) / 2.0,
+        (zoneBounds[1] + zoneBounds[2]) / 2.0,
+        (zoneBounds[2] + zoneBounds[3]) / 2.0,
+        (zoneBounds[3] + zoneBounds[4]) / 2.0,
+        (zoneBounds[4] + 200.0) / 2.0
     )
     val sigma = ((safeMax - avgHr).coerceAtLeast(10) / 1.5).coerceAtLeast(8.0)
     val variance2 = 2.0 * sigma * sigma
     val weights = DoubleArray(5) { i ->
         val dist = centers[i] - avgHr
         val base = kotlin.math.exp(-(dist * dist) / variance2)
-        val isPeakZone = (i == 4 && safeMax >= zoneBounds[3]) || (i == 3 && safeMax >= zoneBounds[2] && safeMax < zoneBounds[3]) || (i == 2 && safeMax >= zoneBounds[1] && safeMax < zoneBounds[2])
+        // [ФИКС] Пиковая зона — та, где реально был максимум пульса,
+        // теперь с учётом zones[4] (90%).
+        val isPeakZone = (i == 4 && safeMax >= zoneBounds[4]) ||
+                         (i == 3 && safeMax >= zoneBounds[3] && safeMax < zoneBounds[4]) ||
+                         (i == 2 && safeMax >= zoneBounds[2] && safeMax < zoneBounds[3])
         if (isPeakZone) base + 0.4 else base
     }
     val sumW = weights.sum()
