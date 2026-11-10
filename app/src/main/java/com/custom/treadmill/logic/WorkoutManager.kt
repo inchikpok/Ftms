@@ -1,6 +1,7 @@
 package com.custom.treadmill.logic
 
 import com.custom.treadmill.data.database.ProgramData
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -135,11 +136,13 @@ class WorkoutManager {
         _state.value = WorkoutState()
     }
 
-    // [ФИКС] Безопасная отправка команд — чтобы исключение не убило корутину
+    // [ФИКС] CancellationException пробрасываем, чтобы корутину можно было корректно отменить
     private suspend fun safeSetSpeed(speed: Double, block: suspend (Double) -> Unit): Boolean {
         return try {
             block(speed)
             true
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             false
         }
@@ -149,6 +152,8 @@ class WorkoutManager {
         return try {
             block(incline)
             true
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             false
         }
@@ -167,7 +172,6 @@ class WorkoutManager {
             var index = _state.value.currentSegmentIndex
             var totalElapsed = _state.value.totalElapsedSec
 
-            // [ФИКС] Отправляем команды и обновляем state одним махом при старте / resume
             if (index < segments.size) {
                 val firstSeg = segments[index]
                 if (_state.value.segmentElapsedSec == 0) {
@@ -186,7 +190,6 @@ class WorkoutManager {
                         progressPercent = newProgress
                     )
                 } else {
-                    // Resume после паузы — переотправляем команды текущего сегмента
                     val spdOk = safeSetSpeed(firstSeg.speedKmh, onSetSpeed)
                     val incOk = safeSetIncline(firstSeg.inclinePercent, onSetIncline)
                     if (!spdOk || !incOk) {
@@ -214,7 +217,6 @@ class WorkoutManager {
                     )
                 }
 
-                // [ФИКС] Переход: обновляем ВСЁ одним copy(), чтобы UI/TTS не увидели промежуточное состояние
                 if (s >= seg.durationSec) {
                     index++
                     if (index < segments.size) {
