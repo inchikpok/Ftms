@@ -94,6 +94,22 @@ fun ProfilesScreen(vm: MainViewModel, onBack: () -> Unit) {
     }
 }
 
+/**
+ * Форматирует границы зоны для подписи:
+ *  - (null, hi)   → «<hi»
+ *  - (lo, null)   → «>lo»
+ *  - (lo, hi)     → «lo-hi»
+ */
+private fun formatZoneRange(range: Pair<Int?, Int?>): String {
+    val (lo, hi) = range
+    return when {
+        lo == null && hi != null -> "<$hi"
+        lo != null && hi == null -> ">$lo"
+        lo != null && hi != null -> "$lo-$hi"
+        else -> "?"
+    }
+}
+
 @Composable
 private fun ProfileCard(
     profile: UserProfile,
@@ -154,15 +170,17 @@ private fun ProfileCard(
             }
             Spacer(Modifier.height(4.dp))
 
+            // [ФИКС] Единый источник границ — zoneRange() из HeartRateZoneCalculator.
+            // Теперь Z4 = 80–90% и Z5 = >90%, как на графике и в истории.
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                ZoneBlock("Z1", "<${zones[0]}", Color(0xFF64B5F6), Modifier.weight(1f))
-                ZoneBlock("Z2", "${zones[0]}-${zones[1]}", Color(0xFF81C784), Modifier.weight(1f))
-                ZoneBlock("Z3", "${zones[1]}-${zones[2]}", Color(0xFFFFD54F), Modifier.weight(1f))
-                ZoneBlock("Z4", "${zones[2]}-${zones[3]}", Color(0xFFFFB74D), Modifier.weight(1f))
-                ZoneBlock("Z5", ">${zones[3]}", Color(0xFFE57373), Modifier.weight(1f))
+                ZoneBlock("Z1", formatZoneRange(HeartRateZoneCalculator.zoneRange(0, zones)), Color(0xFF64B5F6), Modifier.weight(1f))
+                ZoneBlock("Z2", formatZoneRange(HeartRateZoneCalculator.zoneRange(1, zones)), Color(0xFF81C784), Modifier.weight(1f))
+                ZoneBlock("Z3", formatZoneRange(HeartRateZoneCalculator.zoneRange(2, zones)), Color(0xFFFFD54F), Modifier.weight(1f))
+                ZoneBlock("Z4", formatZoneRange(HeartRateZoneCalculator.zoneRange(3, zones)), Color(0xFFFFB74D), Modifier.weight(1f))
+                ZoneBlock("Z5", formatZoneRange(HeartRateZoneCalculator.zoneRange(4, zones)), Color(0xFFE57373), Modifier.weight(1f))
             }
         }
     }
