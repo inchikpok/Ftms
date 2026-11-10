@@ -39,13 +39,19 @@ class WorkoutManager {
     private var onFinishRef: (suspend () -> Unit)? = null
     private var onErrorRef: (suspend (String) -> Unit)? = null
 
+    // [ФИКС] Провайдер имени пустого сегмента. По умолчанию — английский,
+    // но TreadmillSession передаёт локализованную версию через resources.
+    // Нужен, когда у сегмента пустое поле name и пользователь не задал своё.
+    private var segmentNameProviderRef: (Int) -> String = { n -> "Segment $n" }
+
     fun start(
         scope: CoroutineScope,
         program: ProgramData,
         onSetSpeed: suspend (Double) -> Unit,
         onSetIncline: suspend (Double) -> Unit = ::noopDouble,
         onFinish: suspend () -> Unit = { },
-        onError: suspend (String) -> Unit = { }
+        onError: suspend (String) -> Unit = { },
+        segmentNameProvider: (Int) -> String = { n -> "Segment $n" }
     ) {
         stop()
         currentProgram = program
@@ -54,8 +60,10 @@ class WorkoutManager {
         onSetInclineRef = onSetIncline
         onFinishRef = onFinish
         onErrorRef = onError
+        segmentNameProviderRef = segmentNameProvider
 
         val total = program.segments.sumOf { it.durationSec }
+        val firstSeg = program.segments.firstOrNull()
         _state.value = WorkoutState(
             running = true,
             paused = false,
@@ -66,8 +74,9 @@ class WorkoutManager {
             currentSegmentIndex = 0,
             segmentElapsedSec = 0,
             totalElapsedSec = 0,
-            segmentDurationSec = program.segments.firstOrNull()?.durationSec ?: 0,
-            currentSegmentName = program.segments.firstOrNull()?.name.orEmpty(),
+            segmentDurationSec = firstSeg?.durationSec ?: 0,
+            currentSegmentName = firstSeg?.name?.takeIf { it.isNotBlank() }
+                ?: segmentNameProviderRef(1),
             progressPercent = 0
         )
         launchLoop()
@@ -116,9 +125,11 @@ class WorkoutManager {
 
         val newProgress = ((nextIndex.toFloat() / program.segments.size) * 100).toInt()
 
+        // [ФИКС] Локализованный fallback имени сегмента через provider.
         _state.value = s.copy(
             currentSegmentIndex = nextIndex,
-            currentSegmentName = next.name.ifBlank { "Сегмент ${nextIndex + 1}" },
+            currentSegmentName = next.name.takeIf { it.isNotBlank() }
+                ?: segmentNameProviderRef(nextIndex + 1),
             segmentDurationSec = next.durationSec,
             segmentElapsedSec = 0,
             totalElapsedSec = s.totalElapsedSec,
@@ -137,10 +148,11 @@ class WorkoutManager {
         onSetInclineRef = null
         onFinishRef = null
         onErrorRef = null
+        segmentNameProviderRef = { n -> "Segment $n" }
         _state.value = WorkoutState()
     }
 
-    // [ФИКС] CancellationException пробрасываем, чтобы корутину можно было корректно отменить
+    // CancellationException пробрасываем, чтобы корутину можно было корректно отменить.
     private suspend fun safeSetSpeed(speed: Double, block: suspend (Double) -> Unit): Boolean {
         return try {
             block(speed)
@@ -184,14 +196,15 @@ class WorkoutManager {
                     val incOk = safeSetIncline(firstSeg.inclinePercent, onSetIncline)
                     if (!spdOk || !incOk) {
                         _state.value = _state.value.copy(running = false, paused = true)
-                        // [ФИКС] сообщаем наружу — сессия остановит мотор и покажет ошибку
                         onError("Не удалось отправить команду на дорожку")
                         return@launch
                     }
                     val newProgress = ((index.toFloat() / segments.size) * 100).toInt()
+                    // [ФИКС] Локализованный fallback.
                     _state.value = _state.value.copy(
                         currentSegmentIndex = index,
-                        currentSegmentName = firstSeg.name.ifBlank { "Сегмент ${index + 1}" },
+                        currentSegmentName = firstSeg.name.takeIf { it.isNotBlank() }
+                            ?: segmentNameProviderRef(index + 1),
                         segmentDurationSec = firstSeg.durationSec,
                         segmentElapsedSec = 0,
                         progressPercent = newProgress
@@ -237,9 +250,11 @@ class WorkoutManager {
                             return@launch
                         }
                         val newProgress = ((index.toFloat() / segments.size) * 100).toInt()
+                        // [ФИКС] Локализованный fallback.
                         _state.value = _state.value.copy(
                             currentSegmentIndex = index,
-                            currentSegmentName = nextSeg.name.ifBlank { "Сегмент ${index + 1}" },
+                            currentSegmentName = nextSeg.name.takeIf { it.isNotBlank() }
+                                ?: segmentNameProviderRef(index + 1),
                             segmentDurationSec = nextSeg.durationSec,
                             segmentElapsedSec = 0,
                             progressPercent = newProgress
