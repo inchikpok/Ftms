@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.custom.treadmill.ble.BleConnectionState
 import com.custom.treadmill.data.repository.HrMode
 import com.custom.treadmill.logic.HeartRateZoneCalculator
+import com.custom.treadmill.ui.LocalTreadmillColors
 import com.custom.treadmill.ui.components.HeartRateChart
 import com.custom.treadmill.ui.components.RollingText
 import com.custom.treadmill.ui.viewmodels.MainViewModel
@@ -51,6 +52,9 @@ fun WorkoutScreen(
     val treadmillReady = treadmillState == BleConnectionState.READY
     val speedStep = settings.speedStepKmh
     val showIncline = !caps.isLoaded || caps.supportsIncline
+
+    // [ФИКС] Семантические цвета темы: светлый/тёмный вариант выбирается автоматически.
+    val tc = LocalTreadmillColors.current
 
     var showExitConfirm by remember { mutableStateOf(false) }
 
@@ -93,18 +97,18 @@ fun WorkoutScreen(
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                     val progress = ws.progressPercent / 100f
-                    
+
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    if (ws.finished) "Тренировка завершена" 
+                                    if (ws.finished) "Тренировка завершена"
                                     else "Сегмент ${ws.currentSegmentIndex + 1}/${ws.totalSegments}: ${ws.currentSegmentName}",
                                     fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false)
                                 )
                                 if (ws.paused) {
                                     Spacer(Modifier.width(6.dp))
-                                    Surface(color = Color(0xFFF9A825), shape = MaterialTheme.shapes.small) {
+                                    Surface(color = tc.warningYellow, shape = MaterialTheme.shapes.small) {
                                         Text("ПАУЗА", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                     }
                                 }
@@ -112,17 +116,17 @@ fun WorkoutScreen(
                         }
                         val remainSec = (ws.segmentDurationSec - ws.segmentElapsedSec).coerceAtLeast(0)
                         RollingText(
-                            text = if (ws.finished) "00:00" else formatTime(remainSec), 
-                            fontSize = 15.sp, 
-                            fontWeight = FontWeight.SemiBold, 
-                            color = if (ws.finished) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary
+                            text = if (ws.finished) "00:00" else formatTime(remainSec),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (ws.finished) tc.successGreen else MaterialTheme.colorScheme.primary
                         )
                     }
                     Spacer(Modifier.height(6.dp))
                     LinearProgressIndicator(
-                        progress = progress.coerceIn(0f, 1f), 
+                        progress = progress.coerceIn(0f, 1f),
                         modifier = Modifier.fillMaxWidth().height(6.dp),
-                        color = if (ws.finished) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary
+                        color = if (ws.finished) tc.successGreen else MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.height(2.dp))
                     Text("Общий прогресс: ${ws.progressPercent}%", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -132,15 +136,15 @@ fun WorkoutScreen(
             Spacer(Modifier.height(6.dp))
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                MiniControl("Скорость", "%.1f".format(targetSpeed), "км/ч", 
-                    { vm.setSpeed(targetSpeed - speedStep) }, 
-                    { vm.setSpeed(targetSpeed + speedStep) }, 
+                MiniControl("Скорость", "%.1f".format(targetSpeed), "км/ч",
+                    { vm.setSpeed(targetSpeed - speedStep) },
+                    { vm.setSpeed(targetSpeed + speedStep) },
                     Modifier.weight(1f)
                 )
                 if (showIncline) {
-                    MiniControl("Наклон", "${targetIncline.roundToInt()}", "%", 
-                        { vm.setIncline(max(0.0, targetIncline.roundToInt() - 1.0)) }, 
-                        { vm.setIncline(targetIncline.roundToInt() + 1.0) }, 
+                    MiniControl("Наклон", "${targetIncline.roundToInt()}", "%",
+                        { vm.setIncline(max(0.0, targetIncline.roundToInt() - 1.0)) },
+                        { vm.setIncline(targetIncline.roundToInt() + 1.0) },
                         Modifier.weight(1f)
                     )
                 }
@@ -150,26 +154,23 @@ fun WorkoutScreen(
 
             Card(Modifier.fillMaxWidth().weight(1f)) {
                 Column(Modifier.fillMaxSize()) {
-                    // Заголовок с пульсом
                     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.Bottom) {
                         Text("Пульс (30 мин)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        RollingText(text = if (hr > 0) "$hr" else "—", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
+                        RollingText(text = if (hr > 0) "$hr" else "—", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = tc.metricRed)
                         Spacer(Modifier.width(3.dp))
                         Text("уд/мин", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
                         if (targetHr > 0) {
                             Spacer(Modifier.width(8.dp))
-                            Text("Цель: $targetHr", fontSize = 10.sp, color = Color(0xFF1976D2), modifier = Modifier.padding(bottom = 3.dp))
+                            Text("Цель: $targetHr", fontSize = 10.sp, color = tc.metricBlue, modifier = Modifier.padding(bottom = 3.dp))
                         }
                     }
-                    
-                    // Разделительная линия
+
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    
-                    // Сам график
+
                     Box(Modifier.padding(10.dp).weight(1f)) {
                         HeartRateChart(
-                            points = hrHistory, 
-                            targetHr = targetHr, 
+                            points = hrHistory,
+                            targetHr = targetHr,
                             zoneBounds = zoneBounds,
                             showTargetLine = true,
                             modifier = Modifier.fillMaxSize()
@@ -193,12 +194,15 @@ fun WorkoutScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (ws.finished) {
                     Button(
-                        onClick = { 
+                        onClick = {
                             vm.stopWorkout()
-                            onBack() 
+                            onBack()
                         },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = tc.successGreen,
+                            contentColor = Color.White
+                        )
                     ) {
                         Text("Готово", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
@@ -206,7 +210,10 @@ fun WorkoutScreen(
                     val paused = ws.paused
                     Button(
                         onClick = { vm.togglePauseWorkout() }, enabled = treadmillReady || paused, modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 14.dp),
-                        colors = if (paused) ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                        colors = if (paused) ButtonDefaults.buttonColors(
+                            containerColor = tc.successGreen,
+                            contentColor = Color.White
+                        )
                         else ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                     ) { Text(if (paused) "Продолжить" else "Пауза", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
 
@@ -215,8 +222,11 @@ fun WorkoutScreen(
                     ) { Text("Пропустить", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
 
                     Button(
-                        onClick = { showExitConfirm = true }, enabled = treadmillReady, modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 14.dp), 
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                        onClick = { showExitConfirm = true }, enabled = treadmillReady, modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = tc.exerciseRed,
+                            contentColor = Color.White
+                        )
                     ) { Text("Стоп", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
                 }
             }
