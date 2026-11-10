@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.treadmill.R
+import com.custom.treadmill.ui.LocalTreadmillColors
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -35,11 +36,15 @@ fun HeartRateChart(
     showTargetLine: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    // [ФИКС] Семантические цвета из темы — Canvas не @Composable, все цвета
+    // вычисляются здесь, до входа в draw scope.
+    val tc = LocalTreadmillColors.current
+
     if (points.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Text(
                 stringResource(R.string.hr_waiting_for_data),
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp
             )
         }
@@ -71,13 +76,13 @@ fun HeartRateChart(
     val midT = minT + (maxT - minT) / 2
     val fmt = SimpleDateFormat("dd.MM", Locale.getDefault())
 
-    val lineColor = Color(0xFFE53935)
-    val targetColor = Color(0xFF1976D2)
+    val lineColor = tc.metricRed
+    val targetColor = tc.metricBlue
     val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val zoneColors = listOf(
-        Color(0xFF64B5F6), Color(0xFF81C784), Color(0xFFFFD54F), Color(0xFFFFB74D), Color(0xFFE57373)
+        tc.chartBlue, tc.chartGreen, tc.chartYellow, tc.chartOrange, tc.chartRed
     )
     val zoneAlpha = 0.10f
 
