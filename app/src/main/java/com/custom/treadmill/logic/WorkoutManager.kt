@@ -37,13 +37,15 @@ class WorkoutManager {
     private var onSetSpeedRef: (suspend (Double) -> Unit)? = null
     private var onSetInclineRef: (suspend (Double) -> Unit)? = null
     private var onFinishRef: (suspend () -> Unit)? = null
+    private var onErrorRef: (suspend (String) -> Unit)? = null
 
     fun start(
         scope: CoroutineScope,
         program: ProgramData,
         onSetSpeed: suspend (Double) -> Unit,
         onSetIncline: suspend (Double) -> Unit = ::noopDouble,
-        onFinish: suspend () -> Unit = { }
+        onFinish: suspend () -> Unit = { },
+        onError: suspend (String) -> Unit = { }
     ) {
         stop()
         currentProgram = program
@@ -51,6 +53,7 @@ class WorkoutManager {
         onSetSpeedRef = onSetSpeed
         onSetInclineRef = onSetIncline
         onFinishRef = onFinish
+        onErrorRef = onError
 
         val total = program.segments.sumOf { it.durationSec }
         _state.value = WorkoutState(
@@ -133,6 +136,7 @@ class WorkoutManager {
         onSetSpeedRef = null
         onSetInclineRef = null
         onFinishRef = null
+        onErrorRef = null
         _state.value = WorkoutState()
     }
 
@@ -165,6 +169,7 @@ class WorkoutManager {
         val onSetSpeed: suspend (Double) -> Unit = onSetSpeedRef ?: return
         val onSetIncline: suspend (Double) -> Unit = onSetInclineRef ?: ::noopDouble
         val onFinish: suspend () -> Unit = onFinishRef ?: { }
+        val onError: suspend (String) -> Unit = onErrorRef ?: { }
 
         job = scope.launch {
             val segments = program.segments
@@ -179,6 +184,8 @@ class WorkoutManager {
                     val incOk = safeSetIncline(firstSeg.inclinePercent, onSetIncline)
                     if (!spdOk || !incOk) {
                         _state.value = _state.value.copy(running = false, paused = true)
+                        // [ФИКС] сообщаем наружу — сессия остановит мотор и покажет ошибку
+                        onError("Не удалось отправить команду на дорожку")
                         return@launch
                     }
                     val newProgress = ((index.toFloat() / segments.size) * 100).toInt()
@@ -194,6 +201,7 @@ class WorkoutManager {
                     val incOk = safeSetIncline(firstSeg.inclinePercent, onSetIncline)
                     if (!spdOk || !incOk) {
                         _state.value = _state.value.copy(running = false, paused = true)
+                        onError("Не удалось отправить команду на дорожку")
                         return@launch
                     }
                 }
@@ -225,6 +233,7 @@ class WorkoutManager {
                         val incOk = safeSetIncline(nextSeg.inclinePercent, onSetIncline)
                         if (!spdOk || !incOk) {
                             _state.value = _state.value.copy(running = false, paused = true)
+                            onError("Не удалось отправить команду на дорожку")
                             return@launch
                         }
                         val newProgress = ((index.toFloat() / segments.size) * 100).toInt()
