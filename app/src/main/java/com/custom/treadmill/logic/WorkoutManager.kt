@@ -1,5 +1,6 @@
 package com.custom.treadmill.logic
 
+import com.custom.treadmill.DebugLog
 import com.custom.treadmill.data.database.ProgramData
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -39,9 +40,6 @@ class WorkoutManager {
     private var onFinishRef: (suspend () -> Unit)? = null
     private var onErrorRef: (suspend (String) -> Unit)? = null
 
-    // [ФИКС] Провайдер имени пустого сегмента. По умолчанию — английский,
-    // но TreadmillSession передаёт локализованную версию через resources.
-    // Нужен, когда у сегмента пустое поле name и пользователь не задал своё.
     private var segmentNameProviderRef: (Int) -> String = { n -> "Segment $n" }
 
     fun start(
@@ -64,6 +62,9 @@ class WorkoutManager {
 
         val total = program.segments.sumOf { it.durationSec }
         val firstSeg = program.segments.firstOrNull()
+
+        DebugLog.d("WM", "START program='${program.name}' segments=${program.segments.size} totalSec=$total")
+
         _state.value = WorkoutState(
             running = true,
             paused = false,
@@ -86,12 +87,16 @@ class WorkoutManager {
         if (!_state.value.running || _state.value.paused) return
         job?.cancel()
         job = null
-        _state.value = _state.value.copy(paused = true)
+        val s = _state.value
+        DebugLog.d("WM", "PAUSE seg=${s.currentSegmentIndex + 1}/${s.totalSegments} atSec=${s.segmentElapsedSec}")
+        _state.value = s.copy(paused = true)
     }
 
     fun resume() {
         if (!_state.value.paused) return
-        _state.value = _state.value.copy(paused = false)
+        val s = _state.value
+        DebugLog.d("WM", "RESUME seg=${s.currentSegmentIndex + 1}/${s.totalSegments} atSec=${s.segmentElapsedSec}")
+        _state.value = s.copy(paused = false)
         launchLoop()
     }
 
@@ -113,6 +118,7 @@ class WorkoutManager {
         if (nextIndex >= program.segments.size) {
             job?.cancel()
             job = null
+            DebugLog.d("WM", "SKIP → FINISH (last segment)")
             _state.value = s.copy(running = false, paused = false, finished = true, progressPercent = 100)
             scopeRef?.launch { onFinishRef?.invoke() }
             return
@@ -123,9 +129,10 @@ class WorkoutManager {
         job?.cancel()
         job = null
 
+        DebugLog.d("WM", "SKIP ${s.currentSegmentIndex + 1} → ${nextIndex + 1}/${program.segments.size} name='${next.name}'")
+
         val newProgress = ((nextIndex.toFloat() / program.segments.size) * 100).toInt()
 
-        // [ФИКС] Локализованный fallback имени сегмента через provider.
         _state.value = s.copy(
             currentSegmentIndex = nextIndex,
             currentSegmentName = next.name.takeIf { it.isNotBlank() }
@@ -140,6 +147,10 @@ class WorkoutManager {
     }
 
     fun stop() {
+        val s = _state.value
+        if (s.running || s.paused) {
+            DebugLog.d("WM", "STOP elapsed=${s.totalElapsedSec}s seg=${s.currentSegmentIndex + 1}/${s.totalSegments}")
+        }
         job?.cancel()
         job = null
         currentProgram = null
@@ -152,7 +163,6 @@ class WorkoutManager {
         _state.value = WorkoutState()
     }
 
-    // CancellationException пробрасываем, чтобы корутину можно было корректно отменить.
     private suspend fun safeSetSpeed(speed: Double, block: suspend (Double) -> Unit): Boolean {
         return try {
             block(speed)
@@ -192,15 +202,16 @@ class WorkoutManager {
             if (index < segments.size) {
                 val firstSeg = segments[index]
                 if (_state.value.segmentElapsedSec == 0) {
+                    DebugLog.d("WM", "SEGMENT ${index + 1}/${segments.size} name='${firstSeg.name}' speed=${firstSeg.speedKmh} incline=${firstSeg.inclinePercent} dur=${firstSeg.durationSec}s")
                     val spdOk = safeSetSpeed(firstSeg.speedKmh, onSetSpeed)
                     val incOk = safeSetIncline(firstSeg.inclinePercent, onSetIncline)
                     if (!spdOk || !incOk) {
+                        DebugLog.d("WM", "ERROR command failed at seg ${index + 1} spdOk=$spdOk incOk=$incOk")
                         _state.value = _state.value.copy(running = false, paused = true)
                         onError("Не удалось отправить команду на дорожку")
                         return@launch
                     }
                     val newProgress = ((index.toFloat() / segments.size) * 100).toInt()
-                    // [ФИКС] Локализованный fallback.
                     _state.value = _state.value.copy(
                         currentSegmentIndex = index,
                         currentSegmentName = firstSeg.name.takeIf { it.isNotBlank() }
@@ -210,9 +221,11 @@ class WorkoutManager {
                         progressPercent = newProgress
                     )
                 } else {
+                    DebugLog.d("WM", "SEGMENT RESUME ${index + 1}/${segments.size} name='${firstSeg.name}' atSec=${_state.value.segmentElapsedSec}")
                     val spdOk = safeSetSpeed(firstSeg.speedKmh, onSetSpeed)
                     val incOk = safeSetIncline(firstSeg.inclinePercent, onSetIncline)
                     if (!spdOk || !incOk) {
+                        DebugLog.d("WM", "ERROR resume command failed at seg ${index + 1} spdOk=$spdOk incOk=$incOk")
                         _state.value = _state.value.copy(running = false, paused = true)
                         onError("Не удалось отправить команду на дорожку")
                         return@launch
@@ -242,15 +255,16 @@ class WorkoutManager {
                     index++
                     if (index < segments.size) {
                         val nextSeg = segments[index]
+                        DebugLog.d("WM", "SEGMENT ${index + 1}/${segments.size} name='${nextSeg.name}' speed=${nextSeg.speedKmh} incline=${nextSeg.inclinePercent} dur=${nextSeg.durationSec}s (transition)")
                         val spdOk = safeSetSpeed(nextSeg.speedKmh, onSetSpeed)
                         val incOk = safeSetIncline(nextSeg.inclinePercent, onSetIncline)
                         if (!spdOk || !incOk) {
+                            DebugLog.d("WM", "ERROR transition command failed at seg ${index + 1} spdOk=$spdOk incOk=$incOk")
                             _state.value = _state.value.copy(running = false, paused = true)
                             onError("Не удалось отправить команду на дорожку")
                             return@launch
                         }
                         val newProgress = ((index.toFloat() / segments.size) * 100).toInt()
-                        // [ФИКС] Локализованный fallback.
                         _state.value = _state.value.copy(
                             currentSegmentIndex = index,
                             currentSegmentName = nextSeg.name.takeIf { it.isNotBlank() }
@@ -264,6 +278,7 @@ class WorkoutManager {
             }
 
             if (isActive) {
+                DebugLog.d("WM", "FINISH totalElapsed=${totalElapsed}s")
                 _state.value = _state.value.copy(running = false, paused = false, finished = true, progressPercent = 100)
                 onFinish()
             }
