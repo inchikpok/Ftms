@@ -36,8 +36,6 @@ fun HeartRateChart(
     showTargetLine: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    // [ФИКС] Семантические цвета из темы — Canvas не @Composable, все цвета
-    // вычисляются здесь, до входа в draw scope.
     val tc = LocalTreadmillColors.current
 
     if (points.isEmpty()) {
@@ -115,12 +113,15 @@ fun HeartRateChart(
                     )
                 }
 
+                // [ФИКС] Единая схема с HeartRateZoneCalculator.zoneOf:
+                // Z1 = < zones[1], Z2 = zones[1..2], ..., Z5 = > zones[4].
+                // Раньше использовались zones[0..3], и Z5 была >80% вместо >90%.
                 if (zoneBounds.size == 5) {
-                    drawZone(yMin.toFloat(), zoneBounds[0].toFloat(), zoneColors[0].copy(alpha = zoneAlpha))
-                    drawZone(zoneBounds[0].toFloat(), zoneBounds[1].toFloat(), zoneColors[1].copy(alpha = zoneAlpha))
-                    drawZone(zoneBounds[1].toFloat(), zoneBounds[2].toFloat(), zoneColors[2].copy(alpha = zoneAlpha))
-                    drawZone(zoneBounds[2].toFloat(), zoneBounds[3].toFloat(), zoneColors[3].copy(alpha = zoneAlpha))
-                    drawZone(zoneBounds[3].toFloat(), yMax.toFloat(), zoneColors[4].copy(alpha = zoneAlpha))
+                    drawZone(yMin.toFloat(), zoneBounds[1].toFloat(), zoneColors[0].copy(alpha = zoneAlpha))
+                    drawZone(zoneBounds[1].toFloat(), zoneBounds[2].toFloat(), zoneColors[1].copy(alpha = zoneAlpha))
+                    drawZone(zoneBounds[2].toFloat(), zoneBounds[3].toFloat(), zoneColors[2].copy(alpha = zoneAlpha))
+                    drawZone(zoneBounds[3].toFloat(), zoneBounds[4].toFloat(), zoneColors[3].copy(alpha = zoneAlpha))
+                    drawZone(zoneBounds[4].toFloat(), yMax.toFloat(), zoneColors[4].copy(alpha = zoneAlpha))
                 }
 
                 val ySteps = 2
