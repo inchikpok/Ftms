@@ -54,7 +54,7 @@ class TreadmillSession(private val appContext: Context) {
     private var startJob: Job? = null
     private var autoReconnectJob: Job? = null
 
-    // [ФИКС] Очереди команд CONFLATED: при быстрых нажатиях «+» дорожка
+    // Очереди команд CONFLATED: при быстрых нажатиях «+» дорожка
     // всегда получает последнее значение, промежуточные схлопываются.
     private val speedChannel = Channel<Double>(Channel.CONFLATED)
     private val inclineChannel = Channel<Double>(Channel.CONFLATED)
@@ -134,7 +134,7 @@ class TreadmillSession(private val appContext: Context) {
         DebugLog.init(appContext)
         scope.launch { ble.scanLog.collect { addLog(it) } }
 
-        // [ФИКС] Воркеры очередей команд: один за раз, последнее значение побеждает.
+        // Воркеры очередей команд: один за раз, последнее значение побеждает.
         scope.launch {
             for (speed in speedChannel) {
                 try {
@@ -158,6 +158,8 @@ class TreadmillSession(private val appContext: Context) {
             }
         }
 
+        // Здесь только копим hrHistory (без обрезки по 30 мин).
+        // Средние считает startMetricsLoop ровно на 1 Гц.
         scope.launch {
             _heartRate.collect { hr ->
                 if (hr > 0 && _uiElapsedSec.value > 0) {
@@ -171,6 +173,7 @@ class TreadmillSession(private val appContext: Context) {
             }
         }
 
+        // speedSum/speedCount больше не накапливаются здесь — только в 1 Гц-цикле.
         scope.launch {
             _treadmillData.collect { d ->
                 val now = System.currentTimeMillis()
@@ -282,6 +285,7 @@ class TreadmillSession(private val appContext: Context) {
 
     fun showMessage(msg: String) { _statusMessage.value = msg }
 
+    // Средние пульс/скорость и прочие метрики — строго 1 Гц.
     private fun startMetricsLoop() {
         scope.launch {
             while (isActive) {
@@ -520,8 +524,6 @@ class TreadmillSession(private val appContext: Context) {
                 hrService.onNotification(it)
             }
         }
-        // [ФИКС] зеркалим пульс из сервиса в сессию — так сброс по таймауту
-        // автоматически доезжает и до UI, и до AutoHR.
         hrMirrorJob = scope.launch {
             hrService.heartRate.collect { _heartRate.value = it }
         }
@@ -548,7 +550,6 @@ class TreadmillSession(private val appContext: Context) {
         val safe = kmh.coerceIn(lo, hi)
         _targetSpeed.value = safe
         lastSpeedCmdTime = System.currentTimeMillis()
-        // [ФИКС] в очередь CONFLATED — быстрое «+++» схлопнется в одно значение.
         speedChannel.trySend(safe)
     }
 
@@ -659,6 +660,9 @@ class TreadmillSession(private val appContext: Context) {
                 if (waitForBeltRunning(0.9, 15000L)) {
                     workoutManager.start(
                         scope = scope, program = program,
+                        // [ФИКС] Локализованный fallback имени сегмента — если у сегмента
+                        // пустое поле name, WorkoutManager подставит «Сегмент N» на нужном языке.
+                        segmentNameProvider = { n -> appContext.getString(R.string.programs_segment_default, n) },
                         onSetSpeed = {
                             val s = settingsStore.settings.value
                             val caps = _capabilities.value
@@ -669,7 +673,6 @@ class TreadmillSession(private val appContext: Context) {
                             val safe = it.coerceIn(lo, hi)
                             _targetSpeed.value = safe
                             lastSpeedCmdTime = System.currentTimeMillis()
-                            // Прямой вызов: WorkoutManager ждёт ответа и ловит ошибки.
                             protocol?.setSpeed(safe)
                         },
                         onSetIncline = {
@@ -698,7 +701,6 @@ class TreadmillSession(private val appContext: Context) {
                             val text = template.replace("{dist}", distStr).replace("{hr}", avgHr.toString())
                             speak(text)
                         },
-                        // [ФИКС] ошибка записи: останавливаем мотор и показываем сообщение.
                         onError = { msg ->
                             addLog("Ошибка тренировки: $msg")
                             protocol?.stop()
