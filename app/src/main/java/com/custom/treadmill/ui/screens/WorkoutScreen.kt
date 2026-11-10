@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,7 +35,10 @@ import kotlin.math.roundToInt
 fun WorkoutScreen(
     vm: MainViewModel,
     onBack: () -> Unit,
-    onOpenDebug: () -> Unit = {}
+    // [ФИКС] Параметр сохранён для совместимости с AppNavHost, но кнопка
+    // отладки из шапки экрана убрана — она мешала и нажималась случайно.
+    // Debug доступен из настроек.
+    @Suppress("UNUSED_PARAMETER") onOpenDebug: () -> Unit = {}
 ) {
     val ws by vm.workoutState.collectAsState()
     val targetSpeed by vm.targetSpeed.collectAsState()
@@ -88,9 +90,8 @@ fun WorkoutScreen(
                         fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }
-                IconButton(onClick = onOpenDebug) {
-                    Icon(Icons.Default.BugReport, contentDescription = stringResource(R.string.debug), tint = MaterialTheme.colorScheme.tertiary)
-                }
+                // Симметричный spacer, чтобы заголовок остался по центру
+                Spacer(Modifier.width(48.dp))
             }
 
             Spacer(Modifier.height(6.dp))
