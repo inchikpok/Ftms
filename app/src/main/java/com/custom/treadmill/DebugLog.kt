@@ -5,12 +5,12 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 // Центральный хаб логирования.
 //
@@ -21,11 +21,18 @@ import java.util.concurrent.Executors
 //
 // Формат: [HH:mm:ss.SSS][TAG] сообщение
 //
-// Теги: SESSION, VM, UI, NAV, TR, HR, PROTO, WM, SVC, SYS, ERR-префикс
+// [ФИКС] Внутри ArrayDeque + снимок в StateFlow раз в 300 мс вместо копирования
+// List на каждую строку. При частом BLE это заметно снижает нагрузку на GC:
+// старый код делал (old + line).takeLast(3000) на каждый emit — O(n) копию
+// списка на 3000 элементов. Новый — O(1) add/removeFirst + один снимок раз в 300мс.
 object DebugLog {
 
     private const val MAX_LINES = 3000
     private const val LOG_KEEP_DAYS = 3
+    private const val EMIT_INTERVAL_MS = 300L
+
+    private val buffer = ArrayDeque<String>(MAX_LINES)
+    private val bufferLock = Any()
 
     private val _lines = MutableStateFlow<List<String>>(emptyList())
     val lines: StateFlow<List<String>> = _lines.asStateFlow()
@@ -33,7 +40,13 @@ object DebugLog {
     private val timeFmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
     private val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
-    private val writer = Executors.newSingleThreadExecutor()
+    // Один writer для файла + один scheduler для периодического снимка в StateFlow.
+    private val writer = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "DebugLog-writer").apply { isDaemon = true }
+    }
+    private val emitter = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "DebugLog-emitter").apply { isDaemon = true }
+    }
 
     @Volatile private var logFile: File? = null
     @Volatile private var logDay: String? = null
@@ -47,9 +60,26 @@ object DebugLog {
             cleanupOld(dir)
             rotate(dir)
             d("SYS", "DebugLog готов, dir=${dir.absolutePath}")
+            // Периодический снимок буфера → StateFlow для UI.
+            emitter.scheduleWithFixedDelay(
+                { emitSnapshot() },
+                EMIT_INTERVAL_MS,
+                EMIT_INTERVAL_MS,
+                TimeUnit.MILLISECONDS
+            )
         } catch (e: Exception) {
             Log.w("DebugLog", "init failed: ${e.message}")
         }
+    }
+
+    private fun emitSnapshot() {
+        try {
+            val snapshot = synchronized(bufferLock) { buffer.toList() }
+            // Если ничего не изменилось — не дёргаем StateFlow зря.
+            if (snapshot.size != _lines.value.size || (snapshot.isNotEmpty() && snapshot.last() != _lines.value.lastOrNull())) {
+                _lines.value = snapshot
+            }
+        } catch (_: Exception) { }
     }
 
     private fun cleanupOld(dir: File) {
@@ -69,8 +99,10 @@ object DebugLog {
 
     fun d(tag: String, msg: String) {
         val line = "[${timeFmt.format(Date())}][$tag] $msg"
-        _lines.update { old ->
-            (old + line).let { if (it.size > MAX_LINES) it.takeLast(MAX_LINES) else it }
+        // [ФИКС] O(1) вставка и удаление в ArrayDeque.
+        synchronized(bufferLock) {
+            if (buffer.size >= MAX_LINES) buffer.removeFirst()
+            buffer.addLast(line)
         }
         Log.d("TC.$tag", msg)
         val f = logFile ?: return
@@ -93,6 +125,7 @@ object DebugLog {
     }
 
     fun clear() {
+        synchronized(bufferLock) { buffer.clear() }
         _lines.value = emptyList()
         writer.execute {
             try { logFile?.writeText("") } catch (_: Exception) {}
@@ -102,7 +135,8 @@ object DebugLog {
     fun exportText(): String = buildString {
         appendLine("=== Treadmill Control debug log ===")
         appendLine("Exported: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}")
-        appendLine("Memory lines: ${_lines.value.size}")
+        val snapshot = synchronized(bufferLock) { buffer.toList() }
+        appendLine("Memory lines: ${snapshot.size}")
         val f = logFile
         if (f != null && f.exists()) {
             appendLine("File: ${f.name} (${f.length()} bytes)")
@@ -111,7 +145,7 @@ object DebugLog {
             catch (e: Exception) { appendLine("read failed: ${e.message}") }
         } else {
             appendLine("-----------------------------------")
-            append(_lines.value.joinToString("\n"))
+            append(snapshot.joinToString("\n"))
         }
     }
 }
