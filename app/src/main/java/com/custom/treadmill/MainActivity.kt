@@ -1,6 +1,7 @@
 package com.custom.treadmill
 
 import android.Manifest
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -27,6 +28,12 @@ class MainActivity : ComponentActivity() {
     private var touchDownX = 0f
     private var touchDownY = 0f
     private var touchDownAt = 0L
+
+    // [ФИКС] BuildConfig.DEBUG недоступен без явного включения buildConfig = true в gradle.
+    // Используем ApplicationInfo.FLAG_DEBUGGABLE — работает всегда, без правок сборки.
+    private val isDebuggable: Boolean by lazy {
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,11 +85,11 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Глобальный перехват тапов/свайпов.
-     * [ФИКС] Логируем ТОЛЬКО в debug-сборке. В release приложение не пишет
+     * Логируем ТОЛЬКО в debug-сборке. В release приложение не пишет
      * координаты каждого тапа в лог — это и приватность, и лишний I/O.
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (BuildConfig.DEBUG) {
+        if (isDebuggable) {
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     touchDownX = ev.x
