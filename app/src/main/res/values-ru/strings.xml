@@ -248,6 +248,9 @@
     <string name="tts_default_pause">Пауза</string>
     <string name="tts_default_resume">Продолжаем</string>
 
+    <!-- Тестовая фраза для кнопки "Прослушать" в настройках TTS -->
+    <string name="tts_test_workout_name">Тестовая тренировка</string>
+
     <plurals name="tts_kmh_plural">
         <item quantity="one">%d километр в час</item>
         <item quantity="few">%d километра в час</item>
@@ -316,6 +319,7 @@
     <string name="debug_cmd_start_note">Только ПОСЛЕ 00 + паузы</string>
     <string name="debug_cmd_stop">Stop (наш способ)</string>
     <string name="debug_cmd_stop_note">Скорость → 0</string>
+    <string name="debug_cmd_stop_hex_note">стоп (%1$s)</string>
     <string name="debug_cmd_pause">Pause (стандарт FTMS)</string>
     <string name="debug_cmd_pause_note">Сбрасывает таймер на дорожке</string>
     <string name="debug_cmd_speed_label">%1$.1f км/ч</string>
@@ -433,7 +437,7 @@
     <string name="hr_waiting_for_data">Ожидание данных пульса…</string>
     <string name="hr_no_data">Нет данных пульса</string>
 
-        <!-- Chart -->
+    <!-- Chart -->
     <string name="chart_hours">%1$dч</string>
 
     <!-- Generator (ProgramGenerator.kt) -->
@@ -446,7 +450,7 @@
     <string name="gen_level_beginner">новичок</string>
     <string name="gen_level_intermediate">средний</string>
     <string name="gen_level_advanced">профи</string>
-    
+
     <!-- Generator Segments -->
     <string name="gen_seg_warmup_walk">Разминка (Ходьба)</string>
     <string name="gen_seg_hill_walk">Ходьба в горку %1$d</string>
@@ -459,7 +463,7 @@
     <string name="gen_seg_slow">Медленно %1$d</string>
     <string name="unit_hour">ч</string>
 
-        <!-- Data / Backup -->
+    <!-- Data / Backup -->
     <string name="settings_group_data">Данные</string>
     <string name="settings_backup_export_title">Экспорт резервной копии</string>
     <string name="settings_backup_export_subtitle">Сохранить все программы, тренировки и настройки в ZIP-файл</string>
@@ -479,16 +483,16 @@
     <string name="backup_restore_in_progress">Восстановление…</string>
     <string name="backup_restore_success_restart">Копия восстановлена. Перезапуск…</string>
 
-        <!-- v2.3.3: warning на импорт с превышением лимитов -->
+    <!-- v2.3.3: warning на импорт с превышением лимитов -->
     <string name="programs_import_overflow">Программа «%1$s» импортирована, но %2$d сегмент(ов) превышают %3$.1f км/ч — проверьте настройки</string>
 
     <!-- v2.3.3: About без шаблона (короткая подсказка) -->
     <string name="about_custom_workout_hint">Создать тренировку: Программы → Создать, или импортировать JSON-файл через 📤. Формат — в README.</string>
-    
+
     <string name="ble_permission_denied">Для подключения дорожки нужны разрешения Bluetooth</string>
 
     <string name="scan_show_all">Показать все BLE-устройства</string>
     <string name="scan_hide_non_matching">Скрыть нерелевантные</string>
     <string name="scan_nothing_matched">Подходящих устройств нет. Попробуйте «Показать все BLE-устройства».</string>
-    
+
 </resources>
