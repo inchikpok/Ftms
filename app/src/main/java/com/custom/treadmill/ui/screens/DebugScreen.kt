@@ -63,8 +63,8 @@ fun DebugScreen(vm: MainViewModel, onBack: () -> Unit) {
         logs.filter { line ->
             val ftmsOk = !hideTreadmillFrames || !line.contains("<- 00002acd")
             val uiOk = !hideUiEvents || !line.contains("[UI]")
-            val navOk = !line.contains("deepLinkIntent") // <--- ДОБАВИТЬ ЭТО
-            ftmsOk && uiOk
+            val navOk = !line.contains("deepLinkIntent")
+            ftmsOk && uiOk && navOk
         }
     }
 
@@ -228,10 +228,10 @@ private fun LogView(
         Column(Modifier.fillMaxSize().padding(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.debug_log_title), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                
+
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("FTMS", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    
+
                     // Компактный Switch для FTMS
                     Box(Modifier.size(34.dp, 24.dp), contentAlignment = Alignment.Center) {
                         Switch(
@@ -240,10 +240,10 @@ private fun LogView(
                             modifier = Modifier.scale(0.7f)
                         )
                     }
-                    
+
                     Spacer(Modifier.width(4.dp))
                     Text("UI", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    
+
                     // Компактный Switch для UI
                     Box(Modifier.size(34.dp, 24.dp), contentAlignment = Alignment.Center) {
                         Switch(
@@ -298,6 +298,7 @@ private fun buildCommandReference(ctx: Context): List<Pair<String, List<CmdEntry
     }
     return listOf(
         ctx.getString(R.string.debug_cmd_group_control) to listOf(
+            // [ФИКС] Названия FTMS-команд оставлены на английском — это термины из спецификации.
             CmdEntry("Request Control", "00", ctx.getString(R.string.debug_cmd_request_control_note)),
             CmdEntry("Reset", "01", ctx.getString(R.string.debug_cmd_reset_note)),
             CmdEntry("Start / Resume", "07", ctx.getString(R.string.debug_cmd_start_note)),
@@ -370,6 +371,7 @@ private fun CommandReference(treadmillReady: Boolean, currentSpeedKmh: Double, o
 
 @Composable
 private fun CommandConstructor(treadmillReady: Boolean, onSend: (String) -> Unit, onStartBelt: () -> Unit, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
     var speedStr by rememberSaveable { mutableStateOf("3") }
     var inclineStr by rememberSaveable { mutableStateOf("2") }
     var lastSent by remember { mutableStateOf<String?>(null) }
@@ -387,7 +389,16 @@ private fun CommandConstructor(treadmillReady: Boolean, onSend: (String) -> Unit
                 val changeHex = "02 %02X %02X".format(raw and 0xFF, (raw shr 8) and 0xFF)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Button(onClick = { onSend(changeHex); lastSent = "speed=$speed ($changeHex)" }, enabled = treadmillReady && speed > 0, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.debug_apply), fontSize = 12.sp) }
-                    OutlinedButton(onClick = { onSend("02 00 00"); lastSent = "стоп (02 00 00)" }, enabled = treadmillReady, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.debug_stop), fontSize = 12.sp) }
+                    OutlinedButton(
+                        onClick = {
+                            onSend("02 00 00")
+                            // [ФИКС] Локализованная метка вместо хардкода «стоп (02 00 00)».
+                            lastSent = ctx.getString(R.string.debug_cmd_stop_hex_note, "02 00 00")
+                        },
+                        enabled = treadmillReady,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) { Text(stringResource(R.string.debug_stop), fontSize = 12.sp) }
                 }
                 Text(changeHex, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
             }
