@@ -57,9 +57,7 @@ import com.custom.treadmill.data.database.ProgramData
 import com.custom.treadmill.data.database.ProgramEntity
 import com.custom.treadmill.data.database.ProgramSegment
 import com.custom.treadmill.logic.ProgramGenerator
-import com.custom.treadmill.logic.SpeedFormatter
 import com.custom.treadmill.logic.WorkoutGoal
-import com.custom.treadmill.ui.LocalTreadmillColors
 import com.custom.treadmill.ui.viewmodels.MainViewModel
 import com.custom.treadmill.ui.viewmodels.ProgramViewModel
 import kotlinx.coroutines.delay
@@ -118,6 +116,7 @@ fun ProgramsScreen(
             }
             programVm.save(data)
 
+            // Warning при превышении лимитов скорости/наклона. Импорт НЕ блокируется.
             val overflow = data.segments.count {
                 it.speedKmh > effectiveMaxSpeed ||
                 (showIncline && it.inclinePercent > effectiveMaxIncline)
@@ -183,7 +182,9 @@ fun ProgramsScreen(
             ExtendedFloatingActionButton(
                 onClick = { showTemplates = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.programs_create)) }
+                text = { Text(stringResource(R.string.programs_create)) },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
     ) { padding ->
@@ -200,7 +201,7 @@ fun ProgramsScreen(
                 Text(
                     stringResource(R.string.programs_title),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp,
+                    fontSize = 24.sp,
                     modifier = Modifier.weight(1f)
                 )
 
@@ -235,11 +236,12 @@ fun ProgramsScreen(
                 )
 
                 Box {
-                    IconButton(
+                    FilledTonalIconButton(
                         onClick = { showSortMenu = true },
-                        modifier = Modifier.size(50.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        modifier = Modifier.size(50.dp),
+                        shape = CircleShape
                     ) {
-                        Icon(Icons.Default.Sort, contentDescription = stringResource(R.string.programs_sort), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.Sort, contentDescription = stringResource(R.string.programs_sort))
                     }
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                         DropdownMenuItem(text = { Text(stringResource(R.string.programs_sort_name_asc)) }, onClick = { sortMode = SortMode.NAME_ASC; showSortMenu = false })
@@ -277,30 +279,17 @@ fun ProgramsScreen(
                 ) {
                     items(visible, key = { it.id }) { p ->
                         val data = remember(p.id, p.segmentsJson) { programVm.toData(p) }
-                        if (data.segments.isEmpty()) {
-                            CorruptedProgramCard(
-                                entity = p,
-                                onDelete = {
-                                    if (workoutState.running && workoutState.programName == p.name) {
-                                        mainVm.showMessage(ctx.getString(R.string.programs_cannot_delete_running))
-                                    } else {
-                                        deleteTarget = p
-                                    }
-                                }
-                            )
-                        } else {
-                            ProgramCardModern(
-                                entity = p, data = data, canStart = treadmillReady,
-                                onEdit = { editingId = p.id; editingData = data },
-                                onDuplicate = { programVm.save(data.copy(name = ctx.getString(R.string.programs_copy_suffix, data.name)), 0L) },
-                                onDelete = {
-                                    if (workoutState.running && workoutState.programName == p.name) mainVm.showMessage(ctx.getString(R.string.programs_cannot_delete_running))
-                                    else deleteTarget = p
-                                },
-                                onExport = { exportTarget = data; exportLauncher.launch("${p.name}.json") },
-                                onStart = { if (treadmillReady) onStartWorkout(data) else showNotConnectedDialog = true }
-                            )
-                        }
+                        ProgramCardModern(
+                            entity = p, data = data, canStart = treadmillReady,
+                            onEdit = { editingId = p.id; editingData = data },
+                            onDuplicate = { programVm.save(data.copy(name = ctx.getString(R.string.programs_copy_suffix, data.name)), 0L) },
+                            onDelete = {
+                                if (workoutState.running && workoutState.programName == p.name) mainVm.showMessage(ctx.getString(R.string.programs_cannot_delete_running))
+                                else deleteTarget = p
+                            },
+                            onExport = { exportTarget = data; exportLauncher.launch("${p.name}.json") },
+                            onStart = { if (treadmillReady) onStartWorkout(data) else showNotConnectedDialog = true }
+                        )
                     }
                 }
             }
@@ -397,56 +386,6 @@ fun ProgramsScreen(
 }
 
 @Composable
-private fun CorruptedProgramCard(entity: ProgramEntity, onDelete: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f))
-    ) {
-        Column(Modifier.fillMaxWidth().padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        entity.name.ifBlank { stringResource(R.string.programs_title) },
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        stringResource(R.string.programs_corrupted_title),
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = stringResource(R.string.delete),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                stringResource(R.string.programs_corrupted_text),
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
 private fun WorkoutGeneratorDialog(
     profile: com.custom.treadmill.data.repository.UserProfile,
     maxSpeed: Double,
@@ -485,7 +424,7 @@ private fun WorkoutGeneratorDialog(
                         WorkoutGoal.SPEED -> R.string.goal_speed_desc
                     }
                     Row(
-                        Modifier.fillMaxWidth().clickable { goal = g }.padding(vertical = 2.dp),
+                        Modifier.fillMaxWidth().clickable { goal = g }.padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(selected = goal == g, onClick = { goal = g })
@@ -525,7 +464,7 @@ private fun WorkoutGeneratorDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onGenerate(goal, duration.toInt(), intensity.toInt()) }) {
+            FilledTonalButton(onClick = { onGenerate(goal, duration.toInt(), intensity.toInt()) }) {
                 Icon(Icons.Default.AutoFixHigh, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.generator_create))
@@ -543,15 +482,8 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
     val maxIncline = 15.0
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val hourSuffix = stringResource(R.string.unit_hour)
 
-    val tc = LocalTreadmillColors.current
-    val speedLow = tc.speedLow
-    val speedMid = tc.speedMid
-    val speedMidHigh = tc.speedMidHigh
-    val speedHigh = tc.speedHigh
-    val speedVeryHigh = tc.speedVeryHigh
-    val chartPurple = tc.chartPurple
+    val hourSuffix = stringResource(R.string.unit_hour)
 
     Canvas(modifier = modifier) {
         val w = size.width
@@ -571,11 +503,11 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
             val drawW = (segW - gap).coerceAtLeast(1f)
             val speedH = (seg.speedKmh.toFloat() / maxSpeed.toFloat()) * chartH * 0.9f
             val speedColor = when {
-                seg.speedKmh < 6.0 -> speedLow
-                seg.speedKmh < 9.0 -> speedMid
-                seg.speedKmh < 12.0 -> speedMidHigh
-                seg.speedKmh < 15.0 -> speedHigh
-                else -> speedVeryHigh
+                seg.speedKmh < 6.0 -> Color(0xFF29B6F6) // Голубой
+                seg.speedKmh < 9.0 -> Color(0xFF66BB6A) // Зеленый
+                seg.speedKmh < 12.0 -> Color(0xFFFFCA28) // Желтый
+                seg.speedKmh < 15.0 -> Color(0xFFFF7043) // Оранжевый
+                else -> Color(0xFFE53935) // Красный
             }
             drawRoundRect(color = speedColor, topLeft = Offset(currentX + gap/2, chartH - speedH), size = Size(drawW, speedH), cornerRadius = CornerRadius(2f, 2f))
 
@@ -583,7 +515,7 @@ private fun WorkoutMiniChart(segments: List<ProgramSegment>, modifier: Modifier 
                 val inclineH = (seg.inclinePercent.toFloat() / maxIncline.toFloat()) * chartH * 0.9f
                 val y = chartH - inclineH
                 val linePath = Path().apply { moveTo(currentX + gap/2, y); lineTo(currentX + segW - gap/2, y) }
-                drawPath(path = linePath, color = chartPurple, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()), 0f)))
+                drawPath(path = linePath, color = Color(0xFFAB47BC), style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()), 0f)))
             }
             currentX += segW
         }
@@ -625,10 +557,10 @@ private fun ProgramCardModern(
 
     Card(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
     ) {
-        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(entity.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
@@ -663,7 +595,7 @@ private fun ProgramCardModern(
             }
             AnimatedVisibility(visible = expanded) {
                 Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                    HorizontalDivider(Modifier.padding(bottom = 8.dp))
+                    HorizontalDivider(Modifier.padding(bottom = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                     data.segments.forEachIndexed { i, seg ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                             Row(verticalAlignment = Alignment.Top) {
@@ -681,14 +613,11 @@ private fun ProgramCardModern(
 
                                 val unitKmh = stringResource(R.string.unit_kmh)
                                 val unitPercent = stringResource(R.string.unit_percent)
-                                val unitPace = stringResource(R.string.unit_pace)
                                 val speedStr = "%.1f".format(seg.speedKmh)
-                                // [ФИКС] Темп в скобках рядом со скоростью.
-                                val paceStr = SpeedFormatter.formatPace(seg.speedKmh)
                                 val inclineStr = "%.0f".format(seg.inclinePercent)
 
                                 Text(
-                                    "$timeStr · $speedStr $unitKmh ($paceStr $unitPace) · $inclineStr$unitPercent",
+                                    "$timeStr · $speedStr $unitKmh · $inclineStr$unitPercent",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
@@ -729,7 +658,8 @@ private fun TemplatesDialog(
                 item {
                     Card(
                         Modifier.fillMaxWidth().clickable { onPick(null) },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary)
@@ -742,7 +672,8 @@ private fun TemplatesDialog(
                 items(templates) { (title, data) ->
                     Card(
                         Modifier.fillMaxWidth().clickable { onPick(data) },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Column(Modifier.padding(12.dp)) {
                             Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
@@ -1036,20 +967,18 @@ private fun HoldableStepButton(icon: androidx.compose.ui.graphics.vector.ImageVe
         }
     }
 
-    val tc = LocalTreadmillColors.current
-    val activeBgColor = if (isPlus) tc.successGreen else tc.exerciseRed
-    val disabledBgColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    val iconTint = if (enabled) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+    val containerColor = if (enabled) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    val contentColor = if (enabled) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
 
     Box(
         modifier = Modifier
             .size(32.dp)
             .clip(CircleShape)
-            .background(if (enabled) activeBgColor else disabledBgColor)
+            .background(containerColor)
             .clickable(interactionSource = interactionSource, indication = null, enabled = enabled, onClick = currentOnClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
+        Icon(imageVector = icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -1113,34 +1042,35 @@ private fun SegmentEditor(
     Card(
         Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)),
-        shape = RoundedCornerShape(10.dp)
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(Modifier.padding(8.dp)) {
+        Column(Modifier.padding(10.dp)) {
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = MaterialTheme.colorScheme.primary, shape = CircleShape, modifier = Modifier.size(20.dp)) {
+                Surface(color = MaterialTheme.colorScheme.primary, shape = CircleShape, modifier = Modifier.size(22.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("${index + 1}", color = MaterialTheme.colorScheme.onPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("${index + 1}", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
 
                 BasicTextField(
                     value = nameState,
                     onValueChange = { nameState = it; onChange(seg.copy(name = it)) },
-                    textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface),
+                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     singleLine = true,
                     modifier = Modifier
                         .weight(1f)
-                        .height(36.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp),
+                        .height(38.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp),
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.fillMaxSize()) {
                             if (nameState.isEmpty()) {
-                                Text(stringResource(R.string.editor_segment_name_placeholder), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 13.sp)
+                                Text(stringResource(R.string.editor_segment_name_placeholder), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 14.sp)
                             }
                             innerTextField()
                         }
@@ -1151,25 +1081,25 @@ private fun SegmentEditor(
 
                 Column {
                     Row {
-                        IconButton(onClick = onMoveUp, enabled = index > 0, modifier = Modifier.size(22.dp)) { Icon(Icons.Default.ArrowUpward, null, modifier = Modifier.size(14.dp)) }
-                        IconButton(onClick = onMoveDown, enabled = index < total - 1, modifier = Modifier.size(22.dp)) { Icon(Icons.Default.ArrowDownward, null, modifier = Modifier.size(14.dp)) }
+                        IconButton(onClick = onMoveUp, enabled = index > 0, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.ArrowUpward, null, modifier = Modifier.size(16.dp)) }
+                        IconButton(onClick = onMoveDown, enabled = index < total - 1, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.ArrowDownward, null, modifier = Modifier.size(16.dp)) }
                     }
                     Row {
-                        IconButton(onClick = onDuplicate, modifier = Modifier.size(22.dp)) { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(14.dp)) }
-                        IconButton(onClick = onDelete, enabled = canDelete, modifier = Modifier.size(22.dp)) {
-                            Icon(Icons.Default.Delete, null, modifier = Modifier.size(14.dp), tint = if (canDelete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                        IconButton(onClick = onDuplicate, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp)) }
+                        IconButton(onClick = onDelete, enabled = canDelete, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp), tint = if (canDelete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
 
-            Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.editor_time), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.editor_time), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     HoldableStepButton(icon = Icons.Default.Remove, onClick = { onChange(seg.copy(durationSec = (seg.durationSec - 5).coerceAtLeast(5))) }, enabled = seg.durationSec > 5, isPlus = false)
                     Text(
                         text = "%02d:%02d".format(seg.durationSec / 60, seg.durationSec % 60),
@@ -1177,38 +1107,24 @@ private fun SegmentEditor(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.width(60.dp).clickable { showTimePicker = true }.padding(vertical = 4.dp)
+                        modifier = Modifier.width(64.dp).clickable { showTimePicker = true }.padding(vertical = 4.dp)
                     )
                     HoldableStepButton(icon = Icons.Default.Add, onClick = { onChange(seg.copy(durationSec = (seg.durationSec + 5).coerceAtMost(3600))) }, enabled = seg.durationSec < 3600, isPlus = true)
                 }
             }
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(4.dp))
 
-            // [ФИКС] Строка скорости. Слева — название и темп мелким шрифтом.
-            // Высота увеличена с 32 до 44 dp, чтобы влезли две строки.
-            Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        stringResource(R.string.editor_speed),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        SpeedFormatter.formatPaceWithUnit(seg.speedKmh, stringResource(R.string.unit_pace)),
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.editor_speed), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     HoldableStepButton(
                         icon = Icons.Default.Remove,
                         onClick = { onChange(seg.copy(speedKmh = (seg.speedKmh - 0.1).coerceAtLeast(0.5).roundToTenth())) },
                         enabled = seg.speedKmh > 0.5,
                         isPlus = false
                     )
-                    Text(text = "%.1f".format(seg.speedKmh), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.width(60.dp))
+                    Text(text = "%.1f".format(seg.speedKmh), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
                     HoldableStepButton(
                         icon = Icons.Default.Add,
                         onClick = { onChange(seg.copy(speedKmh = (seg.speedKmh + 0.1).coerceAtMost(maxSpeed).roundToTenth())) },
@@ -1219,18 +1135,18 @@ private fun SegmentEditor(
             }
 
             if (showIncline) {
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(4.dp))
 
-                Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.editor_incline), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.editor_incline), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         HoldableStepButton(
                             icon = Icons.Default.Remove,
                             onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent - 1.0).coerceAtLeast(0.0))) },
                             enabled = seg.inclinePercent > 0.0,
                             isPlus = false
                         )
-                        Text(text = "%.0f".format(seg.inclinePercent), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.width(60.dp))
+                        Text(text = "%.0f".format(seg.inclinePercent), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
                         HoldableStepButton(
                             icon = Icons.Default.Add,
                             onClick = { onChange(seg.copy(inclinePercent = (seg.inclinePercent + 1.0).coerceAtMost(maxIncline))) },
