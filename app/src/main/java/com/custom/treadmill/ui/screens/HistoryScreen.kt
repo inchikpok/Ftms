@@ -40,6 +40,7 @@ import com.custom.treadmill.ui.viewmodels.ProgramViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private val ZoneColors = listOf(
     Color(0xFF64B5F6), Color(0xFF81C784), Color(0xFFFFD54F), Color(0xFFFFB74D), Color(0xFFE57373)
@@ -266,8 +267,17 @@ private fun CompactLogCard(log: WorkoutLogEntity, isExpanded: Boolean, onToggle:
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                     Spacer(Modifier.height(10.dp))
 
+                    // [ФИКС] Возвращен средний темп (третья колонка)
+                    val paceText = if (log.avgSpeedKmh > 0.1) {
+                        val totalSeconds = (3600.0 / log.avgSpeedKmh).roundToInt()
+                        val min = totalSeconds / 60
+                        val sec = totalSeconds % 60
+                        "%d:%02d".format(min, sec)
+                    } else "—"
+
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         CompactMetric(Icons.Default.Speed, "%.1f ${stringResource(R.string.unit_kmh)}".format(log.avgSpeedKmh), stringResource(R.string.history_avg_speed))
+                        CompactMetric(Icons.Default.Timer, if (log.avgSpeedKmh > 0.1) "$paceText /${stringResource(R.string.unit_km)}" else "—", stringResource(R.string.history_avg_pace))
                         CompactMetric(Icons.Default.FavoriteBorder, if (log.maxHeartRate > 0) "${log.maxHeartRate} ${stringResource(R.string.unit_bpm)}" else "—", stringResource(R.string.history_max_hr))
                     }
 
