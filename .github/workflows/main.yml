@@ -1,0 +1,26 @@
+name: Reset branch to commit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reset to target commit and force push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          TARGET=d5623a718ec8ccf5e19db45c0602806a03691a1d
+
+          git reset --hard "$TARGET"
+          git push --force-with-lease origin HEAD:${{ github.ref_name }}
