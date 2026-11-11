@@ -1,6 +1,6 @@
 # Treadmill Control — состояние проекта
 
-Android-приложение на Kotlin + Compose для управления беговой дорожкой
+Android-приложение на Kotlin + Compose для управления беговой дорожкой  
 через Bluetooth Low Energy (FTMS). Совместимо с любой дорожкой, поддерживающей
 стандарт FTMS (Fitness Machine Service, Bluetooth SIG): FitShow, Horizon,
 Bowflex, Sole, NordicTrack и т.д.
