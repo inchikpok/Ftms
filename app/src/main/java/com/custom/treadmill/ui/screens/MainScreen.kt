@@ -8,8 +8,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
@@ -383,6 +385,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
             else
                 stringResource(R.string.scan_title_hr),
             devices = filtered,
+            allDevices = scanResults, // <--- ПЕРЕДАЕМ ВСЕ УСТРОЙСТВА ДЛЯ ПЕРЕКЛЮЧАТЕЛЯ
             nameProvider = { ble.safeName(it) },
             onSelect = { r ->
                 if (scanMode == ScanMode.TREADMILL) vm.connectTreadmill(r.device)
@@ -712,20 +715,55 @@ private fun MetricBlock(
 private fun ScanDialog(
     title: String,
     devices: List<ScanResult>,
+    allDevices: List<ScanResult>,
     nameProvider: (ScanResult) -> String,
     onSelect: (ScanResult) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var showAll by remember { mutableStateOf(false) }
+    val display = if (showAll) allDevices else devices
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Column {
-                if (devices.isEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (showAll) "Все устройства: ${allDevices.size}"
+                        else "Похожие на дорожку: ${devices.size}",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = showAll,
+                        onCheckedChange = { showAll = it }
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                if (display.isEmpty()) {
                     Text(stringResource(R.string.scan_searching))
-                } else devices.forEach { r ->
-                    TextButton(onClick = { onSelect(r) }) {
-                        Text("${nameProvider(r)}  [${r.rssi} dBm]")
+                } else {
+                    Column(
+                        Modifier
+                            .heightIn(max = 400.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        display.forEach { r ->
+                            TextButton(
+                                onClick = { onSelect(r) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "${nameProvider(r)}  [${r.rssi} dBm]",
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
                     }
                 }
             }
