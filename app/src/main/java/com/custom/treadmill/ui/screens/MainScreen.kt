@@ -8,9 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
@@ -38,8 +37,6 @@ import androidx.compose.ui.unit.sp
 import com.custom.treadmill.R
 import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.ble.BleConnectionState
-import com.custom.treadmill.logic.SpeedFormatter
-import com.custom.treadmill.ui.LocalTreadmillColors
 import com.custom.treadmill.ui.Routes
 import com.custom.treadmill.ui.components.CapabilitiesDialog
 import com.custom.treadmill.ui.components.RollingText
@@ -55,7 +52,6 @@ import kotlin.math.roundToInt
 fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val ctx = LocalContext.current
     val ble = TreadmillApp.instance.bleManager
-    val tc = LocalTreadmillColors.current
 
     val treadmillState by vm.treadmillState.collectAsState()
     val treadmillName by vm.treadmillName.collectAsState()
@@ -113,7 +109,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
 
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) {
+    ) { 
         val granted = hasBlePermissions(ctx)
         permsGranted = granted
         if (granted) {
@@ -144,13 +140,13 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                 Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp)
+                    .padding(horizontal = 12.dp)
             ) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
 
                 Text(
                     stringResource(R.string.app_name),
-                    fontSize = 20.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
@@ -162,7 +158,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                 ) {
                     Text(
                         treadmillName ?: stringResource(R.string.main_no_treadmill),
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         color = if (treadmillName != null)
                             MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -173,20 +169,21 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         Spacer(Modifier.width(6.dp))
                         FilledIconButton(
                             onClick = { showCapsDialog = true },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(28.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                         ) {
                             Icon(
                                 Icons.Default.Info,
                                 contentDescription = stringResource(R.string.main_caps_contentdesc),
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
                 }
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(10.dp))
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CompactStatus(
                         label = stringResource(R.string.main_treadmill_label),
                         deviceName = treadmillName,
@@ -215,9 +212,9 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     paused = workoutState.paused
                 )
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ControlTile(
                         label = stringResource(R.string.main_speed),
                         value = "%.1f".format(targetSpeed),
@@ -225,11 +222,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         enabled = treadmillReady,
                         onMinus = { vm.setSpeed(targetSpeed - speedStep) },
                         onPlus = { vm.setSpeed(targetSpeed + speedStep) },
-                        modifier = Modifier.weight(1f),
-                        subValue = SpeedFormatter.formatPaceWithUnit(
-                            targetSpeed,
-                            stringResource(R.string.unit_pace)
-                        )
+                        modifier = Modifier.weight(1f)
                     )
                     if (showIncline) {
                         ControlTile(
@@ -245,10 +238,14 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     }
                 }
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
 
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(vertical = 8.dp, horizontal = 10.dp)) {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(Modifier.padding(vertical = 10.dp, horizontal = 12.dp)) {
                         Row(Modifier.fillMaxWidth()) {
                             MetricBlock(
                                 stringResource(R.string.main_hr),
@@ -263,7 +260,7 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                                 Modifier.weight(1f)
                             )
                         }
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(8.dp))
                         Row(Modifier.fillMaxWidth()) {
                             MetricBlock(
                                 stringResource(R.string.main_distance),
@@ -281,26 +278,30 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     }
                 }
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
 
-                Card(Modifier.fillMaxWidth()) {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.main_autohr_title), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(stringResource(R.string.main_autohr_title), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                             Text(
                                 if (settings.hrEnabled) stringResource(R.string.main_autohr_target, settings.targetHr)
                                 else stringResource(R.string.main_autohr_off),
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         TextButton(
                             onClick = { onNavigate(Routes.SETTINGS) },
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                        ) { Text(stringResource(R.string.main_autohr_configure), fontSize = 11.sp) }
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) { Text(stringResource(R.string.main_autohr_configure), fontSize = 12.sp) }
                         Switch(
                             checked = settings.hrEnabled,
                             onCheckedChange = { vm.setAutoHrEnabled(it) }
@@ -314,42 +315,39 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
             Card(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                elevation = CardDefaults.cardElevation(4.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                elevation = CardDefaults.cardElevation(0.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(8.dp).height(48.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Modifier.fillMaxWidth().height(52.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = { vm.startTreadmill() },
                         enabled = treadmillReady && !paused,
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        contentPadding = PaddingValues(0.dp)
+                        contentPadding = PaddingValues(0.dp),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(stringResource(R.string.main_btn_start), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.main_btn_start), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     }
 
-                    Button(
+                    FilledTonalButton(
                         onClick = { vm.togglePauseTreadmill() },
                         enabled = treadmillReady,
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         contentPadding = PaddingValues(0.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = if (paused)
-                            ButtonDefaults.buttonColors(
-                                containerColor = tc.successGreen,
-                                contentColor = Color.White
-                            )
+                            ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF2E7D32), contentColor = Color.White)
                         else
-                            ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            ButtonDefaults.filledTonalButtonColors()
                     ) {
                         Text(
                             if (paused) stringResource(R.string.main_btn_resume)
                             else stringResource(R.string.main_btn_pause),
-                            fontSize = 14.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -373,16 +371,18 @@ fun MainScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     }
 
     if (scanMode != ScanMode.NONE) {
+        val filtered = remember(scanResults, scanMode) {
+            scanResults.filter {
+                if (scanMode == ScanMode.TREADMILL) ble.isTreadmillDevice(it)
+                else ble.isHeartRateDevice(it)
+            }
+        }
         ScanDialog(
             title = if (scanMode == ScanMode.TREADMILL)
                 stringResource(R.string.scan_title_treadmill)
             else
                 stringResource(R.string.scan_title_hr),
-            allDevices = scanResults,
-            isLikelyMatch = { r ->
-                if (scanMode == ScanMode.TREADMILL) ble.isTreadmillDevice(r)
-                else ble.isHeartRateDevice(r)
-            },
+            devices = filtered,
             nameProvider = { ble.safeName(it) },
             onSelect = { r ->
                 if (scanMode == ScanMode.TREADMILL) vm.connectTreadmill(r.device)
@@ -401,11 +401,10 @@ private fun SegmentLine(
     segmentName: String,
     paused: Boolean
 ) {
-    val tc = LocalTreadmillColors.current
     Box(
         Modifier
             .fillMaxWidth()
-            .height(22.dp)
+            .height(24.dp)
             .padding(horizontal = 4.dp),
         contentAlignment = Alignment.CenterStart
     ) {
@@ -413,15 +412,15 @@ private fun SegmentLine(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     stringResource(R.string.main_segment_progress, segmentNumber, totalSegments),
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 if (segmentName.isNotBlank()) {
-                    Text(" · ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(" · ", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         segmentName,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -430,9 +429,9 @@ private fun SegmentLine(
                 if (paused) {
                     Text(
                         " · " + stringResource(R.string.main_segment_paused),
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = tc.warningYellow
+                        color = Color(0xFFF9A825)
                     )
                 }
             }
@@ -447,7 +446,6 @@ private fun HoldToConfirmButton(
     modifier: Modifier = Modifier,
     holdDurationMs: Long = 800L
 ) {
-    val tc = LocalTreadmillColors.current
     var isPressing by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     val haptic = LocalHapticFeedback.current
@@ -488,14 +486,14 @@ private fun HoldToConfirmButton(
     ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            shape = ButtonDefaults.shape,
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     stopLabel,
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant
                             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -507,13 +505,13 @@ private fun HoldToConfirmButton(
                 val strokeWidth = 3.dp.toPx()
                 val inset = strokeWidth / 2
                 drawRoundRect(
-                    color = tc.exerciseRed.copy(alpha = 0.15f),
+                    color = Color(0xFFE53935).copy(alpha = 0.15f),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(
                         x = size.height / 2, y = size.height / 2
                     )
                 )
                 drawArc(
-                    color = tc.exerciseRed,
+                    color = Color(0xFFE53935),
                     startAngle = -90f,
                     sweepAngle = 360f * progress,
                     useCenter = false,
@@ -536,57 +534,60 @@ private fun CompactStatus(
     cooldownRemaining: Int,
     modifier: Modifier = Modifier
 ) {
-    val tc = LocalTreadmillColors.current
     val (dotColor, statusText) = when (state) {
-        BleConnectionState.READY -> tc.statusConnected to stringResource(R.string.main_status_connected)
+        BleConnectionState.READY -> Color(0xFF2E7D32) to stringResource(R.string.main_status_connected)
         BleConnectionState.CONNECTING,
         BleConnectionState.CONNECTED,
-        BleConnectionState.DISCOVERING -> tc.statusConnecting to stringResource(R.string.main_status_connecting)
-        BleConnectionState.FAILED -> tc.statusError to stringResource(R.string.main_status_error)
-        BleConnectionState.DISCONNECTED -> tc.statusDisconnected to stringResource(R.string.main_status_none)
+        BleConnectionState.DISCOVERING -> Color(0xFFF9A825) to stringResource(R.string.main_status_connecting)
+        BleConnectionState.FAILED -> Color(0xFFC62828) to stringResource(R.string.main_status_error)
+        BleConnectionState.DISCONNECTED -> Color(0xFF9E9E9E) to stringResource(R.string.main_status_none)
     }
     val connected = state == BleConnectionState.READY
 
-    Card(modifier = modifier, elevation = CardDefaults.cardElevation(1.dp)) {
-        Column(Modifier.fillMaxWidth().padding(8.dp)) {
+    Card(
+        modifier = modifier,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+    ) {
+        Column(Modifier.fillMaxWidth().padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = dotColor, shape = CircleShape, modifier = Modifier.size(7.dp)) {}
-                Spacer(Modifier.width(5.dp))
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Surface(color = dotColor, shape = CircleShape, modifier = Modifier.size(8.dp)) {}
+                Spacer(Modifier.width(6.dp))
+                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
-            Spacer(Modifier.height(1.dp))
+            Spacer(Modifier.height(2.dp))
             Text(
                 statusText,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 deviceName ?: "\u00A0",
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = if (deviceName != null)
                     MaterialTheme.colorScheme.primary
                 else Color.Transparent,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             if (connected) {
                 OutlinedButton(
                     onClick = onDisconnect,
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(vertical = 2.dp)
-                ) { Text(stringResource(R.string.main_btn_disconnect), fontSize = 11.sp) }
+                    modifier = Modifier.fillMaxWidth().height(32.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) { Text(stringResource(R.string.main_btn_disconnect), fontSize = 12.sp) }
             } else {
-                Button(
+                FilledTonalButton(
                     onClick = onConnect,
                     enabled = cooldownRemaining == 0,
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(vertical = 2.dp)
+                    modifier = Modifier.fillMaxWidth().height(32.dp),
+                    contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
                         if (cooldownRemaining > 0) stringResource(R.string.main_btn_cooldown, cooldownRemaining)
                         else stringResource(R.string.main_btn_connect),
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     )
                 }
             }
@@ -603,18 +604,20 @@ private fun ControlTile(
     onMinus: () -> Unit,
     onPlus: () -> Unit,
     modifier: Modifier = Modifier,
-    onReset: (() -> Unit)? = null,
-    // [ФИКС] Подпись под большой цифрой: темп для скорости, null для наклона.
-    subValue: String? = null
+    onReset: (() -> Unit)? = null
 ) {
-    Card(modifier = modifier, elevation = CardDefaults.cardElevation(2.dp)) {
+    Card(
+        modifier = modifier,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+    ) {
         Column(
-            Modifier.fillMaxWidth().padding(8.dp),
+            Modifier.fillMaxWidth().padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 label.uppercase(),
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 1.sp
@@ -622,65 +625,50 @@ private fun ControlTile(
             Row(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(vertical = 1.dp)
+                modifier = Modifier.padding(vertical = 2.dp)
             ) {
                 RollingText(
                     text = value,
-                    fontSize = 28.sp,
+                    fontSize = 36.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.width(3.dp))
+                Spacer(Modifier.width(4.dp))
                 Text(
                     unit,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 5.dp)
+                    modifier = Modifier.padding(bottom = 6.dp)
                 )
             }
-            // [ФИКС] Темп под скоростью. Если subValue == null — резервируем
-            // такую же высоту через Spacer, чтобы карточка наклона не «прыгала»
-            // относительно карточки скорости.
-            if (subValue != null) {
-                Text(
-                    subValue,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 1.dp, bottom = 1.dp)
-                )
-            } else {
-                Spacer(Modifier.height(14.dp))
-            }
-            Spacer(Modifier.height(2.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilledTonalButton(
+            Spacer(Modifier.height(4.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalIconButton(
                     onClick = onMinus,
                     enabled = enabled,
-                    modifier = Modifier.weight(1f).height(34.dp),
-                    contentPadding = PaddingValues(0.dp)
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.more_less), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.more_less), modifier = Modifier.size(18.dp))
                 }
-                FilledTonalButton(
+                FilledTonalIconButton(
                     onClick = onPlus,
                     enabled = enabled,
-                    modifier = Modifier.weight(1f).height(34.dp),
-                    contentPadding = PaddingValues(0.dp)
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.more_greater), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.more_greater), modifier = Modifier.size(18.dp))
                 }
             }
             if (onReset != null) {
                 TextButton(
                     onClick = onReset,
                     enabled = enabled,
-                    modifier = Modifier.height(18.dp),
+                    modifier = Modifier.height(24.dp),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                ) { Text(stringResource(R.string.main_reset), fontSize = 10.sp) }
+                ) { Text(stringResource(R.string.main_reset), fontSize = 11.sp) }
             } else {
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(24.dp))
             }
         }
     }
@@ -699,7 +687,7 @@ private fun MetricBlock(
     ) {
         Text(
             label,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
@@ -709,12 +697,12 @@ private fun MetricBlock(
         ) {
             RollingText(
                 text = value,
-                fontSize = 19.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold
             )
             if (unit.isNotEmpty()) {
-                Spacer(Modifier.width(3.dp))
-                Text(unit, fontSize = 10.sp, modifier = Modifier.padding(bottom = 3.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(unit, fontSize = 11.sp, modifier = Modifier.padding(bottom = 3.dp))
             }
         }
     }
@@ -723,97 +711,22 @@ private fun MetricBlock(
 @Composable
 private fun ScanDialog(
     title: String,
-    allDevices: List<ScanResult>,
-    isLikelyMatch: (ScanResult) -> Boolean,
+    devices: List<ScanResult>,
     nameProvider: (ScanResult) -> String,
     onSelect: (ScanResult) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var showAll by remember { mutableStateOf(false) }
-
-    val visibleDevices = remember(allDevices, showAll) {
-        val base = if (showAll) allDevices else allDevices.filter { isLikelyMatch(it) }
-        base.sortedWith(
-            compareByDescending<ScanResult> { isLikelyMatch(it) }
-                .thenByDescending { it.rssi }
-        )
-    }
-
-    val totalCount = allDevices.size
-    val visibleCount = visibleDevices.size
-    val likelyCount = allDevices.count { isLikelyMatch(it) }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(Modifier.fillMaxWidth()) {
-                Text(
-                    "Найдено: $totalCount · подходящих: $likelyCount",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(4.dp))
-
-                if (visibleCount == 0) {
-                    Text(
-                        if (showAll) stringResource(R.string.scan_searching)
-                        else stringResource(R.string.scan_nothing_matched),
-                        fontSize = 13.sp
-                    )
-                } else {
-                    LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                        items(visibleDevices, key = { it.device.address }) { r ->
-                            val likely = isLikelyMatch(r)
-                            TextButton(
-                                onClick = { onSelect(r) },
-                                modifier = Modifier.fillMaxWidth(),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
-                            ) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            if (likely) {
-                                                Text(
-                                                    "★ ",
-                                                    fontSize = 13.sp,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                            Text(
-                                                nameProvider(r),
-                                                fontSize = 13.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        Text(
-                                            r.device.address,
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Text(
-                                        "${r.rssi} dBm",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
+            Column {
+                if (devices.isEmpty()) {
+                    Text(stringResource(R.string.scan_searching))
+                } else devices.forEach { r ->
+                    TextButton(onClick = { onSelect(r) }) {
+                        Text("${nameProvider(r)}  [${r.rssi} dBm]")
                     }
-                }
-
-                Spacer(Modifier.height(6.dp))
-                TextButton(
-                    onClick = { showAll = !showAll },
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        if (showAll) stringResource(R.string.scan_hide_non_matching)
-                        else stringResource(R.string.scan_show_all),
-                        fontSize = 12.sp
-                    )
                 }
             }
         },
