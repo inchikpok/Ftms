@@ -33,8 +33,6 @@ import com.custom.treadmill.TreadmillApp
 import com.custom.treadmill.data.database.HrSamplesCodec
 import com.custom.treadmill.data.database.WorkoutLogEntity
 import com.custom.treadmill.logic.HeartRateZoneCalculator
-import com.custom.treadmill.logic.SpeedFormatter
-import com.custom.treadmill.ui.LocalTreadmillColors
 import com.custom.treadmill.ui.components.HeartRateChart
 import com.custom.treadmill.ui.components.HrPoint
 import com.custom.treadmill.ui.components.HrSparkline
@@ -43,14 +41,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@Composable
-private fun zoneColors(): List<Color> {
-    val tc = LocalTreadmillColors.current
-    return remember(tc) {
-        listOf(tc.chartBlue, tc.chartGreen, tc.chartYellow, tc.chartOrange, tc.chartRed)
-    }
-}
+private val ZoneColors = listOf(
+    Color(0xFF64B5F6), Color(0xFF81C784), Color(0xFFFFD54F), Color(0xFFFFB74D), Color(0xFFE57373)
+)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
     val logs by programVm.logs.collectAsState()
@@ -75,7 +70,7 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
             Text(
                 stringResource(R.string.history_title),
                 fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
+                fontSize = 22.sp,
                 modifier = Modifier.weight(1f)
             )
             Box {
@@ -100,9 +95,22 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TabChip(stringResource(R.string.history_tab_list), tab == 0) { tab = 0 }
-            TabChip(stringResource(R.string.history_tab_stats), tab == 1) { tab = 1 }
-            Spacer(Modifier.weight(1f))
+            SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
+                SegmentedButton(
+                    selected = tab == 0,
+                    onClick = { tab = 0 },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                ) {
+                    Text(stringResource(R.string.history_tab_list))
+                }
+                SegmentedButton(
+                    selected = tab == 1,
+                    onClick = { tab = 1 },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                ) {
+                    Text(stringResource(R.string.history_tab_stats))
+                }
+            }
             if (tab == 1) {
                 IconButton(onClick = { showHrInfo = true }) {
                     Icon(Icons.Default.Info, contentDescription = stringResource(R.string.history_hr_info_contentdesc), tint = MaterialTheme.colorScheme.primary)
@@ -157,12 +165,11 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
     }
 
     if (showHrInfo) {
-        val tc = LocalTreadmillColors.current
         val withHr = logs.count { it.avgHeartRate > 0 }
         val withoutHr = logs.size - withHr
         AlertDialog(
             onDismissRequest = { showHrInfo = false },
-            icon = { Icon(Icons.Default.Favorite, contentDescription = null, tint = tc.metricRed) },
+            icon = { Icon(Icons.Default.Favorite, contentDescription = null, tint = Color(0xFFC62828)) },
             title = { Text(stringResource(R.string.history_hr_info_title)) },
             text = {
                 Column {
@@ -179,15 +186,6 @@ fun HistoryScreen(programVm: ProgramViewModel, onBack: (() -> Unit)? = null) {
             },
             confirmButton = { TextButton(onClick = { showHrInfo = false }) { Text(stringResource(R.string.history_hr_info_ok)) } }
         )
-    }
-}
-
-@Composable
-private fun TabChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    if (selected) {
-        Button(onClick = onClick, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) { Text(text, fontSize = 14.sp) }
-    } else {
-        OutlinedButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) { Text(text, fontSize = 14.sp) }
     }
 }
 
@@ -232,11 +230,6 @@ private fun LogsList(logs: List<WorkoutLogEntity>) {
 
 @Composable
 private fun CompactLogCard(log: WorkoutLogEntity, isExpanded: Boolean, onToggle: () -> Unit, zoneBounds: List<Int>) {
-    val tc = LocalTreadmillColors.current
-    val zoneColors = zoneColors()
-    val unitKmh = stringResource(R.string.unit_kmh)
-    val unitPace = stringResource(R.string.unit_pace)
-
     val fmt = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
     val isManual = log.programName.isBlank() || log.programName == "Ручная тренировка" || log.programName == "Manual workout"
     val displayName = if (isManual) stringResource(R.string.manual_workout) else log.programName
@@ -246,18 +239,18 @@ private fun CompactLogCard(log: WorkoutLogEntity, isExpanded: Boolean, onToggle:
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(Modifier.padding(12.dp).animateContentSize()) {
+        Column(Modifier.padding(14.dp).animateContentSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(fmt.format(Date(log.dateMillis)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(displayName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (log.avgHeartRate > 0) {
-                    Surface(color = tc.chartRed.copy(alpha = 0.15f), shape = RoundedCornerShape(12.dp)) {
+                    Surface(color = Color(0xFFE57373).copy(alpha = 0.15f), shape = RoundedCornerShape(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                            Icon(Icons.Default.Favorite, contentDescription = null, tint = tc.metricRed, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.Favorite, contentDescription = null, tint = Color(0xFFC62828), modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("${log.avgHeartRate}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = tc.metricRed)
+                            Text("${log.avgHeartRate}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
                         }
                     }
                     Spacer(Modifier.width(8.dp))
@@ -274,31 +267,19 @@ private fun CompactLogCard(log: WorkoutLogEntity, isExpanded: Boolean, onToggle:
             }
 
             AnimatedVisibility(visible = isExpanded) {
-                Column(Modifier.padding(top = 12.dp)) {
+                Column(Modifier.padding(top = 14.dp)) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(12.dp))
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        CompactMetric(
-                            Icons.Default.Speed,
-                            "%.1f $unitKmh".format(log.avgSpeedKmh),
-                            stringResource(R.string.history_avg_speed)
-                        )
-                        CompactMetric(
-                            Icons.Default.Schedule,
-                            SpeedFormatter.formatPaceWithUnit(log.avgSpeedKmh, unitPace),
-                            stringResource(R.string.history_avg_pace)
-                        )
-                        CompactMetric(
-                            Icons.Default.FavoriteBorder,
-                            if (log.maxHeartRate > 0) "${log.maxHeartRate} ${stringResource(R.string.unit_bpm)}" else "—",
-                            stringResource(R.string.history_max_hr)
-                        )
+                        CompactMetric(Icons.Default.Speed, "%.1f ${stringResource(R.string.unit_kmh)}".format(log.avgSpeedKmh), stringResource(R.string.history_avg_speed))
+                        CompactMetric(Icons.Default.FavoriteBorder, if (log.maxHeartRate > 0) "${log.maxHeartRate} ${stringResource(R.string.unit_bpm)}" else "—", stringResource(R.string.history_max_hr))
                     }
 
+                    val samples = remember(log.hrSamples) { HrSamplesCodec.decode(log.hrSamples) }
+
                     if (log.avgHeartRate > 0) {
-                        val samples = remember(log.hrSamples) { HrSamplesCodec.decode(log.hrSamples) }
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(14.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.history_hr_in_workout), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (samples.isNotEmpty()) {
@@ -307,36 +288,39 @@ private fun CompactLogCard(log: WorkoutLogEntity, isExpanded: Boolean, onToggle:
                                 Text(stringResource(R.string.history_hr_minmax, mn, mx), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        Spacer(Modifier.height(4.dp))
-                        HrSparkline(samples = samples, durationSec = log.durationSec, modifier = Modifier.fillMaxWidth().height(56.dp))
+                        Spacer(Modifier.height(6.dp))
+                        if (samples.isNotEmpty()) {
+                            HrSparkline(samples = samples, durationSec = log.durationSec, modifier = Modifier.fillMaxWidth().height(56.dp))
+                        } else {
+                            Box(Modifier.fillMaxWidth().height(40.dp), contentAlignment = Alignment.Center) {
+                                Text(stringResource(R.string.hr_no_data), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
 
-                    if (log.avgHeartRate > 0 && zoneBounds.size == 5) {
-                        Spacer(Modifier.height(12.dp))
+                    // [ФИКС] Показываем зоны ТОЛЬКО если есть реальные данные пульса (samples.isNotEmpty())
+                    if (samples.isNotEmpty() && zoneBounds.size == 5) {
+                        Spacer(Modifier.height(14.dp))
                         val zoneDurations = remember(log, zoneBounds) { computeZoneDurations(log, zoneBounds) }
                         val totalSec = zoneDurations.sum().coerceAtLeast(1L)
-                        val hasRealData = log.hrSamples.isNotBlank()
 
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.history_hr_zones), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                            if (!hasRealData) {
-                                Text(stringResource(R.string.history_hr_zones_approx), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontStyle = FontStyle.Italic)
-                            }
-                        }
-                        Spacer(Modifier.height(6.dp))
-
-                        Row(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))) {
-                            zoneDurations.forEachIndexed { i, sec ->
-                                if (sec > 0) Box(Modifier.weight(sec.toFloat()).fillMaxHeight().background(zoneColors[i]))
-                            }
                         }
                         Spacer(Modifier.height(8.dp))
+
+                        Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp))) {
+                            zoneDurations.forEachIndexed { i, sec ->
+                                if (sec > 0) Box(Modifier.weight(sec.toFloat()).fillMaxHeight().background(ZoneColors[i]))
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
 
                         zoneDurations.forEachIndexed { i, sec ->
                             if (sec > 0) {
                                 val pct = (sec.toFloat() / totalSec) * 100f
                                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(Modifier.size(6.dp).background(zoneColors[i], CircleShape))
+                                    Box(Modifier.size(8.dp).background(ZoneColors[i], CircleShape))
                                     Spacer(Modifier.width(8.dp))
                                     Text(getZoneName(i), fontSize = 12.sp, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
                                     Text(formatZoneDuration(sec), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(50.dp), textAlign = TextAlign.End)
@@ -358,7 +342,7 @@ private fun CompactMetric(icon: androidx.compose.ui.graphics.vector.ImageVector,
         Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(4.dp))
         Column {
-            Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+            Text(value, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
             if (label != null) Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -377,7 +361,11 @@ private fun StatsView(logs: List<WorkoutLogEntity>) {
 
         if (withHr.isEmpty()) {
             Spacer(Modifier.height(12.dp))
-            Card(Modifier.fillMaxWidth()) {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
                 Column(Modifier.padding(16.dp)) {
                     Text(stringResource(R.string.history_no_hr_title), fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
@@ -410,27 +398,22 @@ private fun SummaryCard(logs: List<WorkoutLogEntity>) {
     val totalKm = logs.sumOf { it.distanceKm }
     val totalKcal = logs.sumOf { it.calories }
 
-    val avgSpeed = if (logs.isNotEmpty()) logs.sumOf { it.avgSpeedKmh } / logs.size else 0.0
-    val unitKmh = stringResource(R.string.unit_kmh)
-    val unitPace = stringResource(R.string.unit_pace)
-
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
-        Column(Modifier.padding(14.dp)) {
-            Text(stringResource(R.string.history_summary_title), fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(10.dp))
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(stringResource(R.string.history_summary_title), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth()) {
                 StatBlock(stringResource(R.string.history_summary_workouts), "${logs.size}", Modifier.weight(1f))
                 StatBlock(stringResource(R.string.history_summary_time), formatDuration(totalSec), Modifier.weight(1f))
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth()) {
-                StatBlock(stringResource(R.string.history_summary_distance), "%.1f $unitKmh".format(totalKm).replace(unitKmh, stringResource(R.string.unit_km)), Modifier.weight(1f))
+                StatBlock(stringResource(R.string.history_summary_distance), "%.1f ${stringResource(R.string.unit_km)}".format(totalKm), Modifier.weight(1f))
                 StatBlock(stringResource(R.string.history_summary_calories), "$totalKcal", Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth()) {
-                StatBlock(stringResource(R.string.history_summary_speed), "%.1f $unitKmh".format(avgSpeed), Modifier.weight(1f))
-                StatBlock(stringResource(R.string.history_summary_pace), SpeedFormatter.formatPaceWithUnit(avgSpeed, unitPace), Modifier.weight(1f))
             }
         }
     }
@@ -441,13 +424,12 @@ private fun StatBlock(label: String, value: String, modifier: Modifier = Modifie
     Column(modifier) {
         Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(2.dp))
-        Text(value, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
-    val tc = LocalTreadmillColors.current
     val avgAll = logs.map { it.avgHeartRate }.average().toInt()
     val maxAll = logs.maxOf { it.maxHeartRate }
     val minAll = logs.minOf { it.avgHeartRate }
@@ -460,10 +442,14 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
         diff to (diff <= 0)
     } else null
 
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
-        Column(Modifier.padding(14.dp)) {
-            Text(stringResource(R.string.history_hr_card_title), fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(10.dp))
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(stringResource(R.string.history_hr_card_title), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth()) {
                 StatBlock(stringResource(R.string.history_hr_avg), "$avgAll", Modifier.weight(1f))
                 StatBlock(stringResource(R.string.history_hr_max), "$maxAll", Modifier.weight(1f))
@@ -471,9 +457,9 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
             }
 
             if (trend != null) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
                 val (diff, improved) = trend
-                val color = if (improved) tc.successGreen else tc.exerciseRed
+                val color = if (improved) Color(0xFF2E7D32) else Color(0xFFC62828)
                 val arrow = if (diff < 0) "↓" else if (diff > 0) "↑" else "→"
                 val sign = if (diff > 0) "+" else ""
                 val message = when {
@@ -482,11 +468,11 @@ private fun HeartSummaryCard(logs: List<WorkoutLogEntity>) {
                     else -> stringResource(R.string.history_trend_stable)
                 }
                 Surface(color = color.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(arrow, fontSize = 22.sp, color = color, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.width(10.dp))
+                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(arrow, fontSize = 24.sp, color = color, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.history_trend, sign, diff), color = color, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.history_trend, sign, diff), color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text(message, fontSize = 12.sp, color = color)
                         }
                     }
@@ -503,8 +489,6 @@ private data class ZoneStat(val seconds: Long, val percent: Float)
 
 @Composable
 private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
-    val zoneColors = zoneColors()
-
     val stats = remember(logs, zoneBounds) {
         if (logs.isEmpty() || zoneBounds.size != 5) return@remember List(5) { ZoneStat(0L, 0f) }
         val durations = LongArray(5)
@@ -519,28 +503,32 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
     }
     val totalSec = stats.sumOf { it.seconds }
 
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
-        Column(Modifier.padding(14.dp)) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.history_zones_title), fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.history_zones_title), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(Modifier.height(2.dp))
-                    Text(stringResource(R.string.history_zones_total, formatZoneDuration(totalSec)), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.history_zones_total, formatZoneDuration(totalSec)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Spacer(Modifier.height(16.dp))
 
             Row(Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(8.dp))) {
                 stats.forEachIndexed { i, stat ->
-                    if (stat.percent > 0f) Box(Modifier.weight(stat.percent).fillMaxHeight().background(zoneColors[i]))
+                    if (stat.percent > 0f) Box(Modifier.weight(stat.percent).fillMaxHeight().background(ZoneColors[i]))
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
 
             stats.forEachIndexed { i, stat ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).background(zoneColors[i], CircleShape))
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).background(ZoneColors[i], CircleShape))
                     Spacer(Modifier.width(8.dp))
                     Text(getZoneName(i), fontSize = 13.sp, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
                     Text(
@@ -556,11 +544,11 @@ private fun ZoneStatsCard(logs: List<WorkoutLogEntity>, zoneBounds: List<Int>) {
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            Spacer(Modifier.height(6.dp))
-            Text(stringResource(R.string.history_zones_bounds, zoneBounds.joinToString(" / ")), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(stringResource(R.string.history_zones_note), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Text(stringResource(R.string.history_zones_bounds, zoneBounds.joinToString(" / ")), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.history_zones_note), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -572,7 +560,11 @@ private fun ChartCard(title: String, subtitle: String, points: List<HrPoint>) {
             Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
             Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
             Box(Modifier.padding(12.dp)) {
                 HeartRateChart(points = points, targetHr = 0, zoneBounds = emptyList(), showTargetLine = false, modifier = Modifier.fillMaxWidth().height(180.dp))
             }
@@ -594,7 +586,15 @@ private fun getZoneName(index: Int): String {
 private fun computeZoneDurations(log: WorkoutLogEntity, zoneBounds: List<Int>): LongArray {
     if (zoneBounds.size != 5 || log.durationSec <= 0) return LongArray(5)
     val samples = HrSamplesCodec.decode(log.hrSamples)
-    if (samples.isEmpty()) return estimateZoneDurations(log.durationSec, log.avgHeartRate, log.maxHeartRate, zoneBounds)
+    if (samples.isEmpty()) return LongArray(5) // [ФИКС] Если нет данных, возвращаем нули (без аппроксимации в UI)
+
+    fun zoneOf(bpm: Int): Int = when {
+        bpm < zoneBounds[0] -> 0
+        bpm < zoneBounds[1] -> 1
+        bpm < zoneBounds[2] -> 2
+        bpm < zoneBounds[3] -> 3
+        else -> 4
+    }
 
     val durations = LongArray(5)
     val endT = log.durationSec
@@ -606,56 +606,14 @@ private fun computeZoneDurations(log: WorkoutLogEntity, zoneBounds: List<Int>): 
         if (t0 >= endT) break
         val dt = (t1 - t0).coerceAtLeast(0)
         if (dt <= 0) continue
-        // [ФИКС] Единый zoneOf из HeartRateZoneCalculator — та же схема,
-        // что в ProfilesScreen и в графике пульса.
-        durations[HeartRateZoneCalculator.zoneOf(bpm0, zoneBounds)] += dt.coerceAtMost(10).toLong()
+        durations[zoneOf(bpm0)] += dt.coerceAtMost(10).toLong()
     }
     val lastT = samples.last().first
     val lastBpm = samples.last().second
     val tail = (endT - lastT.coerceAtLeast(0)).coerceAtLeast(0).coerceAtMost(10)
-    if (tail > 0) durations[HeartRateZoneCalculator.zoneOf(lastBpm, zoneBounds)] += tail.toLong()
+    if (tail > 0) durations[zoneOf(lastBpm)] += tail.toLong()
 
     return durations
-}
-
-private fun estimateZoneDurations(durationSec: Int, avgHr: Int, maxHr: Int, zoneBounds: List<Int>): LongArray {
-    if (avgHr <= 0 || durationSec <= 0 || zoneBounds.size != 5) return LongArray(5)
-    val safeMax = maxHr.coerceAtLeast(avgHr)
-    // [ФИКС] Центры зон по новой схеме: Z1 = <zones[1] (60%),
-    // Z2..Z4 = между соседними границами 1..4, Z5 = >zones[4] (90%).
-    val centers = doubleArrayOf(
-        (40.0 + zoneBounds[1]) / 2.0,
-        (zoneBounds[1] + zoneBounds[2]) / 2.0,
-        (zoneBounds[2] + zoneBounds[3]) / 2.0,
-        (zoneBounds[3] + zoneBounds[4]) / 2.0,
-        (zoneBounds[4] + 200.0) / 2.0
-    )
-    val sigma = ((safeMax - avgHr).coerceAtLeast(10) / 1.5).coerceAtLeast(8.0)
-    val variance2 = 2.0 * sigma * sigma
-    val weights = DoubleArray(5) { i ->
-        val dist = centers[i] - avgHr
-        val base = kotlin.math.exp(-(dist * dist) / variance2)
-        // [ФИКС] Пиковая зона — та, где реально был максимум пульса,
-        // теперь с учётом zones[4] (90%).
-        val isPeakZone = (i == 4 && safeMax >= zoneBounds[4]) ||
-                         (i == 3 && safeMax >= zoneBounds[3] && safeMax < zoneBounds[4]) ||
-                         (i == 2 && safeMax >= zoneBounds[2] && safeMax < zoneBounds[3])
-        if (isPeakZone) base + 0.4 else base
-    }
-    val sumW = weights.sum()
-    if (sumW == 0.0) return LongArray(5).also { it[0] = durationSec.toLong() }
-    val result = LongArray(5)
-    var remaining = durationSec.toLong()
-    for (i in 0..4) {
-        val sec = (durationSec * weights[i] / sumW).toLong()
-        result[i] = sec
-        remaining -= sec
-    }
-    if (remaining > 0) {
-        val maxIdx = weights.indices.maxByOrNull { weights[it] } ?: 0
-        result[maxIdx] += remaining
-    }
-    return result
 }
 
 @Composable
