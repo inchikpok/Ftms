@@ -1109,7 +1109,8 @@ private fun SegmentEditor(
 
             Spacer(Modifier.height(2.dp))
 
-            Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Строка скорости с темпом. Убрана жесткая высота height(32.dp), чтобы вторая строка помещалась.
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.editor_speed), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                     if (seg.speedKmh > 0.1) {
@@ -1140,7 +1141,7 @@ private fun SegmentEditor(
             if (showIncline) {
                 Spacer(Modifier.height(2.dp))
 
-                Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.editor_incline), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         HoldableStepButton(
